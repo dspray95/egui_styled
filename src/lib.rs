@@ -8,6 +8,7 @@ pub use color::{rgb, rgba};
 
 use crate::containers::frame::StyledFrame;
 use crate::widgets::button::StyledButton;
+use crate::widgets::text_edit::StyledTextEdit;
 use egui::WidgetText;
 
 pub struct Styled;
@@ -19,5 +20,9 @@ impl Styled {
 
     pub fn button(text: impl Into<WidgetText>) -> StyledButton {
         StyledButton::new(text)
+    }
+
+    pub fn text_edit(text: &mut String) -> StyledTextEdit<'_> {
+        StyledTextEdit::new(text)
     }
 }
