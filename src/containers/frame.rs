@@ -3,7 +3,7 @@ use egui::{InnerResponse, Ui};
 use crate::{impl_style_builders, style::shared_style::SharedStyle};
 
 pub struct StyledFrame {
-    style: SharedStyle,
+    pub style: SharedStyle,
 }
 
 impl StyledFrame {

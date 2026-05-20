@@ -82,6 +82,18 @@ impl SharedStyle {
             cursor_icon: self.cursor_icon,
         }
     }
+
+    pub fn has_frame_styles(&self) -> bool {
+        self.bg.is_some()
+            || self.hover_bg.is_some()
+            || self.active_bg.is_some()
+            || self.focus_bg.is_some()
+            || self.border.is_some()
+            || self.hover_border.is_some()
+            || self.focus_border.is_some()
+            || self.padding.is_some()
+            || self.corner_radius.is_some()
+    }
 }
 
 #[cfg(test)]
