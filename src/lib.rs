@@ -2,6 +2,7 @@ pub mod color;
 pub mod containers;
 pub mod state;
 pub mod style;
+pub mod theme;
 pub mod widgets;
 
 pub use color::{rgb, rgba};
@@ -9,6 +10,7 @@ pub use color::{rgb, rgba};
 use crate::containers::column::StyledColumn;
 use crate::containers::frame::StyledFrame;
 use crate::containers::row::StyledRow;
+use crate::theme::StyledTheme;
 use crate::widgets::button::StyledButton;
 use crate::widgets::text_edit::StyledTextEdit;
 use egui::WidgetText;
@@ -34,5 +36,9 @@ impl Styled {
 
     pub fn column() -> StyledColumn {
         StyledColumn::new()
+    }
+
+    pub fn theme() -> StyledTheme {
+        StyledTheme::default()
     }
 }
