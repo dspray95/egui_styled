@@ -52,7 +52,13 @@ fn theme_demo(ui: &mut egui::Ui, state: &mut AppState) {
 
                 Styled::row().gap(theme.spacing_sm).show(ui, |ui| {
                     swatch(ui, "primary", theme.bg_primary, theme.fg_primary, &theme);
-                    swatch(ui, "secondary", theme.bg_secondary, theme.fg_primary, &theme);
+                    swatch(
+                        ui,
+                        "secondary",
+                        theme.bg_secondary,
+                        theme.fg_primary,
+                        &theme,
+                    );
                     swatch(ui, "surface", theme.bg_surface, theme.fg_primary, &theme);
                     swatch(ui, "elevated", theme.bg_elevated, theme.fg_primary, &theme);
                 });
@@ -167,7 +173,7 @@ fn parchment() -> StyledTheme {
 fn main() -> eframe::Result<()> {
     let mut state = AppState::default();
     let mut initialized = false;
-    eframe::run_simple_native(
+    eframe::run_ui_native(
         "egui_styled theme demo",
         eframe::NativeOptions::default(),
         move |ctx, _| {
@@ -175,7 +181,7 @@ fn main() -> eframe::Result<()> {
                 ctx.set_styled_theme(midnight());
                 initialized = true;
             }
-            CentralPanel::default().show(ctx, |ui| theme_demo(ui, &mut state));
+            CentralPanel::default().show_inside(ctx, |ui| theme_demo(ui, &mut state));
         },
     )
 }

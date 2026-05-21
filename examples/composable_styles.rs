@@ -68,7 +68,9 @@ fn composable_styles_example(ui: &mut egui::Ui, state: &mut AppState) {
                 .show(ui);
 
             Styled::row().gap(t.spacing_sm).show(ui, |ui| {
-                Styled::button("Cancel").apply(secondary_button(&t)).show(ui);
+                Styled::button("Cancel")
+                    .apply(secondary_button(&t))
+                    .show(ui);
                 Styled::button("Save").apply(primary_button(&t)).show(ui);
             });
         });
@@ -121,7 +123,7 @@ fn slate_pink() -> StyledTheme {
 fn main() -> eframe::Result<()> {
     let mut state = AppState::default();
     let mut initialized = false;
-    eframe::run_simple_native(
+    eframe::run_ui_native(
         "egui_styled composable styles",
         eframe::NativeOptions::default(),
         move |ctx, _| {
@@ -129,7 +131,8 @@ fn main() -> eframe::Result<()> {
                 ctx.set_styled_theme(slate_pink());
                 initialized = true;
             }
-            CentralPanel::default().show(ctx, |ui| composable_styles_example(ui, &mut state));
+            CentralPanel::default()
+                .show_inside(ctx, |ui| composable_styles_example(ui, &mut state));
         },
     )
 }

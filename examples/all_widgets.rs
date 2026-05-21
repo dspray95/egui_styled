@@ -90,9 +90,7 @@ fn all_widgets(ui: &mut egui::Ui, state: &mut AppState) {
 
                 // --- Combo box ---
                 Styled::row().gap(t.spacing_sm).show(ui, |ui| {
-                    Styled::label("Quality")
-                        .text_color(t.fg_secondary)
-                        .show(ui);
+                    Styled::label("Quality").text_color(t.fg_secondary).show(ui);
 
                     Styled::combo_box("quality_select", state.quality.label())
                         .width(120.0)
@@ -100,7 +98,8 @@ fn all_widgets(ui: &mut egui::Ui, state: &mut AppState) {
                         .corner_radius(t.rounding_md)
                         .border(1.0, t.border)
                         .show(ui, |ui| {
-                            for q in [Quality::Low, Quality::Medium, Quality::High, Quality::Ultra] {
+                            for q in [Quality::Low, Quality::Medium, Quality::High, Quality::Ultra]
+                            {
                                 ui.selectable_value(&mut state.quality, q, q.label());
                             }
                         });
@@ -181,7 +180,7 @@ fn main() -> eframe::Result<()> {
         ..Default::default()
     };
     let mut initialized = false;
-    eframe::run_simple_native(
+    eframe::run_ui_native(
         "egui_styled all widgets",
         eframe::NativeOptions::default(),
         move |ctx, _| {
@@ -189,7 +188,7 @@ fn main() -> eframe::Result<()> {
                 ctx.set_styled_theme(warm_terminal());
                 initialized = true;
             }
-            CentralPanel::default().show(ctx, |ui| all_widgets(ui, &mut state));
+            CentralPanel::default().show_inside(ctx, |ui| all_widgets(ui, &mut state));
         },
     )
 }

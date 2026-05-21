@@ -48,11 +48,11 @@ fn containers_example(ui: &mut egui::Ui) {
 }
 
 fn main() -> eframe::Result<()> {
-    eframe::run_simple_native(
+    eframe::run_ui_native(
         "egui_styled containers",
         eframe::NativeOptions::default(),
         |ctx, _| {
-            CentralPanel::default().show(ctx, |ui| containers_example(ui));
+            CentralPanel::default().show_inside(ctx, |ui| containers_example(ui));
         },
     )
 }
