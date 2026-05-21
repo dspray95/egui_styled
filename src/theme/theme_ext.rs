@@ -1,82 +1,107 @@
-use egui::Id;
+use egui::{Context, Id};
+use std::any::TypeId;
 
 use crate::theme::StyledTheme;
 
-fn theme_id() -> Id {
-    Id::new("egui_styled::StyledTheme")
+fn slot_id() -> Id {
+    Id::new("egui_styled::design_slot")
 }
 
-/// Context-attached accessors for the active [`StyledTheme`].
+/// Typed storage for design data on [`egui::Context`].
 ///
-/// Implemented for [`egui::Context`]. Call `set_styled_theme` once at app
-/// startup, then `ui.ctx().styled_theme()` anywhere you need the tokens.
+/// One slot per `TypeId` — `set_design_data::<MyColors>(c)` overwrites any
+/// previous `MyColors`, but doesn't touch other types like
+/// [`StyledTheme`] or your own `AudioCues` / `SyntaxColors`. The crate uses
+/// this primitive for [`StyledTheme`] itself; everything else is yours to
+/// define and store.
 ///
-/// Theme storage lives in [`egui::Memory`] under a crate-private id, so it
-/// won't collide with other `Id::NULL` consumers.
+/// If you need two slots of the same type (e.g., two `Vec<Color32>`
+/// palettes), newtype them: `struct UiColors(Vec<Color32>)` vs
+/// `struct DebugColors(Vec<Color32>)`.
+pub trait DesignSlots {
+    /// Replace the stored value of type `T`. Subsequent `design_data::<T>()`
+    /// calls return this value until overwritten.
+    fn set_design_data<T: 'static + Clone + Send + Sync>(&self, value: T);
+
+    /// Read the stored value of type `T`. Returns `T::default()` if nothing
+    /// has been stored under this type.
+    fn design_data<T: 'static + Clone + Send + Sync + Default>(&self) -> T;
+}
+
+impl DesignSlots for Context {
+    fn set_design_data<T: 'static + Clone + Send + Sync>(&self, value: T) {
+        // egui's IdTypeMap keys by (Id, TypeId), so the same `slot_id`
+        // can hold every distinct `T` without collision.
+        let _ = TypeId::of::<T>(); // doc that we rely on TypeId
+        self.memory_mut(|mem| mem.data.insert_temp(slot_id(), value));
+    }
+
+    fn design_data<T: 'static + Clone + Send + Sync + Default>(&self) -> T {
+        self.memory_mut(|mem| mem.data.get_temp::<T>(slot_id()).unwrap_or_default())
+    }
+}
+
+/// Convenience wrappers around [`DesignSlots`] for [`StyledTheme`] — so
+/// beginners reading the README never have to encounter generics.
 pub trait ThemeExt {
-    /// Replace the current styled theme. Subsequent `styled_theme()` calls
-    /// return this value until overwritten.
+    /// Replace the current styled theme.
     fn set_styled_theme(&self, theme: StyledTheme);
 
-    /// Read the current styled theme. Returns [`StyledTheme::default`]
-    /// (a deliberately bland fallback) if no theme has been set.
+    /// Read the current styled theme. Returns [`StyledTheme::default`] if
+    /// none has been set.
     fn styled_theme(&self) -> StyledTheme;
 }
 
-impl ThemeExt for egui::Context {
+impl ThemeExt for Context {
     fn set_styled_theme(&self, theme: StyledTheme) {
-        self.memory_mut(|mem: &mut egui::Memory| {
-            mem.data.insert_temp(theme_id(), theme);
-        })
+        self.set_design_data(theme);
     }
 
     fn styled_theme(&self) -> StyledTheme {
-        self.memory_mut(|mem| {
-            mem.data
-                .get_temp::<StyledTheme>(theme_id())
-                .unwrap_or_default()
-        })
+        self.design_data::<StyledTheme>()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use egui::Color32;
 
-    #[test]
-    fn set_and_get_roundtrip() {
-        let ctx = egui::Context::default();
-        let theme = StyledTheme {
-            accent: Color32::from_rgb(123, 45, 67),
-            ..Default::default()
-        };
-        ctx.set_styled_theme(theme);
+    #[derive(Clone, Default, PartialEq, Debug)]
+    struct FooColors {
+        accent: u32,
+    }
 
-        let read = ctx.styled_theme();
-        assert_eq!(read.accent, Color32::from_rgb(123, 45, 67));
+    #[derive(Clone, Default, PartialEq, Debug)]
+    struct BarColors {
+        accent: u32,
     }
 
     #[test]
-    fn unset_theme_returns_default() {
-        let ctx = egui::Context::default();
-        let read = ctx.styled_theme();
-        // Default theme is the neutral fallback — assert the accent matches it
-        assert_eq!(read.accent, StyledTheme::default().accent);
+    fn design_slot_roundtrip() {
+        let ctx = Context::default();
+        ctx.set_design_data(FooColors { accent: 42 });
+        assert_eq!(ctx.design_data::<FooColors>().accent, 42);
     }
 
     #[test]
-    fn set_overwrites_previous() {
-        let ctx = egui::Context::default();
-        ctx.set_styled_theme(StyledTheme {
-            accent: Color32::RED,
-            ..Default::default()
-        });
-        ctx.set_styled_theme(StyledTheme {
-            accent: Color32::BLUE,
-            ..Default::default()
-        });
+    fn different_types_dont_collide() {
+        let ctx = Context::default();
+        ctx.set_design_data(FooColors { accent: 1 });
+        ctx.set_design_data(BarColors { accent: 2 });
+        assert_eq!(ctx.design_data::<FooColors>().accent, 1);
+        assert_eq!(ctx.design_data::<BarColors>().accent, 2);
+    }
 
-        assert_eq!(ctx.styled_theme().accent, Color32::BLUE);
+    #[test]
+    fn unset_type_returns_default() {
+        let ctx = Context::default();
+        assert_eq!(ctx.design_data::<FooColors>(), FooColors::default());
+    }
+
+    #[test]
+    fn theme_ext_still_works() {
+        let ctx = Context::default();
+        ctx.set_styled_theme(StyledTheme::default());
+        let _ = ctx.styled_theme();
     }
 }

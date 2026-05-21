@@ -11,12 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `StyledTextEdit`: `.char_limit()`, `.font(FontId)`, `.desired_width()`, `.horizontal_align()` pass-throughs to `egui::TextEdit`.
 - `StyledLabel::font(FontId)` for setting font family + size in one chain (no need to detour through `RichText` just to pick a font family).
-- `StyledTheme`: `font_family_display`, `font_family_body`, `font_family_mono` tokens plus `font_display(size)` / `font_body(size)` / `font_mono(size)` helpers for composing a [`FontId`] from the theme.
+- `StyledTheme`: `font_family_display`, `font_family_body`, `font_family_mono` tokens plus `font_display(size)` / `font_body(size)` / `font_mono(size)` helpers for composing a `FontId` from the theme.
+- `DesignSlots` trait — generic typed storage on `egui::Context`. `set_design_data::<T>` / `design_data::<T>` lets apps store any design data (colors, audio cues, syntax themes) without the library predicting categories.
+- `WebPalette` — optional starter color struct with web/SaaS vocabulary (`accent`, `error`, `fg_on_accent`, etc.). Opt-in via `set_design_data(WebPalette { … })`.
 
 ### Changed
 
+- **Breaking:** `StyledTheme` no longer carries colors — it holds only geometry (radii, spacing) and typography (sizes, families). Colors moved to `WebPalette` (opt-in) or user-defined structs stored via `DesignSlots`. The library no longer dictates color vocabulary.
+- `ThemeExt::set_styled_theme` / `styled_theme` are now thin wrappers over `DesignSlots`. The underlying storage uses one `TypeId`-keyed slot per type.
 - `StyledTextEdit::font(...)` and `StyledLabel::font(...)` override `font_size` from `SharedStyle` when both are set.
 - Explicit `desired_width(...)` on `StyledTextEdit` now wins over `full_width()`.
+
+### Removed
+
+- Color fields (`bg_*`, `fg_*`, `accent*`, `error`, `warning`, `success`, `border*`) from `StyledTheme`. Migrate via `WebPalette` (drop-in for the same fields) or by defining a domain-specific color struct.
 
 ## [0.1.0] - 2026-05-21
 

@@ -8,86 +8,91 @@ struct AppState {
 }
 
 fn theme_demo(ui: &mut egui::Ui, state: &mut AppState) {
-    let theme = ui.ctx().styled_theme();
+    let t = ui.ctx().styled_theme();
+    let p = ui.ctx().design_data::<WebPalette>();
 
     Styled::frame()
-        .bg(theme.bg_surface)
-        .corner_radius(theme.rounding_lg)
-        .padding(theme.spacing_lg)
-        .border(1.0, theme.border)
+        .bg(p.bg_surface)
+        .corner_radius(t.rounding_lg)
+        .padding(t.spacing_lg)
+        .border(1.0, p.border)
         .show(ui, |ui| {
-            Styled::column().gap(theme.spacing_md).show(ui, |ui| {
-                Styled::row().gap(theme.spacing_md).show(ui, |ui| {
+            Styled::column().gap(t.spacing_md).show(ui, |ui| {
+                Styled::row().gap(t.spacing_md).show(ui, |ui| {
                     if Styled::button(if state.use_parchment {
                         "Switch to midnight"
                     } else {
                         "Switch to parchment"
                     })
-                    .bg(theme.accent)
-                    .hover_bg(theme.accent_hover)
-                    .active_bg(theme.accent_active)
+                    .bg(p.accent)
+                    .hover_bg(p.accent_hover)
+                    .active_bg(p.accent_active)
                     .text_color(Color32::WHITE)
-                    .corner_radius(theme.rounding_md)
+                    .corner_radius(t.rounding_md)
                     .show(ui)
                     .clicked()
                     {
                         state.use_parchment = !state.use_parchment;
-                        let next = if state.use_parchment {
-                            parchment()
+                        let (geo, pal) = if state.use_parchment {
+                            (parchment_geometry(), parchment_palette())
                         } else {
-                            midnight()
+                            (midnight_geometry(), midnight_palette())
                         };
-                        ui.ctx().set_styled_theme(next);
+                        ui.ctx().set_styled_theme(geo);
+                        ui.ctx().set_design_data(pal);
                     }
                 });
 
                 Styled::text_edit(&mut state.username)
                     .hint("Username")
                     .full_width()
-                    .bg(theme.bg_secondary)
-                    .corner_radius(theme.rounding_md)
-                    .border(1.0, theme.border)
-                    .focus_border(1.0, theme.border_focus)
+                    .bg(p.bg_secondary)
+                    .corner_radius(t.rounding_md)
+                    .border(1.0, p.border)
+                    .focus_border(1.0, p.border_focus)
                     .show(ui);
 
-                Styled::row().gap(theme.spacing_sm).show(ui, |ui| {
-                    swatch(ui, "primary", theme.bg_primary, theme.fg_primary, &theme);
-                    swatch(
-                        ui,
-                        "secondary",
-                        theme.bg_secondary,
-                        theme.fg_primary,
-                        &theme,
-                    );
-                    swatch(ui, "surface", theme.bg_surface, theme.fg_primary, &theme);
-                    swatch(ui, "elevated", theme.bg_elevated, theme.fg_primary, &theme);
+                Styled::row().gap(t.spacing_sm).show(ui, |ui| {
+                    swatch(ui, "primary", p.bg_primary, p.fg_primary, &t, &p);
+                    swatch(ui, "secondary", p.bg_secondary, p.fg_primary, &t, &p);
+                    swatch(ui, "surface", p.bg_surface, p.fg_primary, &t, &p);
+                    swatch(ui, "elevated", p.bg_elevated, p.fg_primary, &t, &p);
                 });
 
-                Styled::row().gap(theme.spacing_sm).show(ui, |ui| {
-                    swatch(ui, "accent", theme.accent, theme.fg_on_accent, &theme);
-                    swatch(ui, "error", theme.error, theme.fg_on_accent, &theme);
-                    swatch(ui, "warning", theme.warning, theme.fg_on_accent, &theme);
-                    swatch(ui, "success", theme.success, theme.fg_on_accent, &theme);
+                Styled::row().gap(t.spacing_sm).show(ui, |ui| {
+                    swatch(ui, "accent", p.accent, p.fg_on_accent, &t, &p);
+                    swatch(ui, "error", p.error, p.fg_on_accent, &t, &p);
+                    swatch(ui, "warning", p.warning, p.fg_on_accent, &t, &p);
+                    swatch(ui, "success", p.success, p.fg_on_accent, &t, &p);
                 });
             });
         });
 }
 
-fn swatch(ui: &mut egui::Ui, name: &str, bg: Color32, fg: Color32, theme: &StyledTheme) {
+fn swatch(
+    ui: &mut egui::Ui,
+    name: &str,
+    bg: Color32,
+    fg: Color32,
+    t: &StyledTheme,
+    p: &WebPalette,
+) {
     Styled::frame()
         .bg(bg)
-        .border(1.0, theme.border)
-        .corner_radius(theme.rounding_sm)
-        .padding(theme.spacing_sm)
+        .border(1.0, p.border)
+        .corner_radius(t.rounding_sm)
+        .padding(t.spacing_sm)
         .show(ui, |ui| {
             Styled::label(name).text_color(fg).show(ui);
         });
 }
 
-/// Deep navy with a cyan accent — high contrast, code-editor feel.
-fn midnight() -> StyledTheme {
-    use egui::CornerRadius;
-    StyledTheme {
+fn midnight_geometry() -> StyledTheme {
+    StyledTheme::default()
+}
+
+fn midnight_palette() -> WebPalette {
+    WebPalette {
         bg_primary: Color32::from_rgb(10, 14, 24),
         bg_secondary: Color32::from_rgb(16, 22, 36),
         bg_surface: Color32::from_rgb(22, 30, 48),
@@ -108,33 +113,21 @@ fn midnight() -> StyledTheme {
 
         border: Color32::from_rgb(48, 62, 88),
         border_focus: Color32::from_rgb(110, 220, 235),
-
-        rounding_sm: CornerRadius::same(2),
-        rounding_md: CornerRadius::same(4),
-        rounding_lg: CornerRadius::same(8),
-        rounding_full: CornerRadius::same(u8::MAX),
-
-        spacing_xs: 2.0,
-        spacing_sm: 4.0,
-        spacing_md: 8.0,
-        spacing_lg: 16.0,
-        spacing_xl: 32.0,
-
-        font_size_sm: 12.0,
-        font_size_md: 14.0,
-        font_size_lg: 18.0,
-        font_size_xl: 24.0,
-
-        font_family_display: egui::FontFamily::Proportional,
-        font_family_body: egui::FontFamily::Proportional,
-        font_family_mono: egui::FontFamily::Monospace,
     }
 }
 
-/// Cream paper with warm browns and a rust accent — bookish, low-glare.
-fn parchment() -> StyledTheme {
+fn parchment_geometry() -> StyledTheme {
     use egui::CornerRadius;
     StyledTheme {
+        rounding_sm: CornerRadius::same(1),
+        rounding_md: CornerRadius::same(2),
+        rounding_lg: CornerRadius::same(3),
+        ..Default::default()
+    }
+}
+
+fn parchment_palette() -> WebPalette {
+    WebPalette {
         bg_primary: Color32::from_rgb(245, 238, 220),
         bg_secondary: Color32::from_rgb(238, 228, 205),
         bg_surface: Color32::from_rgb(250, 245, 230),
@@ -155,26 +148,6 @@ fn parchment() -> StyledTheme {
 
         border: Color32::from_rgb(200, 180, 145),
         border_focus: Color32::from_rgb(195, 90, 55),
-
-        rounding_sm: CornerRadius::same(1),
-        rounding_md: CornerRadius::same(2),
-        rounding_lg: CornerRadius::same(3),
-        rounding_full: CornerRadius::same(u8::MAX),
-
-        spacing_xs: 2.0,
-        spacing_sm: 4.0,
-        spacing_md: 8.0,
-        spacing_lg: 16.0,
-        spacing_xl: 32.0,
-
-        font_size_sm: 12.0,
-        font_size_md: 14.0,
-        font_size_lg: 18.0,
-        font_size_xl: 24.0,
-
-        font_family_display: egui::FontFamily::Proportional,
-        font_family_body: egui::FontFamily::Proportional,
-        font_family_mono: egui::FontFamily::Monospace,
     }
 }
 
@@ -186,7 +159,8 @@ fn main() -> eframe::Result<()> {
         eframe::NativeOptions::default(),
         move |ctx, _| {
             if !initialized {
-                ctx.set_styled_theme(midnight());
+                ctx.set_styled_theme(midnight_geometry());
+                ctx.set_design_data(midnight_palette());
                 initialized = true;
             }
             CentralPanel::default().show_inside(ctx, |ui| theme_demo(ui, &mut state));

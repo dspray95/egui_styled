@@ -6,9 +6,11 @@
 //! ```
 
 pub use crate::Apply;
+pub use crate::DesignSlots;
 pub use crate::Styled;
 pub use crate::StyledTheme;
 pub use crate::ThemeExt;
+pub use crate::WebPalette;
 pub use crate::{rgb, rgba};
 
 pub use crate::StyledButton;

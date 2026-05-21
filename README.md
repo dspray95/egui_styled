@@ -157,35 +157,21 @@ egui_styled = "0.1"
 egui = "0.34"
 ```
 
-## A theme recipe (copy this into your project)
+## Design tokens
 
-`egui_styled` deliberately ships **no built-in themes**, colors are a product decision not a library decision. Copy and edit:
+`egui_styled` ships **geometry/typography tokens** in [`StyledTheme`] (universally useful — spacing, radii, font sizes, font families) and an **optional starter color palette** in [`WebPalette`] (semantic web-style color names). Colors are inherently domain-specific, so the library doesn't force its vocabulary on you — for games, IDEs, or anything else, define your own struct and store it via the generic `DesignSlots` mechanism.
+
+### Geometry (`StyledTheme`)
 
 ```rust
-use egui::{Color32, CornerRadius, FontFamily};
-use egui_styled::theme::StyledTheme;
+use egui::{CornerRadius, FontFamily};
+use egui_styled::prelude::*;
 
-pub fn dark() -> StyledTheme {
+pub fn geometry() -> StyledTheme {
     StyledTheme {
-        bg_primary:    Color32::from_rgb(15, 15, 15),
-        bg_secondary:  Color32::from_rgb(20, 20, 20),
-        bg_surface:    Color32::from_rgb(30, 30, 30),
-        bg_elevated:   Color32::from_rgb(40, 40, 40),
-        fg_primary:    Color32::from_gray(240),
-        fg_secondary:  Color32::from_gray(180),
-        fg_muted:      Color32::from_gray(120),
-        fg_on_accent:  Color32::WHITE,
-        accent:        Color32::from_rgb(60, 60, 255),
-        accent_hover:  Color32::from_rgb(80, 80, 255),
-        accent_active: Color32::from_rgb(40, 40, 200),
-        error:         Color32::from_rgb(255, 80, 80),
-        warning:       Color32::from_rgb(255, 180, 60),
-        success:       Color32::from_rgb(80, 200, 120),
-        border:        Color32::from_rgb(60, 60, 60),
-        border_focus:  Color32::from_rgb(100, 100, 255),
-        rounding_sm:   CornerRadius::same(2),
-        rounding_md:   CornerRadius::same(4),
-        rounding_lg:   CornerRadius::same(8),
+        rounding_sm: CornerRadius::same(2),
+        rounding_md: CornerRadius::same(4),
+        rounding_lg: CornerRadius::same(8),
         rounding_full: CornerRadius::same(u8::MAX),
         spacing_xs: 2.0, spacing_sm: 4.0, spacing_md: 8.0, spacing_lg: 16.0, spacing_xl: 32.0,
         font_size_sm: 12.0, font_size_md: 14.0, font_size_lg: 18.0, font_size_xl: 24.0,
@@ -203,36 +189,98 @@ Pair the family tokens with the size scale at the call site via the helper metho
 ```rust
 Styled::label("Score")
     .font(theme.font_display(theme.font_size_xl))
-    .text_color(theme.fg_primary)
     .show(ui);
 ```
 
-Then:
+### Colors — Option A: use the starter palette
+
+If your app fits a web/dashboard vocabulary (`accent`, `error`, `warning`, `success`, `fg_on_accent`, etc.), use [`WebPalette`]:
 
 ```rust
-ctx.set_styled_theme(dark());           // once at startup
-let theme = ui.ctx().styled_theme();    // anywhere you need it
+use egui::Color32;
+use egui_styled::prelude::*;
+
+pub fn dark_palette() -> WebPalette {
+    WebPalette {
+        bg_primary:    Color32::from_rgb(15, 15, 15),
+        bg_secondary:  Color32::from_rgb(20, 20, 20),
+        bg_surface:    Color32::from_rgb(30, 30, 30),
+        bg_elevated:   Color32::from_rgb(40, 40, 40),
+        fg_primary:    Color32::from_gray(240),
+        fg_secondary:  Color32::from_gray(180),
+        fg_muted:      Color32::from_gray(120),
+        fg_on_accent:  Color32::WHITE,
+        accent:        Color32::from_rgb(60, 60, 255),
+        accent_hover:  Color32::from_rgb(80, 80, 255),
+        accent_active: Color32::from_rgb(40, 40, 200),
+        error:         Color32::from_rgb(255, 80, 80),
+        warning:       Color32::from_rgb(255, 180, 60),
+        success:       Color32::from_rgb(80, 200, 120),
+        border:        Color32::from_rgb(60, 60, 60),
+        border_focus:  Color32::from_rgb(100, 100, 255),
+    }
+}
 ```
 
-See [`examples/theme_demo.rs`](examples/theme_demo.rs) for two more themes (midnight, parchment) you can use as starting points.
+### Colors — Option B: define your own
+
+If your app has domain-specific colors that don't fit web semantics (game HUDs, IDE syntax, etc.), define your own struct and store it the same way:
+
+```rust
+use egui::{Color32, FontFamily};
+use egui_styled::prelude::*;
+
+#[derive(Clone, Default)]
+struct ArcadeColors {
+    pub hud_glow:      Color32,
+    pub enemy_red:     Color32,
+    pub powerup_yellow: Color32,
+    pub score_bg:      Color32,
+}
+```
+
+### Storing and reading
+
+Both `StyledTheme` and any user-defined type are stored on `egui::Context` via the same primitive:
+
+```rust
+// Once at startup
+ctx.set_styled_theme(geometry());
+ctx.set_design_data(dark_palette());     // or ArcadeColors { ... }
+
+// Anywhere in your UI
+let t = ui.ctx().styled_theme();
+let p = ui.ctx().design_data::<WebPalette>();   // or ::<ArcadeColors>()
+```
+
+`DesignSlots` is the underlying typed-storage trait — one slot per `TypeId`. `ThemeExt::set_styled_theme` / `styled_theme` are convenience wrappers over it. If you need two slots of the same underlying type (two `Vec<Color32>` palettes, etc.), newtype them.
+
+See [`examples/theme_demo.rs`](examples/theme_demo.rs) for two themes (midnight, parchment) you can use as starting points.
 
 ## Composing styles
 
-Reuse styling across call sites with the `Apply` trait:
+Reuse styling across call sites with the `Apply` trait. Since colors and geometry are separate, helpers typically close over both:
 
 ```rust
-fn primary_button(t: &StyledTheme) -> impl Fn(StyledButton) -> StyledButton + '_ {
-    |b| b.bg(t.accent)
-         .hover_bg(t.accent_hover)
-         .active_bg(t.accent_active)
-         .text_color(t.fg_on_accent)
+fn primary_button(t: &StyledTheme, p: &WebPalette)
+    -> impl Fn(StyledButton) -> StyledButton + 'static
+{
+    let (t, p) = (t.clone(), p.clone());
+    move |b| {
+        b.bg(p.accent)
+         .hover_bg(p.accent_hover)
+         .active_bg(p.accent_active)
+         .text_color(p.fg_on_accent)
          .corner_radius(t.rounding_md)
+    }
 }
 
-Styled::button("Save").apply(primary_button(&theme)).show(ui);
+Styled::button("Save").apply(primary_button(&t, &p)).show(ui);
 ```
 
- `Apply` is implemented for every styled type and is in the prelude.
+`Apply` is implemented for every styled type and is in the prelude.
+
+The library doesn't ship preset helpers like `primary_button` — what's "primary" is a product decision, not a library one. Define them in your app the way above, alongside whatever color type you've chosen.
 
 ## Examples
 
