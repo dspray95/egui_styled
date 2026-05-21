@@ -13,13 +13,49 @@ egui's styling lives on `ui.visuals_mut()`, which is global to the current `Ui`.
 
 A card with two themed text inputs and two buttons.
 
-<table>
-<tr>
-<th>Before - raw egui</th>
-<th>After - egui_styled</th>
-</tr>
-<tr>
-<td valign="top">
+### With `egui_styled`
+
+```rust
+use egui_styled::prelude::*;
+
+Styled::frame()
+    .bg(theme.bg_surface)
+    .corner_radius(theme.rounding_lg)
+    .padding(theme.spacing_lg)
+    .border(1.0, theme.border)
+    .show(ui, |ui| {
+        Styled::text_edit(&mut username)
+            .hint("Username")
+            .full_width()
+            .bg(theme.bg_secondary)
+            .corner_radius(theme.rounding_md)
+            .border(1.0, theme.border)
+            .focus_border(1.0, theme.border_focus)
+            .show(ui);
+        Styled::text_edit(&mut email)
+            .hint("Email")
+            .full_width()
+            .bg(theme.bg_secondary)
+            .corner_radius(theme.rounding_md)
+            .border(1.0, theme.border)
+            .focus_border(1.0, theme.border_focus)
+            .show(ui);
+        Styled::row().gap(theme.spacing_sm).show(ui, |ui| {
+            Styled::button("Cancel")
+                .bg(Color32::TRANSPARENT)
+                .hover_bg(theme.bg_elevated)
+                .show(ui);
+            Styled::button("Save")
+                .bg(theme.accent)
+                .hover_bg(theme.accent_hover)
+                .text_color(theme.fg_on_accent)
+                .show(ui);
+        });
+    });
+```
+
+<details>
+<summary><b>… and the same UI in raw egui (click to expand the ~50 lines of <code>visuals_mut</code> copy-paste)</b></summary>
 
 ```rust
 ui.scope(|ui| {
@@ -82,53 +118,13 @@ ui.scope(|ui| {
 });
 ```
 
-</td>
-<td valign="top">
+</details>
 
-```rust
-use egui_styled::prelude::*;
-
-Styled::frame()
-    .bg(theme.bg_surface)
-    .corner_radius(theme.rounding_lg)
-    .padding(theme.spacing_lg)
-    .border(1.0, theme.border)
-    .show(ui, |ui| {
-        Styled::text_edit(&mut username)
-            .hint("Username")
-            .full_width()
-            .bg(theme.bg_secondary)
-            .corner_radius(theme.rounding_md)
-            .border(1.0, theme.border)
-            .focus_border(1.0, theme.border_focus)
-            .show(ui);
-        Styled::text_edit(&mut email)
-            .hint("Email")
-            .full_width()
-            .bg(theme.bg_secondary)
-            .corner_radius(theme.rounding_md)
-            .border(1.0, theme.border)
-            .focus_border(1.0, theme.border_focus)
-            .show(ui);
-        Styled::row().gap(theme.spacing_sm).show(ui, |ui| {
-            Styled::button("Cancel")
-                .bg(Color32::TRANSPARENT)
-                .hover_bg(theme.bg_elevated)
-                .show(ui);
-            Styled::button("Save")
-                .bg(theme.accent)
-                .hover_bg(theme.accent_hover)
-                .text_color(theme.fg_on_accent)
-                .show(ui);
-        });
-    });
-```
-
-</td>
-</tr>
-</table>
+<br/>
 
 Same UI, ~50 lines vs ~30 and the raw-egui side is mostly visuals_mut copy-paste. Per-widget hover/focus colors. Once you start [composing styles](#composing-styles), the duplication on the After side collapses too.
+
+<br/>
 
 > **Fair comparison:** you can also factor the raw-egui side into helper functions, which closes most of the line gap (~25 vs ~20). The bigger remaining win is *what kind* of helper you can write: in raw egui, your helper has to take `&mut Ui` and render immediately. In `egui_styled` a style helper returns `impl Fn(W) -> W`, a pure value you can store, compose with other helpers, or tweak per call site (`.apply(primary_button(&t)).margin_top(8.0)`). Uniformity matters too: every helper in `egui_styled` has the same shape regardless of whether it styles a button, frame, or input.
 
