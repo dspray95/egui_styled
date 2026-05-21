@@ -2,7 +2,7 @@ use egui::{CentralPanel, Color32};
 use egui_styled::{Styled, rgb};
 
 fn basic_example(ui: &mut egui::Ui) {
-    ui.heading("egui_styled Phase 1 Demo");
+    ui.heading("egui styled - Basic Demo");
 
     Styled::frame()
         .bg(rgb(35, 35, 35))

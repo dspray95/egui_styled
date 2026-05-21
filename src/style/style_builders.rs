@@ -1,7 +1,18 @@
 #[macro_export]
 macro_rules! impl_style_builders {
+    ([$($gen:tt)*], $ty:ty) => {
+        $crate::__impl_style_builders_body!([<$($gen)*>] $ty);
+    };
     ($ty:ty) => {
-        impl $ty {
+        $crate::__impl_style_builders_body!([] $ty);
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __impl_style_builders_body {
+    ([$($gen:tt)*] $ty:ty) => {
+        impl $($gen)* $ty {
             // --- Background colors ---
 
             pub fn bg(mut self, color: egui::Color32) -> Self {
@@ -102,13 +113,8 @@ macro_rules! impl_style_builders {
                 self.style.cursor_icon = Some(icon);
                 self
             }
-
-            // --- Composition ---
-
-            /// Allows applying a reusable style function to this builder.
-            pub fn apply(self, f: impl FnOnce(Self) -> Self) -> Self {
-                f(self)
-            }
         }
+
+        impl $($gen)* $crate::apply::Apply for $ty {}
     };
 }

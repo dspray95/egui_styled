@@ -2,7 +2,7 @@ use egui::{CentralPanel, Color32};
 use egui_styled::{Styled, rgb};
 
 fn containers_example(ui: &mut egui::Ui) {
-    ui.heading("egui_styled Phase 3 — Containers");
+    ui.heading("Containers Demo");
     ui.add_space(12.0);
 
     Styled::column()

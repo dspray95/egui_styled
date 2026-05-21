@@ -931,6 +931,20 @@ Deliverables:
     Each widget with appropriate pseudo-state support
     Widget-specific builder methods (slider step/text, checkbox label color, etc.)
 
+Further work (post-MVP)
+
+Style values as data — a `Style` newtype wrapping `SharedStyle` that widgets can absorb via a `merge_style()` method:
+
+    let card_style: Style = Style::new().bg(theme.bg_surface).rounding(theme.rounding_lg).padding(theme.spacing_lg);
+    Styled::frame().merge_style(&card_style).show(ui, |ui| { ... });
+
+This is strictly more powerful than `Apply`: styles become first-class values you can store in vecs/structs, return from functions polymorphically, layer (later merges override earlier ones), and pass across crate boundaries. `Apply` only composes functions, which can't be data. Worth doing if user feedback shows people want to build design systems / style libraries on top of egui_styled.
+
+Open design questions for this:
+- Merge semantics: does a later `merge_style` overwrite `Some` fields or only fill `None` ones? (CSS does the former; the latter is safer for "preset + tweak" patterns.)
+- Whether `Style` is per-widget-type (typed) or shared across all widgets (loose). Loose is simpler but lets you apply a button-only field to a frame.
+- Whether to expose a `Styles` registry on the theme (`theme.styles.button.primary`) for a fully theme-driven design system.
+
 Phase 7: Polish and publish (2 days)
 
     Full documentation with doc examples
