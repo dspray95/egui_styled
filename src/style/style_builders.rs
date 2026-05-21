@@ -107,6 +107,16 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
+            pub fn min_height(mut self, height: f32) -> Self {
+                self.style.min_height = Some(height);
+                self
+            }
+
+            pub fn max_height(mut self, height: f32) -> Self {
+                self.style.max_height = Some(height);
+                self
+            }
+
             // --- Interaction ---
 
             pub fn cursor(mut self, icon: egui::CursorIcon) -> Self {

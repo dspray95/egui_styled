@@ -1,10 +1,11 @@
-use egui::{Image, Response, Stroke, Ui, WidgetText};
+use egui::{FontId, Image, Response, RichText, Stroke, Ui, WidgetText};
 
 use crate::{impl_style_builders, state::PseudoState, style::shared_style::SharedStyle};
 
 pub struct StyledButton {
     text: WidgetText,
     image: Option<Image<'static>>,
+    font: Option<FontId>,
     style: SharedStyle,
 }
 
@@ -13,6 +14,7 @@ impl StyledButton {
         Self {
             text: text.into(),
             image: None,
+            font: None,
             style: SharedStyle::default(),
         }
     }
@@ -20,6 +22,13 @@ impl StyledButton {
     // Widget specific builder
     pub fn image(mut self, img: Image<'static>) -> Self {
         self.image = Some(img);
+        self
+    }
+
+    /// Set the font (family + size) used to render the button label.
+    /// Overrides [`SharedStyle::font_size`] when both are set.
+    pub fn font(mut self, font: FontId) -> Self {
+        self.font = Some(font);
         self
     }
 
@@ -66,16 +75,38 @@ impl StyledButton {
                     vis.widgets.active.fg_stroke = Stroke::new(1.0, color);
                 }
 
+                // If a font is set, fold it into the label text via RichText.
+                // `.font(FontId)` wins over `.font_size(f32)` when both are set —
+                // it carries the full family + size, not just size.
+                let text: WidgetText = if let Some(font) = self.font.clone() {
+                    let rich = match self.text {
+                        WidgetText::RichText(rt) => (*rt).clone().font(font),
+                        other => RichText::new(other.text().to_string()).font(font),
+                    };
+                    rich.into()
+                } else if let Some(size) = self.style.font_size {
+                    let rich = match self.text {
+                        WidgetText::RichText(rt) => (*rt).clone().size(size),
+                        other => RichText::new(other.text().to_string()).size(size),
+                    };
+                    rich.into()
+                } else {
+                    self.text
+                };
+
                 // Build the actual egui widget
                 let mut btn = match self.image {
-                    Some(img) => egui::Button::opt_image_and_text(Some(img), Some(self.text)),
-                    None => egui::Button::new(self.text),
+                    Some(img) => egui::Button::opt_image_and_text(Some(img), Some(text)),
+                    None => egui::Button::new(text),
                 };
-                if self.style.full_width {
-                    btn = btn.min_size(egui::Vec2 {
-                        x: ui.available_width(),
-                        y: 0.0,
-                    })
+                let min_w = if self.style.full_width {
+                    ui.available_width()
+                } else {
+                    self.style.min_width.unwrap_or(0.0)
+                };
+                let min_h = self.style.min_height.unwrap_or(0.0);
+                if min_w > 0.0 || min_h > 0.0 {
+                    btn = btn.min_size(egui::Vec2 { x: min_w, y: min_h });
                 }
 
                 let mut wrapper = egui::Frame::new();
