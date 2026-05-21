@@ -1,5 +1,5 @@
 use egui::{CentralPanel, Color32};
-use egui_styled::{Styled, rgb};
+use egui_styled::prelude::*;
 
 struct App {
     name: String,

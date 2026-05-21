@@ -2,8 +2,15 @@ use crate::state::PseudoState;
 
 use egui::{Color32, CornerRadius, CursorIcon, FontId, Margin, Stroke, style::WidgetVisuals};
 
-/// Properties common to most styled widgets
-/// All fields are Option, None means it'll inherit egui defaults
+/// The style bag carried by every styled widget.
+///
+/// Every field is `Option<T>` so `None` falls through to egui's active
+/// `Visuals` at resolve time — we never overwrite a default the user didn't
+/// explicitly set. Widget-specific properties (button image, slider step,
+/// etc.) live on the widget struct itself, not here.
+///
+/// You rarely construct this directly; the `impl_style_builders!` macro
+/// generates `.bg()`, `.hover_bg()`, etc. on each styled type.
 #[derive(Clone, Default, Debug)]
 pub struct SharedStyle {
     // Background
@@ -83,6 +90,12 @@ impl SharedStyle {
         }
     }
 
+    /// True if any field that an [`egui::Frame`] could render is set.
+    ///
+    /// Containers (`StyledRow`, `StyledColumn`) use this to decide whether
+    /// to wrap themselves in a `StyledFrame` or render directly. Margin,
+    /// text color, and sizing are intentionally excluded — they are not
+    /// "frame" concerns.
     pub fn has_frame_styles(&self) -> bool {
         self.bg.is_some()
             || self.hover_bg.is_some()
@@ -216,5 +229,42 @@ mod tests {
         };
         let resolved = style.resolve(state, &default_visuals());
         assert_eq!(resolved.border, focus);
+    }
+
+    #[test]
+    fn has_frame_styles_empty() {
+        assert!(!SharedStyle::default().has_frame_styles());
+    }
+
+    #[test]
+    fn has_frame_styles_each_trigger() {
+        let triggers: Vec<(&str, SharedStyle)> = vec![
+            ("bg", SharedStyle { bg: Some(Color32::RED), ..Default::default() }),
+            ("hover_bg", SharedStyle { hover_bg: Some(Color32::RED), ..Default::default() }),
+            ("active_bg", SharedStyle { active_bg: Some(Color32::RED), ..Default::default() }),
+            ("focus_bg", SharedStyle { focus_bg: Some(Color32::RED), ..Default::default() }),
+            ("border", SharedStyle { border: Some(Stroke::new(1.0, Color32::RED)), ..Default::default() }),
+            ("hover_border", SharedStyle { hover_border: Some(Stroke::new(1.0, Color32::RED)), ..Default::default() }),
+            ("focus_border", SharedStyle { focus_border: Some(Stroke::new(1.0, Color32::RED)), ..Default::default() }),
+            ("padding", SharedStyle { padding: Some(egui::Margin::same(4)), ..Default::default() }),
+            ("corner_radius", SharedStyle { corner_radius: Some(egui::CornerRadius::same(4)), ..Default::default() }),
+        ];
+        for (name, style) in triggers {
+            assert!(style.has_frame_styles(), "{name} did not trigger has_frame_styles");
+        }
+    }
+
+    #[test]
+    fn has_frame_styles_ignores_non_frame_props() {
+        // Margin alone doesn't count — it's applied via the wrapper Frame's
+        // outer_margin only when other frame styles are present. text_color
+        // and full_width are not frame concerns either.
+        let style = SharedStyle {
+            margin: Some(egui::Margin::same(4)),
+            text_color: Some(Color32::RED),
+            full_width: true,
+            ..Default::default()
+        };
+        assert!(!style.has_frame_styles());
     }
 }

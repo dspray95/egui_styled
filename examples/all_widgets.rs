@@ -1,7 +1,5 @@
 use egui::{CentralPanel, Color32};
-use egui_styled::Styled;
-use egui_styled::theme::StyledTheme;
-use egui_styled::theme::theme_ext::ThemeExt;
+use egui_styled::prelude::*;
 
 #[derive(Default)]
 struct AppState {

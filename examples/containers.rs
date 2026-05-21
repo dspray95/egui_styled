@@ -1,5 +1,5 @@
 use egui::{CentralPanel, Color32};
-use egui_styled::{Styled, rgb};
+use egui_styled::prelude::*;
 
 fn containers_example(ui: &mut egui::Ui) {
     ui.heading("Containers Demo");
