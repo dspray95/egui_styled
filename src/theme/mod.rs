@@ -1,4 +1,4 @@
-use egui::{Color32, CornerRadius};
+use egui::{Color32, CornerRadius, FontFamily, FontId};
 
 pub mod theme_ext;
 
@@ -44,11 +44,35 @@ pub struct StyledTheme {
     pub spacing_lg: f32,
     pub spacing_xl: f32,
 
-    // Typography
+    // Typography — sizes
     pub font_size_sm: f32,
     pub font_size_md: f32,
     pub font_size_lg: f32,
     pub font_size_xl: f32,
+
+    // Typography — families. Compose with sizes via [`StyledTheme::font_display`]
+    // / `font_body` / `font_mono`. Register the underlying fonts with egui at
+    // startup before assigning a [`FontFamily::Name`].
+    pub font_family_display: FontFamily,
+    pub font_family_body: FontFamily,
+    pub font_family_mono: FontFamily,
+}
+
+impl StyledTheme {
+    /// Build a [`FontId`] from the display family at `size`.
+    pub fn font_display(&self, size: f32) -> FontId {
+        FontId::new(size, self.font_family_display.clone())
+    }
+
+    /// Build a [`FontId`] from the body family at `size`.
+    pub fn font_body(&self, size: f32) -> FontId {
+        FontId::new(size, self.font_family_body.clone())
+    }
+
+    /// Build a [`FontId`] from the monospace family at `size`.
+    pub fn font_mono(&self, size: f32) -> FontId {
+        FontId::new(size, self.font_family_mono.clone())
+    }
 }
 
 impl Default for StyledTheme {
@@ -94,6 +118,10 @@ impl Default for StyledTheme {
             font_size_md: 14.0,
             font_size_lg: 18.0,
             font_size_xl: 24.0,
+
+            font_family_display: FontFamily::Proportional,
+            font_family_body: FontFamily::Proportional,
+            font_family_mono: FontFamily::Monospace,
         }
     }
 }

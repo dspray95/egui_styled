@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `StyledTextEdit`: `.char_limit()`, `.font(FontId)`, `.desired_width()`, `.horizontal_align()` pass-throughs to `egui::TextEdit`.
+- `StyledLabel::font(FontId)` for setting font family + size in one chain (no need to detour through `RichText` just to pick a font family).
+- `StyledTheme`: `font_family_display`, `font_family_body`, `font_family_mono` tokens plus `font_display(size)` / `font_body(size)` / `font_mono(size)` helpers for composing a [`FontId`] from the theme.
+
+### Changed
+
+- `StyledTextEdit::font(...)` and `StyledLabel::font(...)` override `font_size` from `SharedStyle` when both are set.
+- Explicit `desired_width(...)` on `StyledTextEdit` now wins over `full_width()`.
+
 ## [0.1.0] - 2026-05-21
 
 Initial release.

@@ -1,4 +1,4 @@
-use egui::{Response, Stroke, TextEdit, Ui};
+use egui::{Align, FontId, Response, Stroke, TextEdit, Ui};
 
 use crate::{impl_style_builders, state::PseudoState, style::shared_style::SharedStyle};
 
@@ -7,6 +7,10 @@ pub struct StyledTextEdit<'a> {
     hint: Option<String>,
     multiline: bool,
     password: bool,
+    char_limit: Option<usize>,
+    font: Option<FontId>,
+    desired_width: Option<f32>,
+    horizontal_align: Option<Align>,
     style: SharedStyle,
 }
 
@@ -17,6 +21,10 @@ impl<'a> StyledTextEdit<'a> {
             hint: None,
             multiline: false,
             password: false,
+            char_limit: None,
+            font: None,
+            desired_width: None,
+            horizontal_align: None,
             style: SharedStyle::default(),
         }
     }
@@ -35,6 +43,31 @@ impl<'a> StyledTextEdit<'a> {
 
     pub fn multiline(mut self) -> Self {
         self.multiline = true;
+        self
+    }
+
+    /// Cap the number of characters the field will accept.
+    pub fn char_limit(mut self, limit: usize) -> Self {
+        self.char_limit = Some(limit);
+        self
+    }
+
+    /// Set the font used to render the text (family + size).
+    /// Overrides `font_size` from `SharedStyle` when set.
+    pub fn font(mut self, font: FontId) -> Self {
+        self.font = Some(font);
+        self
+    }
+
+    /// Explicit width for the field. Wins over [`SharedStyle::full_width`].
+    pub fn desired_width(mut self, width: f32) -> Self {
+        self.desired_width = Some(width);
+        self
+    }
+
+    /// Horizontal alignment of the text within the field.
+    pub fn horizontal_align(mut self, align: Align) -> Self {
+        self.horizontal_align = Some(align);
         self
     }
 
@@ -92,7 +125,21 @@ impl<'a> StyledTextEdit<'a> {
                 if self.password {
                     text_edit = text_edit.password(true);
                 }
-                if self.style.full_width {
+                if let Some(limit) = self.char_limit {
+                    text_edit = text_edit.char_limit(limit);
+                }
+                if let Some(font) = self.font.clone() {
+                    text_edit = text_edit.font(font);
+                } else if let Some(size) = self.style.font_size {
+                    text_edit = text_edit.font(egui::FontId::proportional(size));
+                }
+                if let Some(align) = self.horizontal_align {
+                    text_edit = text_edit.horizontal_align(align);
+                }
+                // Explicit desired_width wins over full_width.
+                if let Some(width) = self.desired_width {
+                    text_edit = text_edit.desired_width(width);
+                } else if self.style.full_width {
                     text_edit = text_edit.desired_width(ui.available_width());
                 }
 

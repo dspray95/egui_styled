@@ -124,6 +124,10 @@ fn midnight() -> StyledTheme {
         font_size_md: 14.0,
         font_size_lg: 18.0,
         font_size_xl: 24.0,
+
+        font_family_display: egui::FontFamily::Proportional,
+        font_family_body: egui::FontFamily::Proportional,
+        font_family_mono: egui::FontFamily::Monospace,
     }
 }
 
@@ -167,6 +171,10 @@ fn parchment() -> StyledTheme {
         font_size_md: 14.0,
         font_size_lg: 18.0,
         font_size_xl: 24.0,
+
+        font_family_display: egui::FontFamily::Proportional,
+        font_family_body: egui::FontFamily::Proportional,
+        font_family_mono: egui::FontFamily::Monospace,
     }
 }
 
