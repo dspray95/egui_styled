@@ -12,41 +12,49 @@ struct AppState {
     email: String,
 }
 
-fn primary_button(b: StyledButton, t: &StyledTheme) -> StyledButton {
-    b.bg(t.accent)
-        .hover_bg(t.accent_hover)
-        .active_bg(t.accent_active)
-        .text_color(Color32::WHITE)
-        .corner_radius(t.rounding_md)
+fn primary_button(t: &StyledTheme) -> impl Fn(StyledButton) -> StyledButton + '_ {
+    |b| {
+        b.bg(t.accent)
+            .hover_bg(t.accent_hover)
+            .active_bg(t.accent_active)
+            .text_color(t.fg_on_accent)
+            .corner_radius(t.rounding_md)
+    }
 }
 
-fn secondary_button(b: StyledButton, t: &StyledTheme) -> StyledButton {
-    b.bg(Color32::TRANSPARENT)
-        .hover_bg(t.bg_elevated)
-        .text_color(t.fg_muted)
-        .corner_radius(t.rounding_md)
-        .border(1.0, t.border)
+fn secondary_button(t: &StyledTheme) -> impl Fn(StyledButton) -> StyledButton + '_ {
+    |b| {
+        b.bg(Color32::TRANSPARENT)
+            .hover_bg(t.bg_elevated)
+            .text_color(t.fg_muted)
+            .corner_radius(t.rounding_md)
+            .border(1.0, t.border)
+    }
 }
 
-fn input<'a>(s: StyledTextEdit<'a>, t: &StyledTheme) -> StyledTextEdit<'a> {
-    s.full_width()
-        .bg(t.bg_secondary)
-        .corner_radius(t.rounding_md)
-        .border(1.0, t.border)
-        .focus_border(1.0, t.border_focus)
+fn input<'t>(t: &'t StyledTheme) -> impl for<'a> Fn(StyledTextEdit<'a>) -> StyledTextEdit<'a> + 't {
+    |s| {
+        s.full_width()
+            .bg(t.bg_secondary)
+            .corner_radius(t.rounding_md)
+            .border(1.0, t.border)
+            .focus_border(1.0, t.border_focus)
+    }
 }
 
-fn card(f: StyledFrame, t: &StyledTheme) -> StyledFrame {
-    f.bg(t.bg_surface)
-        .corner_radius(t.rounding_lg)
-        .padding(t.spacing_lg)
-        .border(1.0, t.border)
+fn card(t: &StyledTheme) -> impl Fn(StyledFrame) -> StyledFrame + '_ {
+    |f| {
+        f.bg(t.bg_surface)
+            .corner_radius(t.rounding_lg)
+            .padding(t.spacing_lg)
+            .border(1.0, t.border)
+    }
 }
 
 fn composable_styles_example(ui: &mut egui::Ui, state: &mut AppState) {
     let t = ui.ctx().styled_theme();
 
-    Styled::frame().apply(|f| card(f, &t)).show(ui, |ui| {
+    Styled::frame().apply(card(&t)).show(ui, |ui| {
         Styled::column().gap(t.spacing_md).show(ui, |ui| {
             Styled::label("Sign in")
                 .font_size(t.font_size_lg)
@@ -56,22 +64,17 @@ fn composable_styles_example(ui: &mut egui::Ui, state: &mut AppState) {
 
             Styled::text_edit(&mut state.username)
                 .hint("Username")
-                .apply(|s| input(s, &t))
+                .apply(input(&t))
                 .show(ui);
 
             Styled::text_edit(&mut state.email)
                 .hint("Email")
-                .apply(|s| input(s, &t))
+                .apply(input(&t))
                 .show(ui);
 
             Styled::row().gap(t.spacing_sm).show(ui, |ui| {
-                Styled::button("Cancel")
-                    .apply(|b| secondary_button(b, &t))
-                    .show(ui);
-
-                Styled::button("Save")
-                    .apply(|b| primary_button(b, &t))
-                    .show(ui);
+                Styled::button("Cancel").apply(secondary_button(&t)).show(ui);
+                Styled::button("Save").apply(primary_button(&t)).show(ui);
             });
         });
     });
