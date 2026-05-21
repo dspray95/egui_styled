@@ -162,7 +162,7 @@ egui = "0.34"
 `egui_styled` deliberately ships **no built-in themes**, colors are a product decision not a library decision. Copy and edit:
 
 ```rust
-use egui::{Color32, CornerRadius};
+use egui::{Color32, CornerRadius, FontFamily};
 use egui_styled::theme::StyledTheme;
 
 pub fn dark() -> StyledTheme {
@@ -189,8 +189,22 @@ pub fn dark() -> StyledTheme {
         rounding_full: CornerRadius::same(u8::MAX),
         spacing_xs: 2.0, spacing_sm: 4.0, spacing_md: 8.0, spacing_lg: 16.0, spacing_xl: 32.0,
         font_size_sm: 12.0, font_size_md: 14.0, font_size_lg: 18.0, font_size_xl: 24.0,
+        // Swap for `FontFamily::Name("YourFont".into())` after registering
+        // the font with egui at startup.
+        font_family_display: FontFamily::Proportional,
+        font_family_body:    FontFamily::Proportional,
+        font_family_mono:    FontFamily::Monospace,
     }
 }
+```
+
+Pair the family tokens with the size scale at the call site via the helper methods:
+
+```rust
+Styled::label("Score")
+    .font(theme.font_display(theme.font_size_xl))
+    .text_color(theme.fg_primary)
+    .show(ui);
 ```
 
 Then:
