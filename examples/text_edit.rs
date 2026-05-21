@@ -1,20 +1,11 @@
 use egui::{CentralPanel, Color32};
 use egui_styled::prelude::*;
 
+#[derive(Default)]
 struct App {
     name: String,
     password: String,
     bio: String,
-}
-
-impl Default for App {
-    fn default() -> Self {
-        Self {
-            name: String::new(),
-            password: String::new(),
-            bio: String::new(),
-        }
-    }
 }
 
 impl eframe::App for App {

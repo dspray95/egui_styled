@@ -31,7 +31,7 @@ impl StyledButton {
 
         let visuals = ui.visuals().clone();
         let widget_vis = if psuedo.active {
-            &*&visuals.widgets.active
+            &visuals.widgets.active
         } else if psuedo.hovered {
             &visuals.widgets.hovered
         } else {

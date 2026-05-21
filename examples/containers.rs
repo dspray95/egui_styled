@@ -52,7 +52,7 @@ fn main() -> eframe::Result<()> {
         "egui_styled containers",
         eframe::NativeOptions::default(),
         |ctx, _| {
-            CentralPanel::default().show_inside(ctx, |ui| containers_example(ui));
+            CentralPanel::default().show_inside(ctx, containers_example);
         },
     )
 }

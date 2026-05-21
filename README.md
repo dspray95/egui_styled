@@ -3,6 +3,7 @@
 A styling layer for [egui](https://github.com/emilk/egui) that adds per-widget hover/focus/active styling, semantic design tokens, and composable style functions. Tailwind-style utility styling for an immediate-mode toolkit, with Flutter-shaped widgets.
 
 Build UI thinking about *what* things look like, rather than how egui's internals work.
+
 ## Why?
 
 egui's styling lives on `ui.visuals_mut()`, which is global to the current `Ui`. Applying a custom hover color to *one* button means cloning the visuals, mutating three `WidgetVisuals` states, and wrapping in `ui.scope` every time on every widget. The pattern is correct but is tricky to scale.

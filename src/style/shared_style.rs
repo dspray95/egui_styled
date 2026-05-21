@@ -239,18 +239,75 @@ mod tests {
     #[test]
     fn has_frame_styles_each_trigger() {
         let triggers: Vec<(&str, SharedStyle)> = vec![
-            ("bg", SharedStyle { bg: Some(Color32::RED), ..Default::default() }),
-            ("hover_bg", SharedStyle { hover_bg: Some(Color32::RED), ..Default::default() }),
-            ("active_bg", SharedStyle { active_bg: Some(Color32::RED), ..Default::default() }),
-            ("focus_bg", SharedStyle { focus_bg: Some(Color32::RED), ..Default::default() }),
-            ("border", SharedStyle { border: Some(Stroke::new(1.0, Color32::RED)), ..Default::default() }),
-            ("hover_border", SharedStyle { hover_border: Some(Stroke::new(1.0, Color32::RED)), ..Default::default() }),
-            ("focus_border", SharedStyle { focus_border: Some(Stroke::new(1.0, Color32::RED)), ..Default::default() }),
-            ("padding", SharedStyle { padding: Some(egui::Margin::same(4)), ..Default::default() }),
-            ("corner_radius", SharedStyle { corner_radius: Some(egui::CornerRadius::same(4)), ..Default::default() }),
+            (
+                "bg",
+                SharedStyle {
+                    bg: Some(Color32::RED),
+                    ..Default::default()
+                },
+            ),
+            (
+                "hover_bg",
+                SharedStyle {
+                    hover_bg: Some(Color32::RED),
+                    ..Default::default()
+                },
+            ),
+            (
+                "active_bg",
+                SharedStyle {
+                    active_bg: Some(Color32::RED),
+                    ..Default::default()
+                },
+            ),
+            (
+                "focus_bg",
+                SharedStyle {
+                    focus_bg: Some(Color32::RED),
+                    ..Default::default()
+                },
+            ),
+            (
+                "border",
+                SharedStyle {
+                    border: Some(Stroke::new(1.0, Color32::RED)),
+                    ..Default::default()
+                },
+            ),
+            (
+                "hover_border",
+                SharedStyle {
+                    hover_border: Some(Stroke::new(1.0, Color32::RED)),
+                    ..Default::default()
+                },
+            ),
+            (
+                "focus_border",
+                SharedStyle {
+                    focus_border: Some(Stroke::new(1.0, Color32::RED)),
+                    ..Default::default()
+                },
+            ),
+            (
+                "padding",
+                SharedStyle {
+                    padding: Some(egui::Margin::same(4)),
+                    ..Default::default()
+                },
+            ),
+            (
+                "corner_radius",
+                SharedStyle {
+                    corner_radius: Some(egui::CornerRadius::same(4)),
+                    ..Default::default()
+                },
+            ),
         ];
         for (name, style) in triggers {
-            assert!(style.has_frame_styles(), "{name} did not trigger has_frame_styles");
+            assert!(
+                style.has_frame_styles(),
+                "{name} did not trigger has_frame_styles"
+            );
         }
     }
 

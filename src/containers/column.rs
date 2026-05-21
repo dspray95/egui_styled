@@ -9,6 +9,12 @@ pub struct StyledColumn {
     style: SharedStyle,
 }
 
+impl Default for StyledColumn {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StyledColumn {
     pub fn new() -> Self {
         Self {

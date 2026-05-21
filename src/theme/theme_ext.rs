@@ -47,8 +47,10 @@ mod tests {
     #[test]
     fn set_and_get_roundtrip() {
         let ctx = egui::Context::default();
-        let mut theme = StyledTheme::default();
-        theme.accent = Color32::from_rgb(123, 45, 67);
+        let theme = StyledTheme {
+            accent: Color32::from_rgb(123, 45, 67),
+            ..Default::default()
+        };
         ctx.set_styled_theme(theme);
 
         let read = ctx.styled_theme();
@@ -66,13 +68,14 @@ mod tests {
     #[test]
     fn set_overwrites_previous() {
         let ctx = egui::Context::default();
-        let mut first = StyledTheme::default();
-        first.accent = Color32::RED;
-        ctx.set_styled_theme(first);
-
-        let mut second = StyledTheme::default();
-        second.accent = Color32::BLUE;
-        ctx.set_styled_theme(second);
+        ctx.set_styled_theme(StyledTheme {
+            accent: Color32::RED,
+            ..Default::default()
+        });
+        ctx.set_styled_theme(StyledTheme {
+            accent: Color32::BLUE,
+            ..Default::default()
+        });
 
         assert_eq!(ctx.styled_theme().accent, Color32::BLUE);
     }

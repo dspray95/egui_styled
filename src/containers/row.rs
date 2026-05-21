@@ -9,6 +9,12 @@ pub struct StyledRow {
     style: SharedStyle,
 }
 
+impl Default for StyledRow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StyledRow {
     pub fn new() -> Self {
         Self {

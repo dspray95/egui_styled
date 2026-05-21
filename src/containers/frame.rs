@@ -6,6 +6,12 @@ pub struct StyledFrame {
     pub style: SharedStyle,
 }
 
+impl Default for StyledFrame {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StyledFrame {
     pub fn new() -> Self {
         Self {

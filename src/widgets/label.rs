@@ -63,13 +63,14 @@ impl StyledLabel {
         if let Some(m) = self.style.margin {
             wrapper = wrapper.outer_margin(m);
         }
-        wrapper.show(ui, |ui| {
-            if self.style.full_width {
-                ui.set_min_width(ui.available_width());
-            }
-            ui.add(label)
-        })
-        .inner
+        wrapper
+            .show(ui, |ui| {
+                if self.style.full_width {
+                    ui.set_min_width(ui.available_width());
+                }
+                ui.add(label)
+            })
+            .inner
     }
 }
 

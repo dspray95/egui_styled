@@ -57,8 +57,7 @@ mod tests {
             focused: true,
         };
         ctx.memory_mut(|mem| mem.data.insert_temp(id, state));
-        let loaded =
-            ctx.memory_mut(|mem| mem.data.get_temp::<PseudoState>(id).unwrap_or_default());
+        let loaded = ctx.memory_mut(|mem| mem.data.get_temp::<PseudoState>(id).unwrap_or_default());
         assert!(loaded.hovered);
         assert!(!loaded.active);
         assert!(loaded.focused);
@@ -68,10 +67,9 @@ mod tests {
     fn unset_id_returns_default() {
         let ctx = egui::Context::default();
         let id = Id::new("ps-never-stored");
-        let loaded =
-            ctx.memory_mut(|mem| mem.data.get_temp::<PseudoState>(id).unwrap_or_default());
-        assert_eq!(loaded.hovered, false);
-        assert_eq!(loaded.active, false);
-        assert_eq!(loaded.focused, false);
+        let loaded = ctx.memory_mut(|mem| mem.data.get_temp::<PseudoState>(id).unwrap_or_default());
+        assert!(!loaded.hovered);
+        assert!(!loaded.active);
+        assert!(!loaded.focused);
     }
 }
