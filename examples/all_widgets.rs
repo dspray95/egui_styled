@@ -134,6 +134,49 @@ fn all_widgets(ui: &mut egui::Ui, state: &mut AppState) {
         });
 }
 
+/// Warm coffee-shop terminal — dark browns with an amber accent.
+fn warm_terminal() -> StyledTheme {
+    use egui::CornerRadius;
+    StyledTheme {
+        bg_primary: Color32::from_rgb(28, 22, 18),
+        bg_secondary: Color32::from_rgb(38, 30, 24),
+        bg_surface: Color32::from_rgb(48, 38, 30),
+        bg_elevated: Color32::from_rgb(60, 48, 38),
+
+        fg_primary: Color32::from_rgb(240, 225, 200),
+        fg_secondary: Color32::from_rgb(200, 180, 150),
+        fg_muted: Color32::from_rgb(150, 130, 105),
+        fg_on_accent: Color32::from_rgb(28, 22, 18),
+
+        accent: Color32::from_rgb(220, 150, 60),
+        accent_hover: Color32::from_rgb(240, 170, 80),
+        accent_active: Color32::from_rgb(190, 125, 45),
+
+        error: Color32::from_rgb(220, 90, 70),
+        warning: Color32::from_rgb(230, 180, 70),
+        success: Color32::from_rgb(150, 200, 90),
+
+        border: Color32::from_rgb(80, 65, 50),
+        border_focus: Color32::from_rgb(240, 170, 80),
+
+        rounding_sm: CornerRadius::same(2),
+        rounding_md: CornerRadius::same(3),
+        rounding_lg: CornerRadius::same(5),
+        rounding_full: CornerRadius::same(u8::MAX),
+
+        spacing_xs: 2.0,
+        spacing_sm: 4.0,
+        spacing_md: 8.0,
+        spacing_lg: 16.0,
+        spacing_xl: 32.0,
+
+        font_size_sm: 12.0,
+        font_size_md: 14.0,
+        font_size_lg: 18.0,
+        font_size_xl: 24.0,
+    }
+}
+
 fn main() -> eframe::Result<()> {
     let mut state = AppState {
         volume: 0.5,
@@ -145,7 +188,7 @@ fn main() -> eframe::Result<()> {
         eframe::NativeOptions::default(),
         move |ctx, _| {
             if !initialized {
-                ctx.set_styled_theme(StyledTheme::dark());
+                ctx.set_styled_theme(warm_terminal());
                 initialized = true;
             }
             CentralPanel::default().show(ctx, |ui| all_widgets(ui, &mut state));
