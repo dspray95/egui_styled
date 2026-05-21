@@ -1,10 +1,5 @@
 use egui::{CentralPanel, Color32};
-use egui_styled::containers::frame::StyledFrame;
-use egui_styled::theme::StyledTheme;
-use egui_styled::theme::theme_ext::ThemeExt;
-use egui_styled::widgets::button::StyledButton;
-use egui_styled::widgets::text_edit::StyledTextEdit;
-use egui_styled::{Apply, Styled};
+use egui_styled::prelude::*;
 
 #[derive(Default)]
 struct AppState {

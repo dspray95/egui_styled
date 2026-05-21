@@ -1,6 +1,7 @@
 pub mod apply;
 pub mod color;
 pub mod containers;
+pub mod prelude;
 pub mod state;
 pub mod style;
 pub mod theme;
@@ -8,17 +9,18 @@ pub mod widgets;
 
 pub use apply::Apply;
 pub use color::{rgb, rgba};
+pub use containers::column::StyledColumn;
+pub use containers::frame::StyledFrame;
+pub use containers::row::StyledRow;
+pub use theme::StyledTheme;
+pub use theme::theme_ext::ThemeExt;
+pub use widgets::button::StyledButton;
+pub use widgets::checkbox::StyledCheckbox;
+pub use widgets::combo_box::StyledComboBox;
+pub use widgets::label::StyledLabel;
+pub use widgets::slider::StyledSlider;
+pub use widgets::text_edit::StyledTextEdit;
 
-use crate::containers::column::StyledColumn;
-use crate::containers::frame::StyledFrame;
-use crate::containers::row::StyledRow;
-use crate::theme::StyledTheme;
-use crate::widgets::button::StyledButton;
-use crate::widgets::checkbox::StyledCheckbox;
-use crate::widgets::combo_box::StyledComboBox;
-use crate::widgets::label::StyledLabel;
-use crate::widgets::slider::StyledSlider;
-use crate::widgets::text_edit::StyledTextEdit;
 use egui::{WidgetText, emath::Numeric};
 use std::ops::RangeInclusive;
 
