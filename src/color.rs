@@ -12,7 +12,7 @@ pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Color32 {
 
 /// Convenience methods on [`Color32`].
 ///
-/// All operations work in sRGB — not perceptually uniform. Good enough for
+/// All operations work in sRGB - not perceptually uniform. Good enough for
 /// hover / active / disabled variants of an existing color. For serious
 /// color work (palettes derived from a single brand color, accessibility
 /// contrast checks, gamut mapping), reach for the

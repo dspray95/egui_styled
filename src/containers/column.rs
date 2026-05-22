@@ -43,7 +43,7 @@ impl StyledColumn {
     /// Main-axis (vertical) distribution of children. `Align::Min` packs to
     /// the top, `Align::Center` packs centered, `Align::Max` packs to the
     /// bottom. Does **not** implement flexbox's `space-between` / `space-around`
-    /// — see the README's "Layout" section for why.
+    /// - see the README's "Layout" section for why.
     pub fn justify(mut self, justify: Align) -> Self {
         self.justify = Some(justify);
         self

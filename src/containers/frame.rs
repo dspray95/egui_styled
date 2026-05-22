@@ -30,7 +30,7 @@ impl StyledFrame {
     }
 
     /// Main-axis (vertical) distribution of the frame's children. Treated as
-    /// top-down inside the frame; see [`StyledColumn::justify`] for details.
+    /// top-down inside the frame; see [`crate::StyledColumn::justify`] for details.
     pub fn justify(mut self, justify: Align) -> Self {
         self.justify = Some(justify);
         self

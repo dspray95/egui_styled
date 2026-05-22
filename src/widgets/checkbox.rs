@@ -20,7 +20,7 @@ impl<'a> StyledCheckbox<'a> {
     }
 
     /// Override the auto-generated widget id. Pins pseudo-state across
-    /// conditional rendering — see [`crate::StyledButton::id`].
+    /// conditional rendering - see [`crate::StyledButton::id`].
     pub fn id(mut self, id: impl std::hash::Hash) -> Self {
         self.id_override = Some(Id::new(id));
         self

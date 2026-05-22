@@ -5,8 +5,8 @@ pub mod web_palette;
 
 /// Geometry and typography design tokens.
 ///
-/// Holds the universally-useful scales — corner radii, spacing,
-/// font sizes, font families — that apply to most apps regardless of domain.
+/// Holds the universally-useful scales - corner radii, spacing,
+/// font sizes, font families - that apply to most apps regardless of domain.
 /// Color choices are *not* in here; they belong to your app, not the library.
 ///
 /// For a starter color vocabulary, see [`WebPalette`](web_palette::WebPalette).
@@ -26,13 +26,13 @@ pub struct StyledTheme {
     pub spacing_lg: f32,
     pub spacing_xl: f32,
 
-    // Typography — sizes
+    // Typography - sizes
     pub font_size_sm: f32,
     pub font_size_md: f32,
     pub font_size_lg: f32,
     pub font_size_xl: f32,
 
-    // Typography — families. Compose with sizes via
+    // Typography - families. Compose with sizes via
     // [`StyledTheme::font_display`] / `font_body` / `font_mono`.
     pub font_family_display: FontFamily,
     pub font_family_body: FontFamily,

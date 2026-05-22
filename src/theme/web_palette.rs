@@ -2,7 +2,7 @@ use egui::Color32;
 
 /// A starter color palette with web-style semantic names.
 ///
-/// Opt-in — the library doesn't assume your app wants this vocabulary.
+/// Opt-in - the library doesn't assume your app wants this vocabulary.
 /// Good fit for SaaS / dashboard / docs UIs. For domain-specific apps
 /// (games, IDEs, creative tools) define your own struct with the colors
 /// that fit your domain, and store it via
@@ -51,7 +51,7 @@ impl Default for WebPalette {
     /// A deliberately bland neutral palette. Backgrounds are mid-grays,
     /// foregrounds are near-white/black, accent is a plain blue. Exists so
     /// `ctx.design_data::<WebPalette>()` doesn't panic before
-    /// `set_design_data` is called — not meant as a finished aesthetic.
+    /// `set_design_data` is called - not meant as a finished aesthetic.
     fn default() -> Self {
         Self {
             bg_primary: Color32::from_gray(30),

@@ -61,7 +61,7 @@ impl Styled {
     }
 
     /// Start a styled top-level area (modal, backdrop, toast). Operates on
-    /// `&Context`, not `&mut Ui` — the area is a floating layer outside the
+    /// `&Context`, not `&mut Ui` - the area is a floating layer outside the
     /// current `Ui` tree.
     pub fn area() -> StyledArea {
         StyledArea::new()

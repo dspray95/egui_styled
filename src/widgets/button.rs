@@ -35,7 +35,7 @@ impl StyledButton {
     }
 
     /// Override the auto-generated widget id. Use this to pin pseudo-state
-    /// (hover / active / focus) across conditional rendering — without an
+    /// (hover / active / focus) across conditional rendering - without an
     /// explicit id, `ui.next_auto_id()` shifts when a sibling appears or
     /// disappears, misattributing one frame of state.
     pub fn id(mut self, id: impl std::hash::Hash) -> Self {
@@ -89,7 +89,7 @@ impl StyledButton {
                 }
 
                 // If a font is set, fold it into the label text via RichText.
-                // `.font(FontId)` wins over `.font_size(f32)` when both are set —
+                // `.font(FontId)` wins over `.font_size(f32)` when both are set -
                 // it carries the full family + size, not just size.
                 let text: WidgetText = if let Some(font) = self.font.clone() {
                     let rich = match self.text {

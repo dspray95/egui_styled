@@ -2,7 +2,7 @@
 name = "egui_styled"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.92"
 authors = ["David Spray <dev@david-spray.me>"]
 description = "Tailwind-style utility styling for egui: per-widget hover/focus/active variants, design tokens, and composable style functions."
 license = "MIT OR Apache-2.0"

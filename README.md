@@ -163,7 +163,7 @@ egui = "0.34"
 
 ## Design tokens
 
-`egui_styled` ships **geometry/typography tokens** in [`StyledTheme`] (universally useful — spacing, radii, font sizes, font families) and an **optional starter color palette** in [`WebPalette`] (semantic web-style color names). Colors are inherently domain-specific, so the library doesn't force its vocabulary on you — for games, IDEs, or anything else, define your own struct and store it via the generic `DesignSlots` mechanism.
+`egui_styled` ships **geometry/typography tokens** in [`StyledTheme`] (universally useful - spacing, radii, font sizes, font families) and an **optional starter color palette** in [`WebPalette`] (semantic web-style color names). Colors are inherently domain-specific, so the library doesn't force its vocabulary on you - for games, IDEs, or anything else, define your own struct and store it via the generic `DesignSlots` mechanism.
 
 ### Geometry (`StyledTheme`)
 
@@ -196,7 +196,7 @@ Styled::label("Score")
     .show(ui);
 ```
 
-### Colors — Option A: use the starter palette
+### Colors - Option A: use the starter palette
 
 If your app fits a web/dashboard vocabulary (`accent`, `error`, `warning`, `success`, `fg_on_accent`, etc.), use [`WebPalette`]:
 
@@ -226,7 +226,7 @@ pub fn dark_palette() -> WebPalette {
 }
 ```
 
-### Colors — Option B: define your own
+### Colors - Option B: define your own
 
 If your app has domain-specific colors that don't fit web semantics (game HUDs, IDE syntax, etc.), define your own struct and store it the same way:
 
@@ -257,7 +257,7 @@ let t = ui.ctx().styled_theme();
 let p = ui.ctx().design_data::<WebPalette>();   // or ::<ArcadeColors>()
 ```
 
-`DesignSlots` is the underlying typed-storage trait — one slot per `TypeId`. `ThemeExt::set_styled_theme` / `styled_theme` are convenience wrappers over it. If you need two slots of the same underlying type (two `Vec<Color32>` palettes, etc.), newtype them.
+`DesignSlots` is the underlying typed-storage trait - one slot per `TypeId`. `ThemeExt::set_styled_theme` / `styled_theme` are convenience wrappers over it. If you need two slots of the same underlying type (two `Vec<Color32>` palettes, etc.), newtype them.
 
 See [`examples/theme_demo.rs`](examples/theme_demo.rs) for two themes (midnight, parchment) you can use as starting points.
 
@@ -284,7 +284,7 @@ Styled::button("Save").apply(primary_button(&t, &p)).show(ui);
 
 `Apply` is implemented for every styled type and is in the prelude.
 
-The library doesn't ship preset helpers like `primary_button` — what's "primary" is a product decision, not a library one. Define them in your app the way above, alongside whatever color type you've chosen.
+The library doesn't ship preset helpers like `primary_button` - what's "primary" is a product decision, not a library one. Define them in your app the way above, alongside whatever color type you've chosen.
 
 ## Examples
 
@@ -294,17 +294,18 @@ cargo run --example containers         # row / column / nesting
 cargo run --example text_edit          # focus state styling
 cargo run --example theme_demo         # live theme switching with swatches
 cargo run --example composable_styles  # Apply + reusable style functions
-cargo run --example all_widgets        # everything in one screen
+cargo run --example all_widgets        # every widget in one screen
+cargo run --example game_over          # full game-over screen - Area + Column + custom palette
 ```
 
 ## Performance
 
 Per styled widget the overhead vs raw egui is approximately:
-- 1 `ui.scope`
-- 2 `egui::Memory` lookups (pseudo-state load/store) 
-- 1 `SharedStyle::resolve` (a branch chain over `Option`s). 
+- 1 `ui.scope` (which egui itself uses constantly internally)
+- 2 `egui::Memory` lookups (pseudo-state load/store)
+- 1 `SharedStyle::resolve` (a branch chain over `Option`s)
 
-Under 1μs per widget.
+All stack work and no allocations beyond what `egui::Frame` does anyway. The overhead is expected to be small and dominated by other costs (text shaping, rendering) in any normal UI.
 
 ## Status
 

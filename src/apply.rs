@@ -1,6 +1,6 @@
 /// Composable style functions for styled builders.
 ///
-/// `apply` is just `f(self)` — the value of the trait is making method
+/// `apply` is just `f(self)` - the value of the trait is making method
 /// chains read left-to-right when mixing builder calls with reusable style
 /// functions:
 ///
@@ -12,7 +12,7 @@
 /// ```
 ///
 /// Implemented for every styled type via `impl_style_builders!`. A style
-/// function typically returns a closure pre-bound to the theme — see the
+/// function typically returns a closure pre-bound to the theme - see the
 /// README's "Composing styles" section for the full pattern.
 pub trait Apply: Sized {
     /// Apply a style function to this builder.

@@ -132,7 +132,7 @@ fn all_widgets(ui: &mut egui::Ui, state: &mut AppState) {
         });
 }
 
-/// Warm coffee-shop terminal — tighter radii than default.
+/// Warm coffee-shop terminal - tighter radii than default.
 fn warm_terminal_geometry() -> StyledTheme {
     use egui::CornerRadius;
     StyledTheme {
@@ -143,7 +143,7 @@ fn warm_terminal_geometry() -> StyledTheme {
     }
 }
 
-/// Warm coffee-shop terminal — dark browns with an amber accent.
+/// Warm coffee-shop terminal - dark browns with an amber accent.
 fn warm_terminal_palette() -> WebPalette {
     WebPalette {
         bg_primary: Color32::from_rgb(28, 22, 18),

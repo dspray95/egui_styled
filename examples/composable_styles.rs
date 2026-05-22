@@ -97,7 +97,7 @@ fn composable_styles_example(ui: &mut egui::Ui, state: &mut AppState) {
     });
 }
 
-/// Slate geometry — chunkier radii than default.
+/// Slate geometry - chunkier radii than default.
 fn slate_geometry() -> StyledTheme {
     use egui::CornerRadius;
     StyledTheme {
@@ -108,7 +108,7 @@ fn slate_geometry() -> StyledTheme {
     }
 }
 
-/// Slate background with a hot-pink accent — modern dashboard feel.
+/// Slate background with a hot-pink accent - modern dashboard feel.
 fn slate_pink_palette() -> WebPalette {
     WebPalette {
         bg_primary: Color32::from_rgb(18, 20, 28),

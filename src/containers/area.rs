@@ -4,9 +4,9 @@ use crate::{
     containers::frame::StyledFrame, impl_style_builders, style::shared_style::SharedStyle,
 };
 
-/// Top-level positioned container — modal panels, backdrops, toasts.
+/// Top-level positioned container - modal panels, backdrops, toasts.
 ///
-/// Unlike [`StyledFrame`] / [`StyledRow`] / [`StyledColumn`], `show` takes
+/// Unlike [`StyledFrame`] / [`crate::StyledRow`] / [`crate::StyledColumn`], `show` takes
 /// `&Context` (not `&mut Ui`) because the underlying [`egui::Area`] is a
 /// floating layer that doesn't live inside the current `Ui` tree. Use this
 /// when you need anchored or screen-relative placement; use `StyledFrame`

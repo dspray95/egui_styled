@@ -5,7 +5,7 @@ use egui::{Color32, CornerRadius, CursorIcon, FontId, Margin, Stroke, style::Wid
 /// The style bag carried by every styled widget.
 ///
 /// Every field is `Option<T>` so `None` falls through to egui's active
-/// `Visuals` at resolve time — we never overwrite a default the user didn't
+/// `Visuals` at resolve time - we never overwrite a default the user didn't
 /// explicitly set. Widget-specific properties (button image, slider step,
 /// etc.) live on the widget struct itself, not here.
 ///
@@ -94,7 +94,7 @@ impl SharedStyle {
     ///
     /// Containers (`StyledRow`, `StyledColumn`) use this to decide whether
     /// to wrap themselves in a `StyledFrame` or render directly. Margin,
-    /// text color, and sizing are intentionally excluded — they are not
+    /// text color, and sizing are intentionally excluded - they are not
     /// "frame" concerns.
     pub fn has_frame_styles(&self) -> bool {
         self.bg.is_some()
@@ -313,7 +313,7 @@ mod tests {
 
     #[test]
     fn has_frame_styles_ignores_non_frame_props() {
-        // Margin alone doesn't count — it's applied via the wrapper Frame's
+        // Margin alone doesn't count - it's applied via the wrapper Frame's
         // outer_margin only when other frame styles are present. text_color
         // and full_width are not frame concerns either.
         let style = SharedStyle {

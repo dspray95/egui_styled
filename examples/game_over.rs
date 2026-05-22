@@ -2,15 +2,15 @@
 //!
 //! The other examples each exercise one slice of the API (a widget, a
 //! container, the theme system in isolation). This one shows what a real
-//! screen looks like when you compose them — `Styled::area` for the
+//! screen looks like when you compose them - `Styled::area` for the
 //! full-screen backdrop and the modal, `Styled::column` with `gap` + `align`
 //! for the vertical layout, every styled widget for content, and a custom
 //! color struct stored alongside `StyledTheme` via `DesignSlots`.
 //!
 //! Two phases drive the screen:
 //!
-//! - `EnteringInitials` — text edit with focus-border styling + SUBMIT button.
-//! - `Showing` — leaderboard with the just-placed row highlighted, plus a
+//! - `EnteringInitials` - text edit with focus-border styling + SUBMIT button.
+//! - `Showing` - leaderboard with the just-placed row highlighted, plus a
 //!   "press to play again" prompt.
 //!
 //! Run with: `cargo run --example game_over`
@@ -96,12 +96,14 @@ fn arcade_theme() -> StyledTheme {
 }
 
 fn game_over(ctx: &egui::Context, state: &mut AppState) {
-    let theme = ctx.styled_theme();
-    let colors = ctx.design_data::<ArcadeColors>();
+    // `design::<T>()` fetches both `StyledTheme` and your custom typed
+    // slot in one call. Equivalent to `(ctx.styled_theme(), ctx.design_data::<T>())`
+    // but reads as a single binding.
+    let (theme, colors) = ctx.design::<ArcadeColors>();
 
     // Full-screen backdrop. In a real game this would use
     // `colors.background.with_alpha(180)` so the gameplay behind shows
-    // through dimmed — `with_alpha` is the one-chain replacement for the
+    // through dimmed - `with_alpha` is the one-chain replacement for the
     // byte-deconstruction dance you'd otherwise need.
     Styled::area()
         .id("game_over_backdrop")
@@ -110,7 +112,7 @@ fn game_over(ctx: &egui::Context, state: &mut AppState) {
         .bg(colors.background.with_alpha(255))
         .show(ctx, |_| {});
 
-    // Modal panel — `Styled::area` operates on `&Context` because top-level
+    // Modal panel - `Styled::area` operates on `&Context` because top-level
     // positioned things don't have a parent `Ui`. Compose box-style builders
     // (bg, border, padding, corner_radius) directly on the area.
     Styled::area()
@@ -122,7 +124,7 @@ fn game_over(ctx: &egui::Context, state: &mut AppState) {
         .corner_radius(theme.rounding_md)
         .show(ctx, |ui| {
             // One column carries the whole panel's vertical rhythm and
-            // horizontal alignment. Child widgets inherit centering — no
+            // horizontal alignment. Child widgets inherit centering - no
             // `ui.vertical_centered` wrappers needed.
             Styled::column()
                 .gap(theme.spacing_lg)
@@ -210,7 +212,9 @@ fn initials_block(
         }
         let initials = state.initials_buffer.clone();
         state.entries.push((initials, FINAL_SCORE));
-        state.entries.sort_by(|a, b| b.1.cmp(&a.1));
+        state
+            .entries
+            .sort_by_key(|entry| std::cmp::Reverse(entry.1));
         state.entries.truncate(10);
         state.submitted_index = state
             .entries
@@ -262,7 +266,7 @@ fn main() -> eframe::Result<()> {
     let mut state = AppState::default();
     let mut initialized = false;
     eframe::run_ui_native(
-        "egui_styled — game over",
+        "egui_styled - game over",
         eframe::NativeOptions::default(),
         move |ctx, _| {
             if !initialized {

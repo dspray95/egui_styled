@@ -9,7 +9,7 @@ fn slot_id() -> Id {
 
 /// Typed storage for design data on [`egui::Context`].
 ///
-/// One slot per `TypeId` — `set_design_data::<MyColors>(c)` overwrites any
+/// One slot per `TypeId` - `set_design_data::<MyColors>(c)` overwrites any
 /// previous `MyColors`, but doesn't touch other types like
 /// [`StyledTheme`] or your own `AudioCues` / `SyntaxColors`. The crate uses
 /// this primitive for [`StyledTheme`] itself; everything else is yours to
@@ -52,7 +52,7 @@ impl DesignSlots for Context {
     }
 }
 
-/// Convenience wrappers around [`DesignSlots`] for [`StyledTheme`] — so
+/// Convenience wrappers around [`DesignSlots`] for [`StyledTheme`] - so
 /// beginners reading the README never have to encounter generics.
 pub trait ThemeExt {
     /// Replace the current styled theme.

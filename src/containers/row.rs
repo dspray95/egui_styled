@@ -43,7 +43,7 @@ impl StyledRow {
     /// Main-axis (horizontal) distribution of children. `Align::Min` packs
     /// to the left, `Align::Center` packs centered, `Align::Max` packs to
     /// the right. Does **not** implement flexbox's `space-between` /
-    /// `space-around` — see the README's "Layout" section for why.
+    /// `space-around` - see the README's "Layout" section for why.
     pub fn justify(mut self, justify: Align) -> Self {
         self.justify = Some(justify);
         self
