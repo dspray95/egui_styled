@@ -27,7 +27,7 @@ impl eframe::App for App {
                         .focus_border(2.0, rgb(80, 140, 255))
                         .corner_radius(4.0)
                         .full_width()
-                        .margin_bottom(8)
+                        .margin_bottom(8.0)
                         .show(ui);
 
                     ui.label("Password");
@@ -40,7 +40,7 @@ impl eframe::App for App {
                         .focus_border(2.0, rgb(80, 140, 255))
                         .corner_radius(4.0)
                         .full_width()
-                        .margin_bottom(8)
+                        .margin_bottom(8.0)
                         .show(ui);
 
                     ui.label("Bio");

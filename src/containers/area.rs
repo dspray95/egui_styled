@@ -23,6 +23,7 @@ pub struct StyledArea {
     movable: bool,
     fill_screen: bool,
     align: Option<egui::Align>,
+    justify: Option<egui::Align>,
     style: SharedStyle,
 }
 
@@ -43,6 +44,7 @@ impl StyledArea {
             movable: false,
             fill_screen: false,
             align: None,
+            justify: None,
             style: SharedStyle::default(),
         }
     }
@@ -95,6 +97,12 @@ impl StyledArea {
         self
     }
 
+    /// Main-axis distribution forwarded to the inner styled frame.
+    pub fn justify(mut self, justify: egui::Align) -> Self {
+        self.justify = Some(justify);
+        self
+    }
+
     pub fn show<R>(self, ctx: &Context, body: impl FnOnce(&mut egui::Ui) -> R) -> InnerResponse<R> {
         let id = self.id.unwrap_or_else(|| egui::Id::new("styled_area"));
         let mut area = egui::Area::new(id)
@@ -114,6 +122,7 @@ impl StyledArea {
         let frame = StyledFrame {
             style: self.style,
             align: self.align,
+            justify: self.justify,
         };
         let fill_screen = self.fill_screen;
         let screen_size = ctx.content_rect().size();

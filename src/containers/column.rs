@@ -7,6 +7,7 @@ use crate::{
 pub struct StyledColumn {
     gap: Option<f32>,
     align: Option<Align>,
+    justify: Option<Align>,
     style: SharedStyle,
 }
 
@@ -21,6 +22,7 @@ impl StyledColumn {
         Self {
             gap: None,
             align: None,
+            justify: None,
             style: SharedStyle::default(),
         }
     }
@@ -38,11 +40,24 @@ impl StyledColumn {
         self
     }
 
+    /// Main-axis (vertical) distribution of children. `Align::Min` packs to
+    /// the top, `Align::Center` packs centered, `Align::Max` packs to the
+    /// bottom. Does **not** implement flexbox's `space-between` / `space-around`
+    /// — see the README's "Layout" section for why.
+    pub fn justify(mut self, justify: Align) -> Self {
+        self.justify = Some(justify);
+        self
+    }
+
     pub fn show<R>(self, ui: &mut Ui, body: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
         let gap = self.gap;
         let align = self.align;
+        let justify = self.justify;
         let render = move |ui: &mut Ui| {
-            let layout = Layout::top_down(align.unwrap_or(Align::Min));
+            let mut layout = Layout::top_down(align.unwrap_or(Align::Min));
+            if let Some(j) = justify {
+                layout = layout.with_main_align(j);
+            }
             ui.with_layout(layout, |ui| {
                 if let Some(gap) = gap {
                     ui.spacing_mut().item_spacing.y = gap;
@@ -55,6 +70,7 @@ impl StyledColumn {
             let ir = StyledFrame {
                 style: self.style,
                 align: None,
+                justify: None,
             }
             .show(ui, |ui| render(ui).inner);
             InnerResponse::new(ir.inner, ir.response)

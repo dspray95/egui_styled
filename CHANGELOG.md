@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `StyledButton::font(FontId)` — same pattern as label / text_edit. Closes the symmetry gap across all three text-bearing widgets.
 - `min_height(f32)` and `max_height(f32)` builders on every styled type (the underlying `SharedStyle` fields existed but weren't exposed). `StyledButton::min_height` controls intrinsic button height directly, matching `min_width`.
 - `align(Align)` builder on `StyledColumn`, `StyledRow`, `StyledFrame`, and `StyledArea`. Column uses `Layout::top_down`, row uses `Layout::left_to_right`, frame wraps in `with_layout` only when set. Replaces ad-hoc `ui.vertical_centered` wrappers.
+- `justify(Align)` builder on the same four containers — main-axis distribution via `Layout::with_main_align`. Covers `start`/`center`/`end`. **Note:** does *not* implement flexbox's `space-between`/`space-around`/`space-evenly` — those require two-pass layout or one-frame-lag caching in immediate-mode, neither of which fit the current API cleanly.
+- `margin_left(f32)` and `margin_right(f32)` builders alongside the existing `margin_top` / `margin_bottom`, for callers that want non-vertical insets.
+
+### Changed
+
+- **Breaking (minor):** `margin_top` / `margin_bottom` now take `f32` instead of `i8`. Matches `theme.spacing_*` (also `f32`), so call sites read as `.margin_top(theme.spacing_md)` rather than `.margin_top(theme.spacing_md as i8)`. Internally clamps to egui's `i8` `Margin` range. Existing call sites passing integer literals (`margin_top(8)`) compile fine after switching to `8.0`.
 - `Styled::area()` — top-level positioned container (modals, backdrops, toasts). Operates on `&Context` rather than `&mut Ui`. Supports `anchor`, `fixed_pos`, `order`, `fill_screen`, plus every `SharedStyle` box builder.
 - `ColorExt::with_alpha(u8)` trait method on `Color32`. One-chain alpha replacement; no more `to_array` / `from_rgba_unmultiplied` dance. Re-exported from the prelude.
 

@@ -76,16 +76,30 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
-            pub fn margin_top(mut self, val: i8) -> Self {
+            pub fn margin_top(mut self, val: f32) -> Self {
                 let mut m = self.style.margin.unwrap_or_default();
-                m.top = val;
+                m.top = val.round().clamp(i8::MIN as f32, i8::MAX as f32) as i8;
                 self.style.margin = Some(m);
                 self
             }
 
-            pub fn margin_bottom(mut self, val: i8) -> Self {
+            pub fn margin_bottom(mut self, val: f32) -> Self {
                 let mut m = self.style.margin.unwrap_or_default();
-                m.bottom = val;
+                m.bottom = val.round().clamp(i8::MIN as f32, i8::MAX as f32) as i8;
+                self.style.margin = Some(m);
+                self
+            }
+
+            pub fn margin_left(mut self, val: f32) -> Self {
+                let mut m = self.style.margin.unwrap_or_default();
+                m.left = val.round().clamp(i8::MIN as f32, i8::MAX as f32) as i8;
+                self.style.margin = Some(m);
+                self
+            }
+
+            pub fn margin_right(mut self, val: f32) -> Self {
+                let mut m = self.style.margin.unwrap_or_default();
+                m.right = val.round().clamp(i8::MIN as f32, i8::MAX as f32) as i8;
                 self.style.margin = Some(m);
                 self
             }

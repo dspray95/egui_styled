@@ -35,7 +35,7 @@ fn basic_example(ui: &mut egui::Ui) {
         Styled::button(format!("List Item {}", i))
             .bg(Color32::TRANSPARENT)
             .border(1.0, rgb(100, 100, 100))
-            .margin_top(8)
+            .margin_top(8.0)
             .show(ui);
     }
 

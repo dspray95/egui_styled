@@ -5,6 +5,7 @@ use crate::{impl_style_builders, style::shared_style::SharedStyle};
 pub struct StyledFrame {
     pub style: SharedStyle,
     pub align: Option<Align>,
+    pub justify: Option<Align>,
 }
 
 impl Default for StyledFrame {
@@ -18,12 +19,20 @@ impl StyledFrame {
         Self {
             style: SharedStyle::default(),
             align: None,
+            justify: None,
         }
     }
 
     /// Cross-axis (horizontal) alignment of the frame's children.
     pub fn align(mut self, align: Align) -> Self {
         self.align = Some(align);
+        self
+    }
+
+    /// Main-axis (vertical) distribution of the frame's children. Treated as
+    /// top-down inside the frame; see [`StyledColumn::justify`] for details.
+    pub fn justify(mut self, justify: Align) -> Self {
+        self.justify = Some(justify);
         self
     }
 
@@ -47,13 +56,18 @@ impl StyledFrame {
 
         let full_width = self.style.full_width;
         let align = self.align;
+        let justify = self.justify;
 
         frame.show(ui, |ui| {
             if full_width {
                 ui.set_min_width(ui.available_width());
             }
-            if let Some(a) = align {
-                ui.with_layout(Layout::top_down(a), body).inner
+            if align.is_some() || justify.is_some() {
+                let mut layout = Layout::top_down(align.unwrap_or(Align::Min));
+                if let Some(j) = justify {
+                    layout = layout.with_main_align(j);
+                }
+                ui.with_layout(layout, body).inner
             } else {
                 body(ui)
             }
