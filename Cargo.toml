@@ -17,6 +17,10 @@ exclude = [
     "target/",
 ]
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [dependencies]
 egui = "0.34.2"
 
