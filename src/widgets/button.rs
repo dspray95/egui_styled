@@ -134,10 +134,10 @@ impl StyledButton {
         PseudoState::from_response(&response).store(ui, id);
 
         // Handle cursor override
-        if let Some(icon) = resolved.cursor_icon {
-            if response.hovered() {
-                ui.ctx().set_cursor_icon(icon);
-            }
+        if let Some(icon) = resolved.cursor_icon
+            && response.hovered()
+        {
+            ui.ctx().set_cursor_icon(icon);
         }
 
         response
