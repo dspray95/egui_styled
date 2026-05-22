@@ -19,37 +19,41 @@ A card with two themed text inputs and two buttons.
 ```rust
 use egui_styled::prelude::*;
 
+// One line fetches both. `WebPalette` is the opt-in starter color set;
+// swap for your own struct (game palette, IDE syntax theme, etc).
+let (t, c) = ui.ctx().design::<WebPalette>();
+
 Styled::frame()
-    .bg(theme.bg_surface)
-    .corner_radius(theme.rounding_lg)
-    .padding(theme.spacing_lg)
-    .border(1.0, theme.border)
+    .bg(c.bg_surface)
+    .corner_radius(t.rounding_lg)
+    .padding(t.spacing_lg)
+    .border(1.0, c.border)
     .show(ui, |ui| {
         Styled::text_edit(&mut username)
             .hint("Username")
             .full_width()
-            .bg(theme.bg_secondary)
-            .corner_radius(theme.rounding_md)
-            .border(1.0, theme.border)
-            .focus_border(1.0, theme.border_focus)
+            .bg(c.bg_secondary)
+            .corner_radius(t.rounding_md)
+            .border(1.0, c.border)
+            .focus_border(1.0, c.border_focus)
             .show(ui);
         Styled::text_edit(&mut email)
             .hint("Email")
             .full_width()
-            .bg(theme.bg_secondary)
-            .corner_radius(theme.rounding_md)
-            .border(1.0, theme.border)
-            .focus_border(1.0, theme.border_focus)
+            .bg(c.bg_secondary)
+            .corner_radius(t.rounding_md)
+            .border(1.0, c.border)
+            .focus_border(1.0, c.border_focus)
             .show(ui);
-        Styled::row().gap(theme.spacing_sm).show(ui, |ui| {
+        Styled::row().gap(t.spacing_sm).show(ui, |ui| {
             Styled::button("Cancel")
                 .bg(Color32::TRANSPARENT)
-                .hover_bg(theme.bg_elevated)
+                .hover_bg(c.bg_elevated)
                 .show(ui);
             Styled::button("Save")
-                .bg(theme.accent)
-                .hover_bg(theme.accent_hover)
-                .text_color(theme.fg_on_accent)
+                .bg(c.accent)
+                .hover_bg(c.accent_hover)
+                .text_color(c.fg_on_accent)
                 .show(ui);
         });
     });

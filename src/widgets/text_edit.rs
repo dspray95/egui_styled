@@ -1,4 +1,4 @@
-use egui::{Align, FontId, Response, Stroke, TextEdit, Ui};
+use egui::{Align, FontId, Id, Response, Stroke, TextEdit, Ui};
 
 use crate::{impl_style_builders, state::PseudoState, style::shared_style::SharedStyle};
 
@@ -11,6 +11,7 @@ pub struct StyledTextEdit<'a> {
     font: Option<FontId>,
     desired_width: Option<f32>,
     horizontal_align: Option<Align>,
+    id_override: Option<Id>,
     style: SharedStyle,
 }
 
@@ -25,8 +26,16 @@ impl<'a> StyledTextEdit<'a> {
             font: None,
             desired_width: None,
             horizontal_align: None,
+            id_override: None,
             style: SharedStyle::default(),
         }
+    }
+
+    /// Override the auto-generated widget id. Pins pseudo-state across
+    /// conditional rendering — see [`StyledButton::id`] for the rationale.
+    pub fn id(mut self, id: impl std::hash::Hash) -> Self {
+        self.id_override = Some(Id::new(id));
+        self
     }
 
     // Widget specific builder functions
@@ -73,7 +82,9 @@ impl<'a> StyledTextEdit<'a> {
 
     // show
     pub fn show(self, ui: &mut Ui) -> Response {
-        let id = ui.make_persistent_id(ui.next_auto_id());
+        let id = self
+            .id_override
+            .unwrap_or_else(|| ui.make_persistent_id(ui.next_auto_id()));
         let psuedo = PseudoState::load(ui, id);
 
         let visuals = ui.visuals().clone();

@@ -1,4 +1,4 @@
-use egui::{FontId, Image, Response, RichText, Stroke, Ui, WidgetText};
+use egui::{FontId, Id, Image, Response, RichText, Stroke, Ui, WidgetText};
 
 use crate::{impl_style_builders, state::PseudoState, style::shared_style::SharedStyle};
 
@@ -6,6 +6,7 @@ pub struct StyledButton {
     text: WidgetText,
     image: Option<Image<'static>>,
     font: Option<FontId>,
+    id_override: Option<Id>,
     style: SharedStyle,
 }
 
@@ -15,6 +16,7 @@ impl StyledButton {
             text: text.into(),
             image: None,
             font: None,
+            id_override: None,
             style: SharedStyle::default(),
         }
     }
@@ -32,9 +34,20 @@ impl StyledButton {
         self
     }
 
+    /// Override the auto-generated widget id. Use this to pin pseudo-state
+    /// (hover / active / focus) across conditional rendering — without an
+    /// explicit id, `ui.next_auto_id()` shifts when a sibling appears or
+    /// disappears, misattributing one frame of state.
+    pub fn id(mut self, id: impl std::hash::Hash) -> Self {
+        self.id_override = Some(Id::new(id));
+        self
+    }
+
     /// Renders the button with the given style
     pub fn show(self, ui: &mut Ui) -> Response {
-        let id = ui.make_persistent_id(ui.next_auto_id());
+        let id = self
+            .id_override
+            .unwrap_or_else(|| ui.make_persistent_id(ui.next_auto_id()));
 
         let psuedo = PseudoState::load(ui, id);
 

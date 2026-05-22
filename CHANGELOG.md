@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `DesignSlots::design::<T>() -> (StyledTheme, T)` — single-call accessor for the theme + one user-defined type. Replaces the two-line `let theme = ...; let colors = ...;` ceremony at the top of every panel.
+- `ColorExt`: `lerp(other, t)`, `lighten(factor)`, `darken(factor)` — naive sRGB interpolation. Good enough for hover/active variants; doc points at the [`palette`](https://crates.io/crates/palette) crate for perceptually-uniform color work.
+- `.id(impl Hash)` builder on `StyledButton`, `StyledTextEdit`, `StyledCheckbox`, `StyledSlider`. Overrides `ui.next_auto_id()` for pseudo-state lookup so hover/focus/active don't get misattributed when conditional rendering shifts widget positions.
 - `StyledTextEdit`: `.char_limit()`, `.font(FontId)`, `.desired_width()`, `.horizontal_align()` pass-throughs to `egui::TextEdit`.
 - `StyledLabel::font(FontId)` for setting font family + size in one chain (no need to detour through `RichText` just to pick a font family).
 - `StyledButton::font(FontId)` — same pattern as label / text_edit. Closes the symmetry gap across all three text-bearing widgets.

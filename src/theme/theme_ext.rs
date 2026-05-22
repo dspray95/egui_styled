@@ -26,6 +26,17 @@ pub trait DesignSlots {
     /// Read the stored value of type `T`. Returns `T::default()` if nothing
     /// has been stored under this type.
     fn design_data<T: 'static + Clone + Send + Sync + Default>(&self) -> T;
+
+    /// Fetch the styled theme and an arbitrary additional design type in a
+    /// single call. Removes the two-line ceremony at the top of every panel
+    /// (`let theme = ...; let colors = ...;`).
+    ///
+    /// ```ignore
+    /// let (theme, colors) = ui.ctx().design::<MyColors>();
+    /// ```
+    fn design<T: 'static + Clone + Send + Sync + Default>(&self) -> (StyledTheme, T) {
+        (self.design_data::<StyledTheme>(), self.design_data::<T>())
+    }
 }
 
 impl DesignSlots for Context {

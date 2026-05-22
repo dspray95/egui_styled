@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use egui::{Response, Slider, Stroke, Ui, emath::Numeric};
+use egui::{Id, Response, Slider, Stroke, Ui, emath::Numeric};
 
 use crate::{impl_style_builders, state::PseudoState, style::shared_style::SharedStyle};
 
@@ -9,6 +9,7 @@ pub struct StyledSlider<'a, T: Numeric> {
     range: RangeInclusive<T>,
     text: Option<String>,
     step: Option<f64>,
+    id_override: Option<Id>,
     style: SharedStyle,
 }
 
@@ -19,6 +20,7 @@ impl<'a, T: Numeric> StyledSlider<'a, T> {
             range,
             text: None,
             step: None,
+            id_override: None,
             style: SharedStyle::default(),
         }
     }
@@ -33,8 +35,17 @@ impl<'a, T: Numeric> StyledSlider<'a, T> {
         self
     }
 
+    /// Override the auto-generated widget id. Pins pseudo-state across
+    /// conditional rendering — see [`crate::StyledButton::id`].
+    pub fn id(mut self, id: impl std::hash::Hash) -> Self {
+        self.id_override = Some(Id::new(id));
+        self
+    }
+
     pub fn show(self, ui: &mut Ui) -> Response {
-        let id = ui.make_persistent_id(ui.next_auto_id());
+        let id = self
+            .id_override
+            .unwrap_or_else(|| ui.make_persistent_id(ui.next_auto_id()));
         let pseudo = PseudoState::load(ui, id);
 
         let visuals = ui.visuals().clone();
