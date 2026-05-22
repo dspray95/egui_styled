@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `StyledLabel::font(FontId)` for setting font family + size in one chain (no need to detour through `RichText` just to pick a font family).
 - `StyledButton::font(FontId)` — same pattern as label / text_edit. Closes the symmetry gap across all three text-bearing widgets.
 - `min_height(f32)` and `max_height(f32)` builders on every styled type (the underlying `SharedStyle` fields existed but weren't exposed). `StyledButton::min_height` controls intrinsic button height directly, matching `min_width`.
+- `align(Align)` builder on `StyledColumn`, `StyledRow`, `StyledFrame`, and `StyledArea`. Column uses `Layout::top_down`, row uses `Layout::left_to_right`, frame wraps in `with_layout` only when set. Replaces ad-hoc `ui.vertical_centered` wrappers.
+- `Styled::area()` — top-level positioned container (modals, backdrops, toasts). Operates on `&Context` rather than `&mut Ui`. Supports `anchor`, `fixed_pos`, `order`, `fill_screen`, plus every `SharedStyle` box builder.
+- `ColorExt::with_alpha(u8)` trait method on `Color32`. One-chain alpha replacement; no more `to_array` / `from_rgba_unmultiplied` dance. Re-exported from the prelude.
+
+### Changed
+
+- **Breaking:** `StyledColumn::show`, `StyledRow::show`, `StyledFrame::show` are now generic over the body's return type — `fn show<R>(self, ui, body: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R>`. Existing call sites that returned `()` still type-check unchanged; new sites can return values without hoisting `let mut x: Option<…>` outside.
 - `StyledTheme`: `font_family_display`, `font_family_body`, `font_family_mono` tokens plus `font_display(size)` / `font_body(size)` / `font_mono(size)` helpers for composing a `FontId` from the theme.
 - `DesignSlots` trait — generic typed storage on `egui::Context`. `set_design_data::<T>` / `design_data::<T>` lets apps store any design data (colors, audio cues, syntax themes) without the library predicting categories.
 - `WebPalette` — optional starter color struct with web/SaaS vocabulary (`accent`, `error`, `fg_on_accent`, etc.). Opt-in via `set_design_data(WebPalette { … })`.

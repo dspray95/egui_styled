@@ -29,7 +29,8 @@ pub mod theme;
 pub mod widgets;
 
 pub use apply::Apply;
-pub use color::{rgb, rgba};
+pub use color::{ColorExt, rgb, rgba};
+pub use containers::area::StyledArea;
 pub use containers::column::StyledColumn;
 pub use containers::frame::StyledFrame;
 pub use containers::row::StyledRow;
@@ -57,6 +58,13 @@ impl Styled {
     /// Start a styled frame (background, padding, border, corner radius).
     pub fn frame() -> StyledFrame {
         StyledFrame::new()
+    }
+
+    /// Start a styled top-level area (modal, backdrop, toast). Operates on
+    /// `&Context`, not `&mut Ui` — the area is a floating layer outside the
+    /// current `Ui` tree.
+    pub fn area() -> StyledArea {
+        StyledArea::new()
     }
 
     /// Start a styled button with per-state hover / active colors.

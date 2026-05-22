@@ -1,4 +1,4 @@
-use egui::{InnerResponse, Ui};
+use egui::{Align, InnerResponse, Layout, Ui};
 
 use crate::{
     containers::frame::StyledFrame, impl_style_builders, style::shared_style::SharedStyle,
@@ -6,6 +6,7 @@ use crate::{
 
 pub struct StyledRow {
     gap: Option<f32>,
+    align: Option<Align>,
     style: SharedStyle,
 }
 
@@ -19,36 +20,46 @@ impl StyledRow {
     pub fn new() -> Self {
         Self {
             gap: None,
+            align: None,
             style: SharedStyle::default(),
         }
     }
 
-    // Builder fn
+    /// Horizontal spacing between children.
     pub fn gap(mut self, gap: f32) -> Self {
         self.gap = Some(gap);
         self
     }
 
-    // Render fn
-    pub fn show(self, ui: &mut Ui, add_contents: impl FnOnce(&mut Ui)) -> InnerResponse<()> {
+    /// Cross-axis (vertical) alignment of children inside the row.
+    /// Equivalent to `Layout::left_to_right(align)`.
+    pub fn align(mut self, align: Align) -> Self {
+        self.align = Some(align);
+        self
+    }
+
+    pub fn show<R>(self, ui: &mut Ui, body: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
         let gap = self.gap;
-        let horizontal = move |ui: &mut Ui| {
-            ui.horizontal(|ui| {
+        let align = self.align;
+        let render = move |ui: &mut Ui| {
+            let layout = Layout::left_to_right(align.unwrap_or(Align::Center));
+            ui.with_layout(layout, |ui| {
                 if let Some(gap) = gap {
                     ui.spacing_mut().item_spacing.x = gap;
                 }
-                add_contents(ui);
+                body(ui)
             })
-            .response
         };
 
         if self.style.has_frame_styles() {
-            StyledFrame { style: self.style }.show(ui, |ui| {
-                horizontal(ui);
-            })
+            let ir = StyledFrame {
+                style: self.style,
+                align: None,
+            }
+            .show(ui, |ui| render(ui).inner);
+            InnerResponse::new(ir.inner, ir.response)
         } else {
-            let response = horizontal(ui);
-            InnerResponse::new((), response)
+            render(ui)
         }
     }
 }
