@@ -305,7 +305,7 @@ Per styled widget the overhead vs raw egui is approximately:
 - 2 `egui::Memory` lookups (pseudo-state load/store)
 - 1 `SharedStyle::resolve` (a branch chain over `Option`s)
 
-All stack work and no allocations beyond what `egui::Frame` does anyway. The overhead is expected to be small and dominated by other costs (text shaping, rendering) in any normal UI.
+Mostly stack work, plus a few small heap allocations per widget: a `Visuals` clone, the scope's child `Ui` state, occasional short strings when a font override round-trips through `RichText` on text widgets.
 
 ## Status
 
