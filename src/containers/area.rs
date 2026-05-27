@@ -14,10 +14,23 @@ use crate::{
 ///
 /// All [`SharedStyle`] box builders (`bg`, `border`, `padding`,
 /// `corner_radius`, `margin`) apply to the inner frame.
+///
+/// # Centering on a screen-space point
+///
+/// For diegetic UI (HP bars, damage numbers, world-anchored labels) you usually
+/// want to place the area's *center* at a projected world-space position, not
+/// its top-left.
+///
+/// - [`fixed_pos_centered`](Self::fixed_pos_centered) (recommended) — uses
+///   last-frame's measured size to compute the offset. Stable for content
+///   whose size doesn't change frame-to-frame.
+/// - If you know the area's size up-front, prefer
+///   `fixed_pos(center - size / 2.0)` — no lag, no caching.
 pub struct StyledArea {
     id: Option<egui::Id>,
     anchor: Option<(Align2, Vec2)>,
     fixed_pos: Option<Pos2>,
+    fixed_pos_centered: Option<Pos2>,
     order: Option<Order>,
     interactable: bool,
     movable: bool,
@@ -39,6 +52,7 @@ impl StyledArea {
             id: None,
             anchor: None,
             fixed_pos: None,
+            fixed_pos_centered: None,
             order: None,
             interactable: true,
             movable: false,
@@ -65,6 +79,27 @@ impl StyledArea {
     /// Place at a fixed screen-space position. Wins over `anchor` if both set.
     pub fn fixed_pos(mut self, pos: Pos2) -> Self {
         self.fixed_pos = Some(pos);
+        self
+    }
+
+    /// Place this area so its *center* lands at the given screen-space
+    /// position. Uses last-frame's measured size, cached in [`egui::Memory`]
+    /// under this area's id.
+    ///
+    /// **Trade-offs:**
+    /// - On the first frame an area with this id appears, there's no cached
+    ///   size yet — the area is placed at `pos` (top-left) and snaps to
+    ///   centered on the next frame. Visible pop unless the content is also
+    ///   fading in.
+    /// - Works cleanly for stable-size content (HP bars, name plates).
+    ///   For content that resizes every frame (animating counters, growing
+    ///   text), centering will lag the size change by one frame.
+    /// - Set an explicit [`id`](Self::id) when calling this — auto-ids
+    ///   can shift under conditional rendering and lose the cached size.
+    ///
+    /// Wins over `fixed_pos` / `anchor` / `fill_screen` if multiple are set.
+    pub fn fixed_pos_centered(mut self, pos: Pos2) -> Self {
+        self.fixed_pos_centered = Some(pos);
         self
     }
 
@@ -111,7 +146,20 @@ impl StyledArea {
         if let Some(order) = self.order {
             area = area.order(order);
         }
-        if self.fill_screen {
+
+        // Priority: fixed_pos_centered > fill_screen > fixed_pos > anchor.
+        // `fixed_pos_centered` uses last-frame's measured size; on first
+        // appearance the area pops in at `pos` (top-left) and snaps centered
+        // on the next frame.
+        let size_cache_id = id.with("__centered_size");
+        if let Some(center) = self.fixed_pos_centered {
+            let last_size = ctx.memory(|mem| {
+                mem.data
+                    .get_temp::<Vec2>(size_cache_id)
+                    .unwrap_or(Vec2::ZERO)
+            });
+            area = area.fixed_pos(center - last_size / 2.0);
+        } else if self.fill_screen {
             area = area.fixed_pos(ctx.content_rect().min);
         } else if let Some(pos) = self.fixed_pos {
             area = area.fixed_pos(pos);
@@ -126,13 +174,22 @@ impl StyledArea {
         };
         let fill_screen = self.fill_screen;
         let screen_size = ctx.content_rect().size();
+        let needs_size_cache = self.fixed_pos_centered.is_some();
 
-        area.show(ctx, |ui| {
+        let response = area.show(ctx, |ui| {
             if fill_screen {
                 ui.set_min_size(screen_size);
             }
             frame.show(ui, body).inner
-        })
+        });
+
+        // Capture this frame's measured size so next frame can center.
+        if needs_size_cache {
+            let new_size = response.response.rect.size();
+            ctx.memory_mut(|mem| mem.data.insert_temp(size_cache_id, new_size));
+        }
+
+        response
     }
 }
 

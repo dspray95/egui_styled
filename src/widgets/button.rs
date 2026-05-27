@@ -1,6 +1,10 @@
-use egui::{FontId, Id, Image, Response, RichText, Stroke, Ui, WidgetText};
+use egui::{FontId, Id, Image, Response, RichText, Shape, Stroke, Ui, WidgetText};
 
-use crate::{impl_style_builders, state::PseudoState, style::shared_style::SharedStyle};
+use crate::{
+    impl_style_builders,
+    state::PseudoState,
+    style::shared_style::{SharedStyle, paint_shadows},
+};
 
 pub struct StyledButton {
     text: WidgetText,
@@ -49,6 +53,8 @@ impl StyledButton {
             .id_override
             .unwrap_or_else(|| ui.make_persistent_id(ui.next_auto_id()));
 
+        let shadow_idx = ui.painter().add(Shape::Noop);
+
         let psuedo = PseudoState::load(ui, id);
 
         let visuals = ui.visuals().clone();
@@ -86,6 +92,19 @@ impl StyledButton {
                     vis.widgets.inactive.fg_stroke = Stroke::new(1.0, color);
                     vis.widgets.hovered.fg_stroke = Stroke::new(1.0, color);
                     vis.widgets.active.fg_stroke = Stroke::new(1.0, color);
+                }
+
+                // Wire `padding` through to egui's `button_padding`. egui's
+                // `Button` only supports symmetric padding (a single `Vec2`),
+                // so an asymmetric `Margin` collapses to `max(left, right)` /
+                // `max(top, bottom)`. For true asymmetric padding (e.g. font
+                // visual-correction offsets) wrap the button in a
+                // `Styled::frame` with matching `bg` and the asymmetric
+                // padding on the wrapper.
+                if let Some(m) = self.style.padding {
+                    let x = m.left.max(m.right) as f32;
+                    let y = m.top.max(m.bottom) as f32;
+                    ui.spacing_mut().button_padding = egui::Vec2::new(x, y);
                 }
 
                 // If a font is set, fold it into the label text via RichText.
@@ -129,6 +148,8 @@ impl StyledButton {
                 wrapper.show(ui, |ui| ui.add(btn)).inner
             })
             .inner;
+
+        paint_shadows(ui, shadow_idx, response.rect, resolved.corner_radius, &self.style.shadows);
 
         // Store this frame's state for next frame
         PseudoState::from_response(&response).store(ui, id);

@@ -1,6 +1,6 @@
-use egui::{Align, InnerResponse, Layout, Ui};
+use egui::{Align, InnerResponse, Layout, Shape, Ui};
 
-use crate::{impl_style_builders, style::shared_style::SharedStyle};
+use crate::{impl_style_builders, style::shared_style::{SharedStyle, paint_shadows}};
 
 pub struct StyledFrame {
     pub style: SharedStyle,
@@ -37,6 +37,10 @@ impl StyledFrame {
     }
 
     pub fn show<R>(self, ui: &mut Ui, body: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
+        let shadow_idx = ui.painter().add(Shape::Noop);
+        let corner_radius = self.style.corner_radius.unwrap_or_default();
+        let shadows = self.style.shadows.clone();
+
         let mut frame = egui::Frame::default();
         if let Some(bg) = self.style.bg {
             frame = frame.fill(bg);
@@ -58,7 +62,7 @@ impl StyledFrame {
         let align = self.align;
         let justify = self.justify;
 
-        frame.show(ui, |ui| {
+        let response = frame.show(ui, |ui| {
             if full_width {
                 ui.set_min_width(ui.available_width());
             }
@@ -71,7 +75,11 @@ impl StyledFrame {
             } else {
                 body(ui)
             }
-        })
+        });
+
+        paint_shadows(ui, shadow_idx, response.response.rect, corner_radius, &shadows);
+
+        response
     }
 }
 

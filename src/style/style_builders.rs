@@ -137,6 +137,30 @@ macro_rules! __impl_style_builders_body {
                 self.style.cursor_icon = Some(icon);
                 self
             }
+
+            // --- Decorations ---
+
+            /// Paint an offset stroke rect behind the widget.
+            /// Multiple calls append; each shadow uses the widget's `corner_radius`.
+            pub fn shadow(mut self, offset: egui::Vec2, width: f32, color: egui::Color32) -> Self {
+                self.style.shadows.push($crate::style::shared_style::Shadow {
+                    offset,
+                    stroke: egui::Stroke::new(width, color),
+                    fill: None,
+                });
+                self
+            }
+
+            /// Paint a filled (+ optionally stroked) offset rect behind the widget.
+            /// Use for conventional drop shadows.
+            pub fn shadow_filled(mut self, offset: egui::Vec2, color: egui::Color32) -> Self {
+                self.style.shadows.push($crate::style::shared_style::Shadow {
+                    offset,
+                    stroke: egui::Stroke::NONE,
+                    fill: Some(color),
+                });
+                self
+            }
         }
 
         impl $($gen)* $crate::apply::Apply for $ty {}

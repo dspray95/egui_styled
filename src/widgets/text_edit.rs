@@ -110,10 +110,12 @@ impl<'a> StyledTextEdit<'a> {
                     widget_state.bg_fill = resolved.bg;
                     widget_state.bg_stroke = resolved.border;
                     widget_state.corner_radius = resolved.corner_radius;
+                    widget_state.expansion = 0.0;
                 }
 
                 // TextEdit uses selection.stroke/extreme_bg_color for the field bg in some themes
                 vis.extreme_bg_color = resolved.bg;
+                vis.selection.stroke = resolved.border;
 
                 if let Some(c) = self.style.text_color {
                     for widget_state in [
@@ -153,6 +155,18 @@ impl<'a> StyledTextEdit<'a> {
                 } else if self.style.full_width {
                     text_edit = text_edit.desired_width(ui.available_width());
                 }
+
+                // Pass a fully-built custom Frame so egui skips its own visuals
+                // path (which would otherwise re-derive stroke from selection /
+                // widget visuals and expand the inner margin by `expansion -
+                // stroke.width`, clobbering our border + padding).
+                let padding = self.style.padding.unwrap_or(egui::Margin::symmetric(4, 2));
+                let custom_frame = egui::Frame::new()
+                    .fill(resolved.bg)
+                    .stroke(resolved.border)
+                    .corner_radius(resolved.corner_radius)
+                    .inner_margin(padding);
+                text_edit = text_edit.frame(custom_frame).margin(padding);
 
                 let mut wrapper = egui::Frame::new();
                 if let Some(m) = self.style.margin {

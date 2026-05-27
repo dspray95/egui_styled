@@ -1,6 +1,66 @@
 use crate::state::PseudoState;
 
-use egui::{Color32, CornerRadius, CursorIcon, FontId, Margin, Stroke, style::WidgetVisuals};
+use egui::{
+    Color32, CornerRadius, CursorIcon, FontId, Margin, Shape, Stroke, Vec2,
+    style::WidgetVisuals,
+};
+
+/// A single paint decoration rendered behind the widget rect.
+///
+/// Use `.shadow()` (stroke-only) or `.shadow_filled()` (solid fill) on any
+/// styled widget to paint offset copies of the widget's bounding rect on the
+/// same layer, underneath the widget itself.
+///
+/// Multiple shadows are supported — append with repeated `.shadow(...)` calls.
+/// Each shadow inherits the widget's `corner_radius` at paint time.
+#[derive(Clone, Copy, Debug)]
+pub struct Shadow {
+    pub offset: Vec2,
+    pub stroke: Stroke,
+    pub fill: Option<Color32>,
+}
+
+/// Paint all `shadows` behind position `reserve_idx` (a `Shape::Noop`
+/// placeholder inserted before the widget was rendered). Replaces the
+/// placeholder with a `Shape::Vec` containing all shadow shapes.
+///
+/// Call pattern inside a widget's `show`:
+/// ```text
+/// let shadow_idx = ui.painter().add(Shape::Noop);
+/// // ... add widget, get response ...
+/// paint_shadows(ui, shadow_idx, response.rect, corner_radius, &style.shadows);
+/// ```
+pub fn paint_shadows(
+    ui: &egui::Ui,
+    reserve_idx: egui::layers::ShapeIdx,
+    rect: egui::Rect,
+    corner_radius: CornerRadius,
+    shadows: &[Shadow],
+) {
+    if shadows.is_empty() {
+        return;
+    }
+    let shapes: Vec<Shape> = shadows
+        .iter()
+        .flat_map(|s| {
+            let r = rect.translate(s.offset);
+            let mut parts: Vec<Shape> = Vec::with_capacity(2);
+            if let Some(fill) = s.fill {
+                parts.push(Shape::rect_filled(r, corner_radius, fill));
+            }
+            if s.stroke != Stroke::NONE {
+                parts.push(Shape::rect_stroke(
+                    r,
+                    corner_radius,
+                    s.stroke,
+                    egui::StrokeKind::Outside,
+                ));
+            }
+            parts
+        })
+        .collect();
+    ui.painter().set(reserve_idx, Shape::Vec(shapes));
+}
 
 /// The style bag carried by every styled widget.
 ///
@@ -44,6 +104,9 @@ pub struct SharedStyle {
 
     // Cursor
     pub cursor_icon: Option<CursorIcon>,
+
+    // Decorations
+    pub shadows: Vec<Shadow>,
 }
 
 /// Concrete style values for the current frame after
