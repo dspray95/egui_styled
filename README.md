@@ -131,6 +131,26 @@ Same UI, ~50 lines vs ~30 and the raw-egui side is mostly visuals_mut copy-paste
 
 <br/>
 
+Another common pattern: a blinking prompt that must not reflow surrounding layout. With raw egui you reach for `allocate_exact_size` + `painter().text()`; with `egui_styled` it's two builder methods:
+
+```rust
+// Raw egui
+let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), row_height), egui::Sense::hover());
+if visible {
+    ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, text, font, color);
+}
+
+// egui_styled
+Styled::label(text)
+    .font(font)
+    .text_color(color)
+    .min_height(row_height)  // reserves the slot every frame
+    .visible(visible)        // skips painting without collapsing space
+    .show(ui);
+```
+
+<br/>
+
 > **Fair comparison:** you can also factor the raw-egui side into helper functions, which closes most of the line gap (~25 vs ~20). The bigger remaining win is *what kind* of helper you can write: in raw egui, your helper has to take `&mut Ui` and render immediately. In `egui_styled` a style helper returns `impl Fn(W) -> W`, a pure value you can store, compose with other helpers, or tweak per call site (`.apply(primary_button(&t)).margin_top(8.0)`). Uniformity matters too: every helper in `egui_styled` has the same shape regardless of whether it styles a button, frame, or input.
 
 ## Features

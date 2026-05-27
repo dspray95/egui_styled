@@ -109,8 +109,11 @@ impl StyledLabel {
                     ui.set_min_height(min_h);
                 }
                 if self.style.visible == Some(false) {
-                    ui.allocate_exact_size(egui::vec2(0.0, 0.0), egui::Sense::hover())
-                        .1
+                    ui.allocate_exact_size(
+                        egui::vec2(ui.available_width(), 0.0),
+                        egui::Sense::hover(),
+                    )
+                    .1
                 } else {
                     ui.add(label)
                 }

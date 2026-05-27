@@ -256,10 +256,24 @@ fn leaderboard(ui: &mut egui::Ui, theme: &StyledTheme, colors: &ArcadeColors, st
 }
 
 fn play_again_hint(ui: &mut egui::Ui, theme: &StyledTheme, colors: &ArcadeColors) {
+    const BLINK_PERIOD: f64 = 1.0;
+    let now = ui.input(|i| i.time);
+    let visible = (now % BLINK_PERIOD) < (BLINK_PERIOD / 2.0);
+
+    let row_font = theme.font_display(theme.font_size_sm);
+    let row_height = row_font.size + 4.0;
+
+    // `.min_height` reserves the slot every frame so the leaderboard above
+    // doesn't reflow on each blink. `.visible(false)` skips painting without
+    // collapsing the space.
     Styled::label("PRESS [ENTER] TO PLAY AGAIN")
-        .font(theme.font_display(theme.font_size_sm))
+        .font(row_font)
         .text_color(colors.text)
+        .min_height(row_height)
+        .visible(visible)
         .show(ui);
+
+    ui.ctx().request_repaint();
 }
 
 fn main() -> eframe::Result<()> {

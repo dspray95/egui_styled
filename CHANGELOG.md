@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `StyledComboBox`: `.bg()` / `.hover_bg()` / `.active_bg()` had no effect on the closed button. egui's ComboBox button paints with `visuals.weak_bg_fill`, not `bg_fill`. The `apply_to_visuals` helper now keeps both in sync.
 - `StyledComboBox`: border was rendered on an expanded rect due to `visuals.expansion` not being zeroed. Fixed by `apply_to_visuals` zeroing `expansion` on all widget states.
 - `StyledSlider`: slider trailing fill (the filled/progress portion of the rail) was uncontrollable — it reads `visuals.selection.bg_fill` which was never overridden. Now set via `.accent(...)`.
+- `StyledLabel`: when `.visible(false)`, the hidden frame allocated `vec2(0, 0)` causing width to collapse to zero on hidden frames and full-width on visible ones, producing layout shift. Now allocates `available_width` so the slot is stable in both axes.
 - All widgets: per-state colour variants (`hover_bg`, `active_bg`, `focus_bg`, etc.) were previously resolved for the *current* pseudo-state and then written uniformly to all three `WidgetVisuals` slots (`inactive` / `hovered` / `active`). This collapsed differentiation: the colour correct for the current frame's state was applied everywhere, so on the very next frame when egui's own response state differed from our stored `PseudoState`, the wrong variant was shown. `resolve_per_state` fixes this by resolving each variant independently and writing it into the matching slot.
 
 ## [0.1.0] - 2026-05-22
