@@ -50,6 +50,10 @@ impl StyledColumn {
     }
 
     pub fn show<R>(self, ui: &mut Ui, body: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
+        if self.style.visible == Some(false) {
+            ui.set_invisible();
+        }
+
         let gap = self.gap;
         let align = self.align;
         let justify = self.justify;

@@ -42,6 +42,10 @@ impl StyledComboBox {
         ui: &mut Ui,
         menu_contents: impl FnOnce(&mut Ui),
     ) -> InnerResponse<Option<()>> {
+        if self.style.visible == Some(false) {
+            ui.set_invisible();
+        }
+
         let id = self
             .id_override
             .unwrap_or_else(|| ui.make_persistent_id(self.id_source));

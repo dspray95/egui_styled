@@ -57,6 +57,10 @@ impl StyledLabel {
     }
 
     pub fn show(self, ui: &mut Ui) -> Response {
+        if self.style.visible == Some(false) {
+            ui.set_invisible();
+        }
+
         let mut rich = match self.text {
             WidgetText::RichText(rt) => (*rt).clone(),
             other => RichText::new(other.text().to_string()),
@@ -108,15 +112,7 @@ impl StyledLabel {
                 if let Some(min_h) = self.style.min_height {
                     ui.set_min_height(min_h);
                 }
-                if self.style.visible == Some(false) {
-                    ui.allocate_exact_size(
-                        egui::vec2(ui.available_width(), 0.0),
-                        egui::Sense::hover(),
-                    )
-                    .1
-                } else {
-                    ui.add(label)
-                }
+                ui.add(label)
             })
             .inner;
 

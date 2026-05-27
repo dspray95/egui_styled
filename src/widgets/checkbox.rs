@@ -31,6 +31,10 @@ impl<'a> StyledCheckbox<'a> {
     }
 
     pub fn show(self, ui: &mut Ui) -> Response {
+        if self.style.visible == Some(false) {
+            ui.set_invisible();
+        }
+
         let id = self
             .id_override
             .unwrap_or_else(|| ui.make_persistent_id(ui.next_auto_id()));

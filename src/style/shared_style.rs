@@ -110,7 +110,9 @@ pub struct SharedStyle {
     // Cursor
     pub cursor_icon: Option<CursorIcon>,
 
-    // Visibility
+    // Visibility — `Some(false)` calls `Ui::set_invisible()`: reserves layout
+    // space, skips painting, implies disabled (no hover/click interaction).
+    // `None` and `Some(true)` are both fully visible.
     pub visible: Option<bool>,
 
     // Decorations

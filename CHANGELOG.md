@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-27
+
+### Fixed
+
+- `.visible(false)` was honored only by `StyledLabel`; calling it on any other widget or container silently did nothing. Now wired through every `show()` via `Ui::set_invisible()` — reserves layout space, paints nothing, implies disabled (no hover/click interaction). Applies to `StyledButton`, `StyledTextEdit`, `StyledCheckbox`, `StyledSlider`, `StyledComboBox`, `StyledFrame`, `StyledRow`, `StyledColumn`, and `StyledArea`. Children of invisible containers inherit invisibility automatically.
+- `StyledLabel::visible(false)` implementation simplified from a bespoke `allocate_exact_size` branch to the same `set_invisible()` path used by all other widgets.
+
 ## [0.2.0] - 2026-05-27
 
 ### Added

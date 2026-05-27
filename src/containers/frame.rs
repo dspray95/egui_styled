@@ -40,6 +40,10 @@ impl StyledFrame {
     }
 
     pub fn show<R>(self, ui: &mut Ui, body: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
+        if self.style.visible == Some(false) {
+            ui.set_invisible();
+        }
+
         let shadow_idx = ui.painter().add(Shape::Noop);
         let corner_radius = self.style.corner_radius.unwrap_or_default();
         let shadows = self.style.shadows.clone();

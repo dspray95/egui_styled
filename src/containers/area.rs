@@ -167,6 +167,7 @@ impl StyledArea {
             area = area.anchor(align, offset);
         }
 
+        let visible = self.style.visible;
         let frame = StyledFrame {
             style: self.style,
             align: self.align,
@@ -177,6 +178,9 @@ impl StyledArea {
         let needs_size_cache = self.fixed_pos_centered.is_some();
 
         let response = area.show(ctx, |ui| {
+            if visible == Some(false) {
+                ui.set_invisible();
+            }
             if fill_screen {
                 ui.set_min_size(screen_size);
             }
