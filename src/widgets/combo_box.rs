@@ -55,19 +55,17 @@ impl StyledComboBox {
                 SharedStyle::apply_to_visuals(&per, ui.visuals_mut());
 
                 // Apply font to selected_text if requested.
-                let selected_text: WidgetText =
-                    if let Some(size) = self.style.font_size {
-                        let rt = match self.selected_text {
-                            WidgetText::RichText(rt) => (*rt).clone().size(size),
-                            other => RichText::new(other.text().to_string()).size(size),
-                        };
-                        rt.into()
-                    } else {
-                        self.selected_text
+                let selected_text: WidgetText = if let Some(size) = self.style.font_size {
+                    let rt = match self.selected_text {
+                        WidgetText::RichText(rt) => (*rt).clone().size(size),
+                        other => RichText::new(other.text().to_string()).size(size),
                     };
+                    rt.into()
+                } else {
+                    self.selected_text
+                };
 
-                let mut cb =
-                    ComboBox::from_id_salt(self.id_source).selected_text(selected_text);
+                let mut cb = ComboBox::from_id_salt(self.id_source).selected_text(selected_text);
                 if let Some(w) = self.width {
                     cb = cb.width(w);
                 }

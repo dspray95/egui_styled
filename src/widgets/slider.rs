@@ -75,18 +75,20 @@ impl<'a, T: Numeric> StyledSlider<'a, T> {
                 if per.padding != egui::Margin::ZERO {
                     wrapper = wrapper.inner_margin(per.padding);
                 }
-                wrapper.show(ui, |ui| {
-                    if self.style.full_width {
-                        ui.set_min_width(ui.available_width());
-                    }
-                    if let Some(min_w) = self.style.min_width {
-                        ui.set_min_width(min_w);
-                    }
-                    if let Some(min_h) = self.style.min_height {
-                        ui.set_min_height(min_h);
-                    }
-                    ui.add(slider)
-                }).inner
+                wrapper
+                    .show(ui, |ui| {
+                        if self.style.full_width {
+                            ui.set_min_width(ui.available_width());
+                        }
+                        if let Some(min_w) = self.style.min_width {
+                            ui.set_min_width(min_w);
+                        }
+                        if let Some(min_h) = self.style.min_height {
+                            ui.set_min_height(min_h);
+                        }
+                        ui.add(slider)
+                    })
+                    .inner
             })
             .inner;
 

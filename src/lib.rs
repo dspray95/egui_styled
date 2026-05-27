@@ -30,11 +30,11 @@ pub mod widgets;
 
 pub use apply::Apply;
 pub use color::{ColorExt, rgb, rgba};
-pub use style::shared_style::Shadow;
 pub use containers::area::StyledArea;
 pub use containers::column::StyledColumn;
 pub use containers::frame::StyledFrame;
 pub use containers::row::StyledRow;
+pub use style::shared_style::Shadow;
 pub use theme::StyledTheme;
 pub use theme::theme_ext::{DesignSlots, ThemeExt};
 pub use theme::web_palette::WebPalette;

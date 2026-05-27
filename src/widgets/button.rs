@@ -113,7 +113,13 @@ impl StyledButton {
             })
             .inner;
 
-        paint_shadows(ui, shadow_idx, response.rect, per.corner_radius, &self.style.shadows);
+        paint_shadows(
+            ui,
+            shadow_idx,
+            response.rect,
+            per.corner_radius,
+            &self.style.shadows,
+        );
 
         PseudoState::from_response(&response).store(ui, id);
 

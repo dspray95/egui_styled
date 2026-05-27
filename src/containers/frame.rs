@@ -1,6 +1,9 @@
 use egui::{Align, InnerResponse, Layout, Shape, Ui};
 
-use crate::{impl_style_builders, style::shared_style::{SharedStyle, paint_shadows}};
+use crate::{
+    impl_style_builders,
+    style::shared_style::{SharedStyle, paint_shadows},
+};
 
 pub struct StyledFrame {
     pub style: SharedStyle,
@@ -77,7 +80,13 @@ impl StyledFrame {
             }
         });
 
-        paint_shadows(ui, shadow_idx, response.response.rect, corner_radius, &shadows);
+        paint_shadows(
+            ui,
+            shadow_idx,
+            response.response.rect,
+            corner_radius,
+            &shadows,
+        );
 
         response
     }

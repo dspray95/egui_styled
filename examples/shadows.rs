@@ -15,8 +15,8 @@ fn shadows_example(ui: &mut egui::Ui) {
         .border(1.0, Color32::WHITE)
         .corner_radius(0.0)
         .padding(egui::Margin::symmetric(20, 10))
-        .shadow(vec2(4.0, -3.0), 2.0, rgb(255, 0, 200))  // magenta offset
-        .shadow(vec2(-3.0, 4.0), 2.0, Color32::WHITE)     // white offset
+        .shadow(vec2(4.0, -3.0), 2.0, rgb(255, 0, 200)) // magenta offset
+        .shadow(vec2(-3.0, 4.0), 2.0, Color32::WHITE) // white offset
         .show(ui);
 
     ui.add_space(32.0);
