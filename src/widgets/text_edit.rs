@@ -1,6 +1,10 @@
-use egui::{Align, FontId, Id, Response, Stroke, TextEdit, Ui};
+use egui::{Align, FontId, Id, Response, Shape, TextEdit, Ui};
 
-use crate::{impl_style_builders, state::PseudoState, style::shared_style::SharedStyle};
+use crate::{
+    impl_style_builders,
+    state::PseudoState,
+    style::shared_style::{SharedStyle, paint_shadows},
+};
 
 pub struct StyledTextEdit<'a> {
     text: &'a mut String,
@@ -38,8 +42,6 @@ impl<'a> StyledTextEdit<'a> {
         self
     }
 
-    // Widget specific builder functions
-
     pub fn hint(mut self, h: impl Into<String>) -> Self {
         self.hint = Some(h.into());
         self
@@ -55,77 +57,38 @@ impl<'a> StyledTextEdit<'a> {
         self
     }
 
-    /// Cap the number of characters the field will accept.
     pub fn char_limit(mut self, limit: usize) -> Self {
         self.char_limit = Some(limit);
         self
     }
 
-    /// Set the font used to render the text (family + size).
-    /// Overrides `font_size` from `SharedStyle` when set.
     pub fn font(mut self, font: FontId) -> Self {
         self.font = Some(font);
         self
     }
 
-    /// Explicit width for the field. Wins over [`SharedStyle::full_width`].
     pub fn desired_width(mut self, width: f32) -> Self {
         self.desired_width = Some(width);
         self
     }
 
-    /// Horizontal alignment of the text within the field.
     pub fn horizontal_align(mut self, align: Align) -> Self {
         self.horizontal_align = Some(align);
         self
     }
 
-    // show
     pub fn show(self, ui: &mut Ui) -> Response {
         let id = self
             .id_override
             .unwrap_or_else(|| ui.make_persistent_id(ui.next_auto_id()));
-        let psuedo = PseudoState::load(ui, id);
+        let pseudo = PseudoState::load(ui, id);
 
-        let visuals = ui.visuals().clone();
-        let widget_vis = if psuedo.focused {
-            &visuals.widgets.active
-        } else if psuedo.hovered {
-            &visuals.widgets.hovered
-        } else {
-            &visuals.widgets.inactive
-        };
-
-        let resolved = self.style.resolve(psuedo, widget_vis);
+        let per = self.style.resolve_per_state(ui.visuals());
+        let shadow_idx = ui.painter().add(Shape::Noop);
 
         let response = ui
             .scope(|ui| {
-                let vis = ui.visuals_mut();
-
-                for widget_state in [
-                    &mut vis.widgets.inactive,
-                    &mut vis.widgets.hovered,
-                    &mut vis.widgets.active,
-                ] {
-                    widget_state.bg_fill = resolved.bg;
-                    widget_state.bg_stroke = resolved.border;
-                    widget_state.corner_radius = resolved.corner_radius;
-                    widget_state.expansion = 0.0;
-                }
-
-                // TextEdit uses selection.stroke/extreme_bg_color for the field bg in some themes
-                vis.extreme_bg_color = resolved.bg;
-                vis.selection.stroke = resolved.border;
-
-                if let Some(c) = self.style.text_color {
-                    for widget_state in [
-                        &mut vis.widgets.inactive,
-                        &mut vis.widgets.hovered,
-                        &mut vis.widgets.active,
-                    ] {
-                        widget_state.fg_stroke = Stroke::new(1.0, c);
-                    }
-                }
+                SharedStyle::apply_to_visuals(&per, ui.visuals_mut());
 
                 let mut text_edit = if self.multiline {
                     TextEdit::multiline(self.text)
@@ -149,7 +112,6 @@ impl<'a> StyledTextEdit<'a> {
                 if let Some(align) = self.horizontal_align {
                     text_edit = text_edit.horizontal_align(align);
                 }
-                // Explicit desired_width wins over full_width.
                 if let Some(width) = self.desired_width {
                     text_edit = text_edit.desired_width(width);
                 } else if self.style.full_width {
@@ -157,27 +119,46 @@ impl<'a> StyledTextEdit<'a> {
                 }
 
                 // Pass a fully-built custom Frame so egui skips its own visuals
-                // path (which would otherwise re-derive stroke from selection /
-                // widget visuals and expand the inner margin by `expansion -
-                // stroke.width`, clobbering our border + padding).
-                let padding = self.style.padding.unwrap_or(egui::Margin::symmetric(4, 2));
+                // path (which re-derives stroke from selection/widget visuals and
+                // expands the inner margin by `expansion - stroke.width`).
+                let resolved = if pseudo.focused {
+                    &per.focused
+                } else if pseudo.hovered {
+                    &per.hovered
+                } else {
+                    &per.inactive
+                };
+                let padding = per.padding;
                 let custom_frame = egui::Frame::new()
                     .fill(resolved.bg)
                     .stroke(resolved.border)
-                    .corner_radius(resolved.corner_radius)
+                    .corner_radius(per.corner_radius)
                     .inner_margin(padding);
                 text_edit = text_edit.frame(custom_frame).margin(padding);
 
                 let mut wrapper = egui::Frame::new();
-                if let Some(m) = self.style.margin {
-                    wrapper = wrapper.outer_margin(m);
+                if per.margin != egui::Margin::ZERO {
+                    wrapper = wrapper.outer_margin(per.margin);
                 }
                 wrapper.show(ui, |ui| ui.add(text_edit)).inner
             })
             .inner;
 
-        // Store this frame's state for next frame
+        paint_shadows(
+            ui,
+            shadow_idx,
+            response.rect,
+            per.corner_radius,
+            &self.style.shadows,
+        );
+
         PseudoState::from_response(&response).store(ui, id);
+
+        if let Some(icon) = per.cursor_icon
+            && response.hovered()
+        {
+            ui.ctx().set_cursor_icon(icon);
+        }
 
         response
     }

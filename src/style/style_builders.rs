@@ -35,6 +35,18 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
+            /// Set the accent colour — maps to `selection.bg_fill` in egui
+            /// (slider trailing fill, text-selection highlight, focus ring).
+            pub fn accent(mut self, color: egui::Color32) -> Self {
+                self.style.accent = Some(color);
+                self
+            }
+
+            pub fn hover_accent(mut self, color: egui::Color32) -> Self {
+                self.style.hover_accent = Some(color);
+                self
+            }
+
             // --- Text properties ---
 
             pub fn text_color(mut self, color: egui::Color32) -> Self {

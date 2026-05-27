@@ -1,8 +1,12 @@
 use std::ops::RangeInclusive;
 
-use egui::{Id, Response, Slider, Stroke, Ui, emath::Numeric};
+use egui::{Id, Response, Shape, Slider, Ui, emath::Numeric};
 
-use crate::{impl_style_builders, state::PseudoState, style::shared_style::SharedStyle};
+use crate::{
+    impl_style_builders,
+    state::PseudoState,
+    style::shared_style::{SharedStyle, paint_shadows},
+};
 
 pub struct StyledSlider<'a, T: Numeric> {
     value: &'a mut T,
@@ -46,40 +50,15 @@ impl<'a, T: Numeric> StyledSlider<'a, T> {
         let id = self
             .id_override
             .unwrap_or_else(|| ui.make_persistent_id(ui.next_auto_id()));
-        let pseudo = PseudoState::load(ui, id);
+        let _pseudo = PseudoState::load(ui, id);
 
-        let visuals = ui.visuals().clone();
-        let widget_vis = if pseudo.active {
-            &visuals.widgets.active
-        } else if pseudo.hovered {
-            &visuals.widgets.hovered
-        } else {
-            &visuals.widgets.inactive
-        };
-        let resolved = self.style.resolve(pseudo, widget_vis);
+        let per = self.style.resolve_per_state(ui.visuals());
+        let shadow_idx = ui.painter().add(Shape::Noop);
 
         let response = ui
             .scope(|ui| {
-                let vis = ui.visuals_mut();
-                for ws in [
-                    &mut vis.widgets.inactive,
-                    &mut vis.widgets.hovered,
-                    &mut vis.widgets.active,
-                ] {
-                    ws.bg_fill = resolved.bg;
-                    ws.bg_stroke = resolved.border;
-                    ws.corner_radius = resolved.corner_radius;
-                }
-
-                if let Some(color) = self.style.text_color {
-                    for ws in [
-                        &mut vis.widgets.inactive,
-                        &mut vis.widgets.hovered,
-                        &mut vis.widgets.active,
-                    ] {
-                        ws.fg_stroke = Stroke::new(1.0, color);
-                    }
-                }
+                // selection.bg_fill drives the slider trailing fill.
+                SharedStyle::apply_to_visuals(&per, ui.visuals_mut());
 
                 let mut slider = Slider::new(self.value, self.range);
                 if let Some(t) = self.text {
@@ -90,14 +69,43 @@ impl<'a, T: Numeric> StyledSlider<'a, T> {
                 }
 
                 let mut wrapper = egui::Frame::new();
-                if let Some(m) = self.style.margin {
-                    wrapper = wrapper.outer_margin(m);
+                if per.margin != egui::Margin::ZERO {
+                    wrapper = wrapper.outer_margin(per.margin);
                 }
-                wrapper.show(ui, |ui| ui.add(slider)).inner
+                if per.padding != egui::Margin::ZERO {
+                    wrapper = wrapper.inner_margin(per.padding);
+                }
+                wrapper.show(ui, |ui| {
+                    if self.style.full_width {
+                        ui.set_min_width(ui.available_width());
+                    }
+                    if let Some(min_w) = self.style.min_width {
+                        ui.set_min_width(min_w);
+                    }
+                    if let Some(min_h) = self.style.min_height {
+                        ui.set_min_height(min_h);
+                    }
+                    ui.add(slider)
+                }).inner
             })
             .inner;
 
+        paint_shadows(
+            ui,
+            shadow_idx,
+            response.rect,
+            per.corner_radius,
+            &self.style.shadows,
+        );
+
         PseudoState::from_response(&response).store(ui, id);
+
+        if let Some(icon) = per.cursor_icon
+            && response.hovered()
+        {
+            ui.ctx().set_cursor_icon(icon);
+        }
+
         response
     }
 }

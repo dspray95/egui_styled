@@ -1,7 +1,7 @@
 use crate::state::PseudoState;
 
 use egui::{
-    Color32, CornerRadius, CursorIcon, FontId, Margin, Shape, Stroke, Vec2,
+    Color32, CornerRadius, CursorIcon, FontId, Margin, Shape, Stroke, Vec2, Visuals,
     style::WidgetVisuals,
 };
 
@@ -79,6 +79,11 @@ pub struct SharedStyle {
     pub active_bg: Option<Color32>,
     pub focus_bg: Option<Color32>,
 
+    // Accent — maps to egui's `selection.bg_fill` / `selection.stroke`
+    // (slider trailing fill, text-edit focus ring, text selection highlight).
+    pub accent: Option<Color32>,
+    pub hover_accent: Option<Color32>,
+
     // Text
     pub text_color: Option<Color32>,
     pub hover_text_color: Option<Color32>,
@@ -109,8 +114,9 @@ pub struct SharedStyle {
     pub shadows: Vec<Shadow>,
 }
 
-/// Concrete style values for the current frame after
-/// resolving pseudo-state and falling back to egui defaults
+/// Concrete style values for one interaction state after resolving pseudo-state
+/// and falling back to egui defaults.
+#[derive(Clone)]
 pub struct ResolvedStyle {
     pub bg: Color32,
     pub text_color: Color32,
@@ -121,8 +127,30 @@ pub struct ResolvedStyle {
     pub cursor_icon: Option<CursorIcon>,
 }
 
+/// Resolved style for all interaction states simultaneously. Allows writing
+/// each per-state colour into the matching `WidgetVisuals` slot so egui's own
+/// hover/active response picks the right variant without clobbering it.
+#[derive(Clone)]
+pub struct PerStateStyle {
+    pub inactive: ResolvedStyle,
+    pub hovered: ResolvedStyle,
+    pub active: ResolvedStyle,
+    /// Focused mirrors `focus_*` fields; falls back to `inactive` if unset.
+    pub focused: ResolvedStyle,
+    /// Maps to `selection.bg_fill` (slider trail, text selection).
+    pub accent: Color32,
+    /// Maps to `selection.bg_fill` on hover.
+    pub hover_accent: Color32,
+    /// Shared across states.
+    pub corner_radius: CornerRadius,
+    pub padding: Margin,
+    pub margin: Margin,
+    pub cursor_icon: Option<CursorIcon>,
+}
+
 impl SharedStyle {
-    /// Resolve against current pseudo-state and egui's active visuals
+    /// Resolve against current pseudo-state and egui's active visuals.
+    /// Kept for back-compat; prefer `resolve_per_state` for new widget code.
     pub fn resolve(&self, state: PseudoState, default: &WidgetVisuals) -> ResolvedStyle {
         let bg = match state {
             _ if state.active && self.active_bg.is_some() => self.active_bg.unwrap(),
@@ -138,7 +166,9 @@ impl SharedStyle {
         };
 
         let text_color = match state {
-            _ if state.hovered && self.hover_text_color.is_some() => self.hover_text_color.unwrap(),
+            _ if state.hovered && self.hover_text_color.is_some() => {
+                self.hover_text_color.unwrap()
+            }
             _ => self.text_color.unwrap_or(default.text_color()),
         };
 
@@ -151,6 +181,88 @@ impl SharedStyle {
             margin: self.margin.unwrap_or_default(),
             cursor_icon: self.cursor_icon,
         }
+    }
+
+    /// Resolve a `ResolvedStyle` for each interaction state independently.
+    /// Use this in widget `show()` implementations so each state's colour is
+    /// written into the matching `WidgetVisuals` slot.
+    pub fn resolve_per_state(&self, visuals: &Visuals) -> PerStateStyle {
+        let resolve_one = |state: PseudoState, wv: &WidgetVisuals| self.resolve(state, wv);
+
+        let inactive = resolve_one(
+            PseudoState { hovered: false, active: false, focused: false },
+            &visuals.widgets.inactive,
+        );
+        let hovered = resolve_one(
+            PseudoState { hovered: true, active: false, focused: false },
+            &visuals.widgets.hovered,
+        );
+        let active = resolve_one(
+            PseudoState { hovered: true, active: true, focused: false },
+            &visuals.widgets.active,
+        );
+        let focused = resolve_one(
+            PseudoState { hovered: false, active: false, focused: true },
+            &visuals.widgets.inactive,
+        );
+
+        let corner_radius = self
+            .corner_radius
+            .unwrap_or(visuals.widgets.inactive.corner_radius);
+        let accent = self
+            .accent
+            .unwrap_or(visuals.selection.bg_fill);
+        let hover_accent = self
+            .hover_accent
+            .unwrap_or(accent);
+
+        PerStateStyle {
+            inactive,
+            hovered,
+            active,
+            focused,
+            accent,
+            hover_accent,
+            corner_radius,
+            padding: self.padding.unwrap_or_default(),
+            margin: self.margin.unwrap_or_default(),
+            cursor_icon: self.cursor_icon,
+        }
+    }
+
+    /// Write `per_state` into `vis` so every egui widget inside the current
+    /// `ui.scope` inherits correct per-interaction-state colours.
+    ///
+    /// Handles all known egui visuals quirks:
+    /// - `weak_bg_fill` (used by ComboBox button) is kept in sync with `bg_fill`
+    /// - `expansion` is zeroed so border rects don't drift
+    /// - `selection.bg_fill` receives `accent` (slider trail, text selection)
+    /// - `selection.stroke` receives `focused.border` (text-edit focus ring)
+    /// - `extreme_bg_color` receives `inactive.bg` (TextEdit background)
+    pub fn apply_to_visuals(per: &PerStateStyle, vis: &mut Visuals) {
+        let states: [(&ResolvedStyle, &mut WidgetVisuals); 3] = [
+            (&per.inactive, &mut vis.widgets.inactive),
+            (&per.hovered, &mut vis.widgets.hovered),
+            (&per.active, &mut vis.widgets.active),
+        ];
+        for (resolved, wv) in states {
+            wv.bg_fill = resolved.bg;
+            wv.weak_bg_fill = resolved.bg;
+            wv.bg_stroke = resolved.border;
+            wv.corner_radius = per.corner_radius;
+            wv.expansion = 0.0;
+            wv.fg_stroke = Stroke::new(wv.fg_stroke.width, resolved.text_color);
+        }
+        // Also update the open state for combo-box menus.
+        vis.widgets.open.bg_fill = per.inactive.bg;
+        vis.widgets.open.weak_bg_fill = per.inactive.bg;
+        vis.widgets.open.bg_stroke = per.inactive.border;
+        vis.widgets.open.corner_radius = per.corner_radius;
+        vis.widgets.open.expansion = 0.0;
+
+        vis.extreme_bg_color = per.inactive.bg;
+        vis.selection.bg_fill = per.accent;
+        vis.selection.stroke = per.focused.border;
     }
 
     /// True if any field that an [`egui::Frame`] could render is set.
@@ -386,5 +498,32 @@ mod tests {
             ..Default::default()
         };
         assert!(!style.has_frame_styles());
+    }
+
+    #[test]
+    fn resolve_per_state_each_variant_independent() {
+        let style = SharedStyle {
+            bg: Some(Color32::RED),
+            hover_bg: Some(Color32::GREEN),
+            active_bg: Some(Color32::BLUE),
+            focus_bg: Some(Color32::YELLOW),
+            accent: Some(Color32::WHITE),
+            ..Default::default()
+        };
+        let vis = Visuals::default();
+        let per = style.resolve_per_state(&vis);
+        assert_eq!(per.inactive.bg, Color32::RED);
+        assert_eq!(per.hovered.bg, Color32::GREEN);
+        assert_eq!(per.active.bg, Color32::BLUE);
+        assert_eq!(per.focused.bg, Color32::YELLOW);
+        assert_eq!(per.accent, Color32::WHITE);
+    }
+
+    #[test]
+    fn resolve_per_state_accent_falls_back_to_selection_bg_fill() {
+        let style = SharedStyle::default();
+        let vis = Visuals::default();
+        let per = style.resolve_per_state(&vis);
+        assert_eq!(per.accent, vis.selection.bg_fill);
     }
 }

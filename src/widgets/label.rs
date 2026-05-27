@@ -1,14 +1,18 @@
-use egui::{FontId, Label, Response, RichText, Ui, WidgetText};
+use egui::{FontId, Label, Response, RichText, Shape, Stroke, Ui, WidgetText};
 
-use crate::{impl_style_builders, style::shared_style::SharedStyle};
+use crate::{
+    impl_style_builders,
+    style::shared_style::{SharedStyle, paint_shadows},
+};
 
 /// A styled label.
 ///
-/// Labels don't track pseudo-state - `hover_bg`, `focus_border`, and
-/// `active_bg` from [`SharedStyle`] are accepted but unused. Use
-/// `text_color`, `font_size`, `font`, `bold`, `italics`, and `wrap` instead.
-/// The wrapper exists for API uniformity with the rest of the `Styled::*`
-/// namespace, not to add new capability over [`egui::Label`].
+/// Labels are not interactive so pseudo-state fields (`hover_bg`, `active_bg`,
+/// `focus_bg`, `hover_border`, `focus_border`, `hover_text_color`) are
+/// accepted by the builder but have no effect. Also unsupported: `min_height`,
+/// `max_width/height`. Use `text_color`, `bg`, `border`, `corner_radius`,
+/// `padding`, `margin`, `font_size`, `font`, `bold`, `italics`, `wrap`,
+/// `shadows`, and `cursor` instead.
 pub struct StyledLabel {
     text: WidgetText,
     bold: bool,
@@ -60,8 +64,6 @@ impl StyledLabel {
         if let Some(color) = self.style.text_color {
             rich = rich.color(color);
         }
-        // `.font(FontId)` wins over `.font_size(f32)` when both are set -
-        // it carries the full family + size, not just size.
         if let Some(font) = self.font.clone() {
             rich = rich.font(font);
         } else if let Some(size) = self.style.font_size {
@@ -79,18 +81,49 @@ impl StyledLabel {
             label = if wrap { label.wrap() } else { label.truncate() };
         }
 
-        let mut wrapper = egui::Frame::new();
-        if let Some(m) = self.style.margin {
-            wrapper = wrapper.outer_margin(m);
-        }
-        wrapper
+        // Resolve static style (labels have no interaction state).
+        let visuals = ui.visuals().clone();
+        let wv = &visuals.widgets.inactive;
+        let bg = self.style.bg.unwrap_or(egui::Color32::TRANSPARENT);
+        let border = self.style.border.unwrap_or(Stroke::NONE);
+        let corner_radius = self.style.corner_radius.unwrap_or(wv.corner_radius);
+        let padding = self.style.padding.unwrap_or_default();
+        let margin = self.style.margin.unwrap_or_default();
+
+        let shadow_idx = ui.painter().add(Shape::Noop);
+
+        let response = egui::Frame::new()
+            .fill(bg)
+            .stroke(border)
+            .corner_radius(corner_radius)
+            .inner_margin(padding)
+            .outer_margin(margin)
             .show(ui, |ui| {
                 if self.style.full_width {
                     ui.set_min_width(ui.available_width());
                 }
+                if let Some(min_w) = self.style.min_width {
+                    ui.set_min_width(min_w);
+                }
                 ui.add(label)
             })
-            .inner
+            .inner;
+
+        paint_shadows(
+            ui,
+            shadow_idx,
+            response.rect,
+            corner_radius,
+            &self.style.shadows,
+        );
+
+        if let Some(icon) = self.style.cursor_icon
+            && response.hovered()
+        {
+            ui.ctx().set_cursor_icon(icon);
+        }
+
+        response
     }
 }
 
