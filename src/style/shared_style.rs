@@ -110,6 +110,9 @@ pub struct SharedStyle {
     // Cursor
     pub cursor_icon: Option<CursorIcon>,
 
+    // Visibility
+    pub visible: Option<bool>,
+
     // Decorations
     pub shadows: Vec<Shadow>,
 }
@@ -166,9 +169,7 @@ impl SharedStyle {
         };
 
         let text_color = match state {
-            _ if state.hovered && self.hover_text_color.is_some() => {
-                self.hover_text_color.unwrap()
-            }
+            _ if state.hovered && self.hover_text_color.is_some() => self.hover_text_color.unwrap(),
             _ => self.text_color.unwrap_or(default.text_color()),
         };
 
@@ -190,31 +191,43 @@ impl SharedStyle {
         let resolve_one = |state: PseudoState, wv: &WidgetVisuals| self.resolve(state, wv);
 
         let inactive = resolve_one(
-            PseudoState { hovered: false, active: false, focused: false },
+            PseudoState {
+                hovered: false,
+                active: false,
+                focused: false,
+            },
             &visuals.widgets.inactive,
         );
         let hovered = resolve_one(
-            PseudoState { hovered: true, active: false, focused: false },
+            PseudoState {
+                hovered: true,
+                active: false,
+                focused: false,
+            },
             &visuals.widgets.hovered,
         );
         let active = resolve_one(
-            PseudoState { hovered: true, active: true, focused: false },
+            PseudoState {
+                hovered: true,
+                active: true,
+                focused: false,
+            },
             &visuals.widgets.active,
         );
         let focused = resolve_one(
-            PseudoState { hovered: false, active: false, focused: true },
+            PseudoState {
+                hovered: false,
+                active: false,
+                focused: true,
+            },
             &visuals.widgets.inactive,
         );
 
         let corner_radius = self
             .corner_radius
             .unwrap_or(visuals.widgets.inactive.corner_radius);
-        let accent = self
-            .accent
-            .unwrap_or(visuals.selection.bg_fill);
-        let hover_accent = self
-            .hover_accent
-            .unwrap_or(accent);
+        let accent = self.accent.unwrap_or(visuals.selection.bg_fill);
+        let hover_accent = self.hover_accent.unwrap_or(accent);
 
         PerStateStyle {
             inactive,

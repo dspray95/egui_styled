@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `StyledCheckbox` now honours `padding`, `font_size` (applied to the label), `cursor`, and `shadows`.
 - `StyledSlider` now honours `padding`, `cursor`, `shadows`, `min_width`, and `min_height`. Trailing fill colour is now controllable via `.accent(...)`.
 - `StyledLabel` now renders a real `Frame` so `.bg()`, `.border()`, `.corner_radius()`, `.padding()`, and `.shadows()` all take effect. Also added `cursor` support.
+- `StyledLabel` now honours `.min_height(f32)` — reserves a fixed vertical slot every frame so surrounding layout doesn't reflow when content changes.
+- `.visible(bool)` builder on all styled widgets (via `SharedStyle`) — when `false`, the widget allocates no space but skips painting. Pair with `.min_height()` on `StyledLabel` to reserve a stable slot for blinking / conditionally-shown text.
 - `StyledTextEdit` now honours `cursor` and `shadows`. Border and padding fixes applied (see **Fixed**).
 
 ### Fixed

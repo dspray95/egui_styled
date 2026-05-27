@@ -150,6 +150,11 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
+            pub fn visible(mut self, visible: bool) -> Self {
+                self.style.visible = Some(visible);
+                self
+            }
+
             // --- Decorations ---
 
             /// Paint an offset stroke rect behind the widget.

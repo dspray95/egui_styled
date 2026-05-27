@@ -9,9 +9,9 @@ use crate::{
 ///
 /// Labels are not interactive so pseudo-state fields (`hover_bg`, `active_bg`,
 /// `focus_bg`, `hover_border`, `focus_border`, `hover_text_color`) are
-/// accepted by the builder but have no effect. Also unsupported: `min_height`,
-/// `max_width/height`. Use `text_color`, `bg`, `border`, `corner_radius`,
-/// `padding`, `margin`, `font_size`, `font`, `bold`, `italics`, `wrap`,
+/// accepted by the builder but have no effect. Also unsupported: `max_width/height`.
+/// Use `text_color`, `bg`, `border`, `corner_radius`, `padding`, `margin`,
+/// `font_size`, `font`, `bold`, `italics`, `wrap`, `min_height`, `visible`,
 /// `shadows`, and `cursor` instead.
 pub struct StyledLabel {
     text: WidgetText,
@@ -105,7 +105,14 @@ impl StyledLabel {
                 if let Some(min_w) = self.style.min_width {
                     ui.set_min_width(min_w);
                 }
-                ui.add(label)
+                if let Some(min_h) = self.style.min_height {
+                    ui.set_min_height(min_h);
+                }
+                if self.style.visible == Some(false) {
+                    ui.allocate_exact_size(egui::vec2(0.0, 0.0), egui::Sense::hover()).1
+                } else {
+                    ui.add(label)
+                }
             })
             .inner;
 
