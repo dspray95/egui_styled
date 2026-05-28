@@ -3,7 +3,7 @@ use egui::{Checkbox, Id, Response, RichText, Shape, Ui, WidgetText};
 use crate::{
     impl_style_builders,
     state::PseudoState,
-    style::shared_style::{SharedStyle, paint_shadows},
+    style::shared_style::{SharedStyle, paint_shadows, render_scoped},
 };
 
 pub struct StyledCheckbox<'a> {
@@ -31,9 +31,7 @@ impl<'a> StyledCheckbox<'a> {
     }
 
     pub fn show(self, ui: &mut Ui) -> Response {
-        if self.style.visible == Some(false) {
-            ui.set_invisible();
-        }
+        let visible = self.style.visible != Some(false);
 
         let id = self
             .id_override
@@ -41,7 +39,6 @@ impl<'a> StyledCheckbox<'a> {
         let _pseudo = PseudoState::load(ui, id);
 
         let per = self.style.resolve_per_state(ui.visuals());
-        let shadow_idx = ui.painter().add(Shape::Noop);
 
         // Apply font to label if requested.
         let label: WidgetText = if let Some(size) = self.style.font_size {
@@ -54,30 +51,34 @@ impl<'a> StyledCheckbox<'a> {
             self.label
         };
 
-        let response = ui
-            .scope(|ui| {
-                SharedStyle::apply_to_visuals(&per, ui.visuals_mut());
+        let response = render_scoped(ui, visible, |ui| {
+            let shadow_idx = ui.painter().add(Shape::Noop);
+            let response = ui
+                .scope(|ui| {
+                    SharedStyle::apply_to_visuals(&per, ui.visuals_mut());
 
-                let mut wrapper = egui::Frame::new();
-                if per.margin != egui::Margin::ZERO {
-                    wrapper = wrapper.outer_margin(per.margin);
-                }
-                if per.padding != egui::Margin::ZERO {
-                    wrapper = wrapper.inner_margin(per.padding);
-                }
-                wrapper
-                    .show(ui, |ui| ui.add(Checkbox::new(self.checked, label)))
-                    .inner
-            })
-            .inner;
+                    let mut wrapper = egui::Frame::new();
+                    if per.margin != egui::Margin::ZERO {
+                        wrapper = wrapper.outer_margin(per.margin);
+                    }
+                    if per.padding != egui::Margin::ZERO {
+                        wrapper = wrapper.inner_margin(per.padding);
+                    }
+                    wrapper
+                        .show(ui, |ui| ui.add(Checkbox::new(self.checked, label)))
+                        .inner
+                })
+                .inner;
 
-        paint_shadows(
-            ui,
-            shadow_idx,
-            response.rect,
-            per.corner_radius,
-            &self.style.shadows,
-        );
+            paint_shadows(
+                ui,
+                shadow_idx,
+                response.rect,
+                per.corner_radius,
+                &self.style.shadows,
+            );
+            response
+        });
 
         PseudoState::from_response(&response).store(ui, id);
 

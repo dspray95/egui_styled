@@ -2,7 +2,7 @@ use egui::{FontId, Label, Response, RichText, Shape, Stroke, Ui, WidgetText};
 
 use crate::{
     impl_style_builders,
-    style::shared_style::{SharedStyle, paint_shadows},
+    style::shared_style::{SharedStyle, paint_shadows, render_scoped},
 };
 
 /// A styled label.
@@ -57,9 +57,7 @@ impl StyledLabel {
     }
 
     pub fn show(self, ui: &mut Ui) -> Response {
-        if self.style.visible == Some(false) {
-            ui.set_invisible();
-        }
+        let visible = self.style.visible != Some(false);
 
         let mut rich = match self.text {
             WidgetText::RichText(rt) => (*rt).clone(),
@@ -94,35 +92,38 @@ impl StyledLabel {
         let padding = self.style.padding.unwrap_or_default();
         let margin = self.style.margin.unwrap_or_default();
 
-        let shadow_idx = ui.painter().add(Shape::Noop);
+        let response = render_scoped(ui, visible, |ui| {
+            let shadow_idx = ui.painter().add(Shape::Noop);
 
-        let response = egui::Frame::new()
-            .fill(bg)
-            .stroke(border)
-            .corner_radius(corner_radius)
-            .inner_margin(padding)
-            .outer_margin(margin)
-            .show(ui, |ui| {
-                if self.style.full_width {
-                    ui.set_min_width(ui.available_width());
-                }
-                if let Some(min_w) = self.style.min_width {
-                    ui.set_min_width(min_w);
-                }
-                if let Some(min_h) = self.style.min_height {
-                    ui.set_min_height(min_h);
-                }
-                ui.add(label)
-            })
-            .inner;
+            let response = egui::Frame::new()
+                .fill(bg)
+                .stroke(border)
+                .corner_radius(corner_radius)
+                .inner_margin(padding)
+                .outer_margin(margin)
+                .show(ui, |ui| {
+                    if self.style.full_width {
+                        ui.set_min_width(ui.available_width());
+                    }
+                    if let Some(min_w) = self.style.min_width {
+                        ui.set_min_width(min_w);
+                    }
+                    if let Some(min_h) = self.style.min_height {
+                        ui.set_min_height(min_h);
+                    }
+                    ui.add(label)
+                })
+                .inner;
 
-        paint_shadows(
-            ui,
-            shadow_idx,
-            response.rect,
-            corner_radius,
-            &self.style.shadows,
-        );
+            paint_shadows(
+                ui,
+                shadow_idx,
+                response.rect,
+                corner_radius,
+                &self.style.shadows,
+            );
+            response
+        });
 
         if let Some(icon) = self.style.cursor_icon
             && response.hovered()

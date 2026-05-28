@@ -3,7 +3,7 @@ use egui::{FontId, Id, Image, Response, RichText, Shape, Ui, WidgetText};
 use crate::{
     impl_style_builders,
     state::PseudoState,
-    style::shared_style::{SharedStyle, paint_shadows},
+    style::shared_style::{SharedStyle, paint_shadows, render_scoped},
 };
 
 pub struct StyledButton {
@@ -47,83 +47,85 @@ impl StyledButton {
     }
 
     pub fn show(self, ui: &mut Ui) -> Response {
-        if self.style.visible == Some(false) {
-            ui.set_invisible();
-        }
+        let visible = self.style.visible != Some(false);
 
         let id = self
             .id_override
             .unwrap_or_else(|| ui.make_persistent_id(ui.next_auto_id()));
 
-        let shadow_idx = ui.painter().add(Shape::Noop);
         let pseudo = PseudoState::load(ui, id);
         let per = self.style.resolve_per_state(ui.visuals());
 
-        if self.style.full_width {
-            ui.set_min_width(ui.available_width());
-        }
+        let response = render_scoped(ui, visible, |ui| {
+            let shadow_idx = ui.painter().add(Shape::Noop);
 
-        let response = ui
-            .scope(|ui| {
-                SharedStyle::apply_to_visuals(&per, ui.visuals_mut());
+            if self.style.full_width {
+                ui.set_min_width(ui.available_width());
+            }
 
-                // Wire `padding` through to egui's `button_padding`. egui's
-                // `Button` only supports symmetric padding (a single `Vec2`),
-                // so an asymmetric `Margin` collapses to `max(left, right)` /
-                // `max(top, bottom)`. For true asymmetric padding wrap the
-                // button in a `Styled::frame`.
-                if per.padding != egui::Margin::ZERO {
-                    let m = per.padding;
-                    let x = m.left.max(m.right) as f32;
-                    let y = m.top.max(m.bottom) as f32;
-                    ui.spacing_mut().button_padding = egui::Vec2::new(x, y);
-                }
+            let response = ui
+                .scope(|ui| {
+                    SharedStyle::apply_to_visuals(&per, ui.visuals_mut());
 
-                let text: WidgetText = if let Some(font) = self.font.clone() {
-                    let rich = match self.text {
-                        WidgetText::RichText(rt) => (*rt).clone().font(font),
-                        other => RichText::new(other.text().to_string()).font(font),
+                    // Wire `padding` through to egui's `button_padding`. egui's
+                    // `Button` only supports symmetric padding (a single `Vec2`),
+                    // so an asymmetric `Margin` collapses to `max(left, right)` /
+                    // `max(top, bottom)`. For true asymmetric padding wrap the
+                    // button in a `Styled::frame`.
+                    if per.padding != egui::Margin::ZERO {
+                        let m = per.padding;
+                        let x = m.left.max(m.right) as f32;
+                        let y = m.top.max(m.bottom) as f32;
+                        ui.spacing_mut().button_padding = egui::Vec2::new(x, y);
+                    }
+
+                    let text: WidgetText = if let Some(font) = self.font.clone() {
+                        let rich = match self.text {
+                            WidgetText::RichText(rt) => (*rt).clone().font(font),
+                            other => RichText::new(other.text().to_string()).font(font),
+                        };
+                        rich.into()
+                    } else if let Some(size) = self.style.font_size {
+                        let rich = match self.text {
+                            WidgetText::RichText(rt) => (*rt).clone().size(size),
+                            other => RichText::new(other.text().to_string()).size(size),
+                        };
+                        rich.into()
+                    } else {
+                        self.text
                     };
-                    rich.into()
-                } else if let Some(size) = self.style.font_size {
-                    let rich = match self.text {
-                        WidgetText::RichText(rt) => (*rt).clone().size(size),
-                        other => RichText::new(other.text().to_string()).size(size),
+
+                    let mut btn = match self.image {
+                        Some(img) => egui::Button::opt_image_and_text(Some(img), Some(text)),
+                        None => egui::Button::new(text),
                     };
-                    rich.into()
-                } else {
-                    self.text
-                };
+                    let min_w = if self.style.full_width {
+                        ui.available_width()
+                    } else {
+                        self.style.min_width.unwrap_or(0.0)
+                    };
+                    let min_h = self.style.min_height.unwrap_or(0.0);
+                    if min_w > 0.0 || min_h > 0.0 {
+                        btn = btn.min_size(egui::Vec2 { x: min_w, y: min_h });
+                    }
 
-                let mut btn = match self.image {
-                    Some(img) => egui::Button::opt_image_and_text(Some(img), Some(text)),
-                    None => egui::Button::new(text),
-                };
-                let min_w = if self.style.full_width {
-                    ui.available_width()
-                } else {
-                    self.style.min_width.unwrap_or(0.0)
-                };
-                let min_h = self.style.min_height.unwrap_or(0.0);
-                if min_w > 0.0 || min_h > 0.0 {
-                    btn = btn.min_size(egui::Vec2 { x: min_w, y: min_h });
-                }
+                    let mut wrapper = egui::Frame::new();
+                    if per.margin != egui::Margin::ZERO {
+                        wrapper = wrapper.outer_margin(per.margin);
+                    }
+                    wrapper.show(ui, |ui| ui.add(btn)).inner
+                })
+                .inner;
 
-                let mut wrapper = egui::Frame::new();
-                if per.margin != egui::Margin::ZERO {
-                    wrapper = wrapper.outer_margin(per.margin);
-                }
-                wrapper.show(ui, |ui| ui.add(btn)).inner
-            })
-            .inner;
-
-        paint_shadows(
-            ui,
-            shadow_idx,
-            response.rect,
-            per.corner_radius,
-            &self.style.shadows,
-        );
+            paint_shadows(
+                ui,
+                shadow_idx,
+                response.rect,
+                per.corner_radius,
+                &self.style.shadows,
+            );
+            response
+        });
 
         PseudoState::from_response(&response).store(ui, id);
 

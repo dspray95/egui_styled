@@ -3,7 +3,7 @@ use egui::{ComboBox, Id, InnerResponse, RichText, Shape, Ui, WidgetText};
 use crate::{
     impl_style_builders,
     state::PseudoState,
-    style::shared_style::{SharedStyle, paint_shadows},
+    style::shared_style::{SharedStyle, paint_shadows, render_scoped},
 };
 
 pub struct StyledComboBox {
@@ -42,9 +42,7 @@ impl StyledComboBox {
         ui: &mut Ui,
         menu_contents: impl FnOnce(&mut Ui),
     ) -> InnerResponse<Option<()>> {
-        if self.style.visible == Some(false) {
-            ui.set_invisible();
-        }
+        let visible = self.style.visible != Some(false);
 
         let id = self
             .id_override
@@ -52,49 +50,53 @@ impl StyledComboBox {
         let _pseudo = PseudoState::load(ui, id);
 
         let per = self.style.resolve_per_state(ui.visuals());
-        let shadow_idx = ui.painter().add(Shape::Noop);
 
-        let result = ui
-            .scope(|ui| {
-                SharedStyle::apply_to_visuals(&per, ui.visuals_mut());
+        let result = render_scoped(ui, visible, |ui| {
+            let shadow_idx = ui.painter().add(Shape::Noop);
+            let result = ui
+                .scope(|ui| {
+                    SharedStyle::apply_to_visuals(&per, ui.visuals_mut());
 
-                // Apply font to selected_text if requested.
-                let selected_text: WidgetText = if let Some(size) = self.style.font_size {
-                    let rt = match self.selected_text {
-                        WidgetText::RichText(rt) => (*rt).clone().size(size),
-                        other => RichText::new(other.text().to_string()).size(size),
+                    // Apply font to selected_text if requested.
+                    let selected_text: WidgetText = if let Some(size) = self.style.font_size {
+                        let rt = match self.selected_text {
+                            WidgetText::RichText(rt) => (*rt).clone().size(size),
+                            other => RichText::new(other.text().to_string()).size(size),
+                        };
+                        rt.into()
+                    } else {
+                        self.selected_text
                     };
-                    rt.into()
-                } else {
-                    self.selected_text
-                };
 
-                let mut cb = ComboBox::from_id_salt(self.id_source).selected_text(selected_text);
-                if let Some(w) = self.width {
-                    cb = cb.width(w);
-                }
+                    let mut cb =
+                        ComboBox::from_id_salt(self.id_source).selected_text(selected_text);
+                    if let Some(w) = self.width {
+                        cb = cb.width(w);
+                    }
 
-                let mut wrapper = egui::Frame::new();
-                if per.margin != egui::Margin::ZERO {
-                    wrapper = wrapper.outer_margin(per.margin);
-                }
-                if per.padding != egui::Margin::ZERO {
-                    wrapper = wrapper.inner_margin(per.padding);
-                }
-                wrapper.show(ui, |ui| cb.show_ui(ui, menu_contents)).inner
-            })
-            .inner;
+                    let mut wrapper = egui::Frame::new();
+                    if per.margin != egui::Margin::ZERO {
+                        wrapper = wrapper.outer_margin(per.margin);
+                    }
+                    if per.padding != egui::Margin::ZERO {
+                        wrapper = wrapper.inner_margin(per.padding);
+                    }
+                    wrapper.show(ui, |ui| cb.show_ui(ui, menu_contents)).inner
+                })
+                .inner;
 
-        // Use the outer response rect for shadows and pseudo-state.
+            // Use the outer response rect for shadows.
+            paint_shadows(
+                ui,
+                shadow_idx,
+                result.response.rect,
+                per.corner_radius,
+                &self.style.shadows,
+            );
+            result
+        });
+
         let response = &result.response;
-        paint_shadows(
-            ui,
-            shadow_idx,
-            response.rect,
-            per.corner_radius,
-            &self.style.shadows,
-        );
-
         PseudoState::from_response(response).store(ui, id);
 
         if let Some(icon) = per.cursor_icon

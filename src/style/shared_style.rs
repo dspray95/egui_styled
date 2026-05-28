@@ -62,6 +62,26 @@ pub fn paint_shadows(
     ui.painter().set(reserve_idx, Shape::Vec(shapes));
 }
 
+/// Render `f` inside a child scope so a `visible == false` widget's
+/// invisibility is contained to itself.
+///
+/// `Ui::set_invisible()` mutates the painter/enabled state of the `Ui` it's
+/// called on and affects *all* subsequent widgets. Calling it on a cloned
+/// child `Ui` (what `ui.scope` provides) keeps the effect local: the widget
+/// hides but still allocates layout space, and following siblings are
+/// unaffected. The scope must enclose the widget's entire visual output —
+/// frame, shadows, and inner content — so call shadow allocation/painting
+/// inside `f`.
+pub fn render_scoped<R>(ui: &mut egui::Ui, visible: bool, f: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    ui.scope(|ui| {
+        if !visible {
+            ui.set_invisible();
+        }
+        f(ui)
+    })
+    .inner
+}
+
 /// The style bag carried by every styled widget.
 ///
 /// Every field is `Option<T>` so `None` falls through to egui's active

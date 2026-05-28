@@ -5,7 +5,7 @@ use egui::{Id, Response, Shape, Slider, Ui, emath::Numeric};
 use crate::{
     impl_style_builders,
     state::PseudoState,
-    style::shared_style::{SharedStyle, paint_shadows},
+    style::shared_style::{SharedStyle, paint_shadows, render_scoped},
 };
 
 pub struct StyledSlider<'a, T: Numeric> {
@@ -47,9 +47,7 @@ impl<'a, T: Numeric> StyledSlider<'a, T> {
     }
 
     pub fn show(self, ui: &mut Ui) -> Response {
-        if self.style.visible == Some(false) {
-            ui.set_invisible();
-        }
+        let visible = self.style.visible != Some(false);
 
         let id = self
             .id_override
@@ -57,52 +55,55 @@ impl<'a, T: Numeric> StyledSlider<'a, T> {
         let _pseudo = PseudoState::load(ui, id);
 
         let per = self.style.resolve_per_state(ui.visuals());
-        let shadow_idx = ui.painter().add(Shape::Noop);
 
-        let response = ui
-            .scope(|ui| {
-                // selection.bg_fill drives the slider trailing fill.
-                SharedStyle::apply_to_visuals(&per, ui.visuals_mut());
+        let response = render_scoped(ui, visible, |ui| {
+            let shadow_idx = ui.painter().add(Shape::Noop);
+            let response = ui
+                .scope(|ui| {
+                    // selection.bg_fill drives the slider trailing fill.
+                    SharedStyle::apply_to_visuals(&per, ui.visuals_mut());
 
-                let mut slider = Slider::new(self.value, self.range);
-                if let Some(t) = self.text {
-                    slider = slider.text(t);
-                }
-                if let Some(s) = self.step {
-                    slider = slider.step_by(s);
-                }
+                    let mut slider = Slider::new(self.value, self.range);
+                    if let Some(t) = self.text {
+                        slider = slider.text(t);
+                    }
+                    if let Some(s) = self.step {
+                        slider = slider.step_by(s);
+                    }
 
-                let mut wrapper = egui::Frame::new();
-                if per.margin != egui::Margin::ZERO {
-                    wrapper = wrapper.outer_margin(per.margin);
-                }
-                if per.padding != egui::Margin::ZERO {
-                    wrapper = wrapper.inner_margin(per.padding);
-                }
-                wrapper
-                    .show(ui, |ui| {
-                        if self.style.full_width {
-                            ui.set_min_width(ui.available_width());
-                        }
-                        if let Some(min_w) = self.style.min_width {
-                            ui.set_min_width(min_w);
-                        }
-                        if let Some(min_h) = self.style.min_height {
-                            ui.set_min_height(min_h);
-                        }
-                        ui.add(slider)
-                    })
-                    .inner
-            })
-            .inner;
+                    let mut wrapper = egui::Frame::new();
+                    if per.margin != egui::Margin::ZERO {
+                        wrapper = wrapper.outer_margin(per.margin);
+                    }
+                    if per.padding != egui::Margin::ZERO {
+                        wrapper = wrapper.inner_margin(per.padding);
+                    }
+                    wrapper
+                        .show(ui, |ui| {
+                            if self.style.full_width {
+                                ui.set_min_width(ui.available_width());
+                            }
+                            if let Some(min_w) = self.style.min_width {
+                                ui.set_min_width(min_w);
+                            }
+                            if let Some(min_h) = self.style.min_height {
+                                ui.set_min_height(min_h);
+                            }
+                            ui.add(slider)
+                        })
+                        .inner
+                })
+                .inner;
 
-        paint_shadows(
-            ui,
-            shadow_idx,
-            response.rect,
-            per.corner_radius,
-            &self.style.shadows,
-        );
+            paint_shadows(
+                ui,
+                shadow_idx,
+                response.rect,
+                per.corner_radius,
+                &self.style.shadows,
+            );
+            response
+        });
 
         PseudoState::from_response(&response).store(ui, id);
 
