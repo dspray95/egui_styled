@@ -1,4 +1,4 @@
-use egui::{FontId, Label, Response, RichText, Shape, Stroke, Ui, WidgetText};
+use egui::{FontId, Label, Response, RichText, Shape, Stroke, TextWrapMode, Ui, WidgetText};
 
 use crate::{
     impl_style_builders,
@@ -11,13 +11,13 @@ use crate::{
 /// `focus_bg`, `hover_border`, `focus_border`, `hover_text_color`) are
 /// accepted by the builder but have no effect. Also unsupported: `max_width/height`.
 /// Use `text_color`, `bg`, `border`, `corner_radius`, `padding`, `margin`,
-/// `font_size`, `font`, `bold`, `italics`, `wrap`, `min_height`, `visible`,
-/// `shadows`, and `cursor` instead.
+/// `font_size`, `font`, `bold`, `italics`, `wrap_mode`, `extend`, `truncate`,
+/// `wrap`, `min_height`, `visible`, `shadows`, and `cursor` instead.
 pub struct StyledLabel {
     text: WidgetText,
     bold: bool,
     italics: bool,
-    wrap: Option<bool>,
+    wrap_mode: Option<TextWrapMode>,
     font: Option<FontId>,
     style: SharedStyle,
 }
@@ -28,7 +28,7 @@ impl StyledLabel {
             text: text.into(),
             bold: false,
             italics: false,
-            wrap: None,
+            wrap_mode: None,
             font: None,
             style: SharedStyle::default(),
         }
@@ -44,9 +44,26 @@ impl StyledLabel {
         self
     }
 
-    pub fn wrap(mut self, wrap: bool) -> Self {
-        self.wrap = Some(wrap);
+    /// Set the text wrap mode explicitly.
+    pub fn wrap_mode(mut self, mode: TextWrapMode) -> Self {
+        self.wrap_mode = Some(mode);
         self
+    }
+
+    /// Lay out at natural width — never shrink, never truncate. Useful in tight
+    /// horizontal layouts where truncation would otherwise kick in.
+    pub fn extend(self) -> Self {
+        self.wrap_mode(TextWrapMode::Extend)
+    }
+
+    /// Truncate text with an ellipsis when it overflows.
+    pub fn truncate(self) -> Self {
+        self.wrap_mode(TextWrapMode::Truncate)
+    }
+
+    /// Wrap text onto multiple lines.
+    pub fn wrap(self) -> Self {
+        self.wrap_mode(TextWrapMode::Wrap)
     }
 
     /// Set the font (family + size) used to render the label.
@@ -79,8 +96,8 @@ impl StyledLabel {
         }
 
         let mut label = Label::new(rich);
-        if let Some(wrap) = self.wrap {
-            label = if wrap { label.wrap() } else { label.truncate() };
+        if let Some(mode) = self.wrap_mode {
+            label = label.wrap_mode(mode);
         }
 
         // Resolve static style (labels have no interaction state).

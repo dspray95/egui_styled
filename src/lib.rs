@@ -34,6 +34,7 @@ pub use containers::area::StyledArea;
 pub use containers::column::StyledColumn;
 pub use containers::frame::StyledFrame;
 pub use containers::row::StyledRow;
+pub use containers::stack::StyledStack;
 pub use style::shared_style::Shadow;
 pub use theme::StyledTheme;
 pub use theme::theme_ext::{DesignSlots, ThemeExt};
@@ -86,6 +87,13 @@ impl Styled {
     /// Start a styled vertical layout. Pair with `.gap(...)` for spacing.
     pub fn column() -> StyledColumn {
         StyledColumn::new()
+    }
+
+    /// Start a stack (overlay) container. All children share a common origin
+    /// and are layered on top of each other. Use `.layer()` for zero-offset
+    /// children and `.layer_offset(vec2, fn)` for shifted children.
+    pub fn stack<'a>() -> crate::containers::stack::StyledStack<'a> {
+        crate::containers::stack::StyledStack::new()
     }
 
     /// Build a fresh default theme. Prefer `ctx.styled_theme()` to read the

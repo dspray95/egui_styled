@@ -6,6 +6,7 @@
 //! ```
 
 pub use crate::Apply;
+pub use egui::TextWrapMode;
 pub use crate::ColorExt;
 pub use crate::DesignSlots;
 pub use crate::Shadow;
@@ -24,4 +25,5 @@ pub use crate::StyledFrame;
 pub use crate::StyledLabel;
 pub use crate::StyledRow;
 pub use crate::StyledSlider;
+pub use crate::StyledStack;
 pub use crate::StyledTextEdit;
