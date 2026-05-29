@@ -3,13 +3,16 @@ use egui::{
     emath::TSTransform,
 };
 
-use crate::{containers::frame::StyledFrame, impl_style_builders, style::shared_style::SharedStyle};
+use crate::{
+    containers::frame::StyledFrame, impl_style_builders, style::shared_style::SharedStyle,
+};
 
 type LayerFn<'a> = Box<dyn FnOnce(&mut egui::Ui) + 'a>;
 
 struct Layer<'a> {
     offset: Vec2,
     align: Option<Align2>,
+    fixed_size: Option<Vec2>,
     render: LayerFn<'a>,
 }
 
@@ -19,13 +22,18 @@ struct Layer<'a> {
 /// than laid out in sequence. The container allocates the union of all child
 /// rects so the parent flow advances correctly.
 ///
-/// **Z-order:** layers paint in call order — the first layer is the bottom of
+/// **Z-order:** layers paint in call order - the first layer is the bottom of
 /// the stack, the last is on top.
 ///
 /// Each layer can be given a pixel offset (useful for chromatic-aberration and
 /// similar effects) or aligned within the stack. Aligned layers are positioned
 /// within the union of all preceding layers, so the common "background first,
 /// overlay centered on it" pattern works as expected.
+///
+/// For layers whose visual content may be **larger than their resting footprint**
+/// (scale-punch, bounce, pop), use [`layer_fixed`](StyledStack::layer_fixed) to
+/// declare an explicit size that is contributed to the union while the content
+/// renders freely into the overflow.
 ///
 /// ```ignore
 /// Styled::stack()
@@ -66,6 +74,7 @@ impl<'a> StyledStack<'a> {
         self.layers.push(Layer {
             offset: Vec2::ZERO,
             align: None,
+            fixed_size: None,
             render: Box::new(f),
         });
         self
@@ -76,6 +85,7 @@ impl<'a> StyledStack<'a> {
         self.layers.push(Layer {
             offset,
             align: None,
+            fixed_size: None,
             render: Box::new(f),
         });
         self
@@ -89,6 +99,51 @@ impl<'a> StyledStack<'a> {
         self.layers.push(Layer {
             offset: Vec2::ZERO,
             align: Some(align),
+            fixed_size: None,
+            render: Box::new(f),
+        });
+        self
+    }
+
+    /// Add a layer with an explicit layout footprint that may overflow visually.
+    ///
+    /// Only `size` is contributed to the stack's allocated bounds — the layer's
+    /// actual rendered content is positioned within that box via `align` and is
+    /// free to overflow it without pushing siblings. This is the right choice for
+    /// scale-punch, bounce, or pop animations on a fixed-layout element, where
+    /// the content briefly renders larger than its resting size.
+    ///
+    /// `align` controls how content is placed inside the declared box:
+    /// - `Align2::CENTER_CENTER` — content centered, overflow is symmetric (scale punch)
+    /// - `Align2::LEFT_TOP` — content anchored top-left, overflow goes down/right
+    /// - Corner aligns — badge-style overflow in one corner
+    ///
+    /// **Note:** overflowing content is not clipped by the stack and can draw over
+    /// siblings in the parent flow. This is intentional — it is the point of the API.
+    ///
+    /// ```ignore
+    /// // Score reveal: text briefly renders at 1.4× but the stack size stays stable.
+    /// let resting = vec2(120.0, 40.0);
+    /// let scale = /* animated 1.0..=1.4 */;
+    /// Styled::stack()
+    ///     .layer_fixed(resting, Align2::CENTER_CENTER, |ui| {
+    ///         Styled::label("9999")
+    ///             .font_size(base_size * scale)
+    ///             .extend()
+    ///             .show(ui);
+    ///     })
+    ///     .show(ui);
+    /// ```
+    pub fn layer_fixed(
+        mut self,
+        size: Vec2,
+        align: Align2,
+        f: impl FnOnce(&mut egui::Ui) + 'a,
+    ) -> Self {
+        self.layers.push(Layer {
+            offset: Vec2::ZERO,
+            align: Some(align),
+            fixed_size: Some(size),
             render: Box::new(f),
         });
         self
@@ -131,12 +186,18 @@ impl<'a> StyledStack<'a> {
                 let Layer {
                     offset,
                     align,
+                    fixed_size,
                     render,
                 } = layer;
 
-                let (max_rect, layout) = match align {
+                let (max_rect, layout) = match (fixed_size, align) {
+                    // Fixed footprint: content aligned within the declared box.
+                    // The box is anchored at the shared origin; content may overflow.
+                    (Some(size), Some(a)) => {
+                        (Rect::from_min_size(origin, size), Some(layout_for(a)))
+                    }
                     // Align within the frame established by preceding layers.
-                    Some(a) => {
+                    (None, Some(a)) => {
                         let frame = union.unwrap_or(Rect::from_min_size(origin, Vec2::ZERO));
                         (frame.translate(offset), Some(layout_for(a)))
                     }
@@ -145,10 +206,11 @@ impl<'a> StyledStack<'a> {
                     // ui's layout, and a centered cross-axis (e.g. a row aligned
                     // Center) expands a single child's min_rect to the full
                     // available extent, ballooning the stack's allocated size.
-                    None => (
+                    (None, None) => (
                         Rect::from_min_size(origin + offset, available),
                         Some(Layout::top_down(Align::Min)),
                     ),
+                    (Some(_), None) => unreachable!("fixed_size is always paired with align"),
                 };
 
                 let mut builder = UiBuilder::new().max_rect(max_rect);
@@ -158,10 +220,15 @@ impl<'a> StyledStack<'a> {
                 let mut child = ui.new_child(builder);
                 render(&mut child);
 
-                let natural_rect = child.min_rect().translate(-offset);
+                // For fixed-footprint layers contribute only the declared size to the
+                // union, not the measured min_rect — that's the point of the API.
+                let contribution = match fixed_size {
+                    Some(size) => Rect::from_min_size(origin, size),
+                    None => child.min_rect().translate(-offset),
+                };
                 union = Some(match union {
-                    None => natural_rect,
-                    Some(u) => u.union(natural_rect),
+                    None => contribution,
+                    Some(u) => u.union(contribution),
                 });
             }
 
@@ -172,8 +239,11 @@ impl<'a> StyledStack<'a> {
             let delta = final_rect.min - union.min;
             if delta != Vec2::ZERO {
                 ui.ctx().graphics_mut(|g| {
-                    g.entry(layer_id)
-                        .transform_range(start, end, TSTransform::from_translation(delta));
+                    g.entry(layer_id).transform_range(
+                        start,
+                        end,
+                        TSTransform::from_translation(delta),
+                    );
                 });
             }
             response

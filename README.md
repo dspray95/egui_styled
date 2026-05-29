@@ -336,6 +336,7 @@ Styled::stack()
 
 - `.layer(fn)` / `.layer_offset(offset, fn)` anchor at the shared origin (optionally nudged by a pixel offset).
 - `.layer_aligned(align, fn)` positions a layer within the union of all *preceding* layers - so "background first, overlay aligned on it" works.
+- `.layer_fixed(size, align, fn)` contributes only `size` to the stack's allocation; content is positioned within that box via `align` and may overflow freely. Use for scale-punch / bounce / pop animations where the content briefly renders larger than its resting size without pushing siblings.
 - `.sense(Sense::click())` makes the whole stack report interaction; defaults to hover.
 
 Because layers are painted before the stack's final position is known (it's the parent that decides, especially under centering), the stack paints at a provisional spot and then translates its own shapes into place. Two practical notes: `.extend()` on labels (see below) avoids truncation when a layer is laid out tight, and **interactive widgets inside a stack are hit-tested at the pre-translation position** - fine for the labels/visuals this is meant for, but don't bury a `button` deep inside a centered stack.

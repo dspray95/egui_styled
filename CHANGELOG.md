@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-29
+
 ### Added
 
+- `StyledStack::layer_fixed(size, align, fn)` — the size-decoupling counterpart to `layer_offset`'s position-decoupling. Declares an explicit layout footprint: only `size` is contributed to the stack's union allocation, while the layer's actual content is positioned within that box via `align` and is free to overflow it visually. Designed for scale-punch / bounce / pop animations on fixed-layout elements — a hero number that briefly renders at 1.4× no longer pushes siblings. `Align2::CENTER_CENTER` gives symmetric overflow (scale punch); corner aligns give badge-style overflow. Note: overflowing content paints outside the allocated rect and can draw over siblings in the parent flow; this is intentional.
 - `StyledStack` overlay container (`Styled::stack()`) — renders all children at a shared origin instead of in flow, the one container that can put multiple things in the same pixels. `.layer(fn)` / `.layer_offset(offset, fn)` anchor at the shared origin (optionally nudged by a pixel offset, e.g. for chromatic-aberration glitch effects); `.layer_aligned(Align2, fn)` positions a layer within the union of all *preceding* layers (so "background first, overlay centered on it" works). Z-order is call order (first = bottom). `.sense(Sense)` makes the whole stack interactive (defaults to hover). Because layers paint before the parent decides the stack's final position (especially under centering, where `next_widget_position` can be infinite), the stack paints at a provisional origin then translates only its own shapes (`PaintList::transform_range`) into the allocated rect — no extra layer, so z-order stays correct and multiple stacks in one `Ui` don't collide. Caveat: interactive widgets inside a stack are hit-tested at the pre-translation position. See `examples/stack.rs` and the updated `examples/game_over.rs`.
 
 ### Fixed
