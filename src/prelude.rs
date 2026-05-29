@@ -6,7 +6,6 @@
 //! ```
 
 pub use crate::Apply;
-pub use egui::TextWrapMode;
 pub use crate::ColorExt;
 pub use crate::DesignSlots;
 pub use crate::Shadow;
@@ -15,6 +14,7 @@ pub use crate::StyledTheme;
 pub use crate::ThemeExt;
 pub use crate::WebPalette;
 pub use crate::{rgb, rgba};
+pub use egui::TextWrapMode;
 
 pub use crate::StyledArea;
 pub use crate::StyledButton;

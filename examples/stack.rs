@@ -22,13 +22,22 @@ fn ui(ctx: &egui::Context) {
                     // Offset chromatic stack.
                     Styled::stack()
                         .layer_offset(Vec2::new(-2.0, 0.0), |ui| {
-                            Styled::label("[ENTER]").text_color(rgb(0, 220, 255)).extend().show(ui);
+                            Styled::label("[ENTER]")
+                                .text_color(rgb(0, 220, 255))
+                                .extend()
+                                .show(ui);
                         })
                         .layer_offset(Vec2::new(2.0, 0.0), |ui| {
-                            Styled::label("[ENTER]").text_color(rgb(255, 0, 200)).extend().show(ui);
+                            Styled::label("[ENTER]")
+                                .text_color(rgb(255, 0, 200))
+                                .extend()
+                                .show(ui);
                         })
                         .layer(|ui| {
-                            Styled::label("[ENTER]").text_color(Color32::WHITE).extend().show(ui);
+                            Styled::label("[ENTER]")
+                                .text_color(Color32::WHITE)
+                                .extend()
+                                .show(ui);
                         })
                         .show(ui);
 
@@ -41,7 +50,10 @@ fn ui(ctx: &egui::Context) {
                                 .show(ui);
                         })
                         .layer_aligned(Align2::CENTER_CENTER, |ui| {
-                            Styled::label("CENTERED").text_color(Color32::WHITE).extend().show(ui);
+                            Styled::label("CENTERED")
+                                .text_color(Color32::WHITE)
+                                .extend()
+                                .show(ui);
                         })
                         .show(ui);
 
