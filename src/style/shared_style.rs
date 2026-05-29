@@ -302,10 +302,12 @@ impl SharedStyle {
 
     /// True if any field that an [`egui::Frame`] could render is set.
     ///
-    /// Containers (`StyledRow`, `StyledColumn`) use this to decide whether
-    /// to wrap themselves in a `StyledFrame` or render directly. Margin,
-    /// text color, and sizing are intentionally excluded - they are not
-    /// "frame" concerns.
+    /// Containers (`StyledRow`, `StyledColumn`, `StyledStack`) use this to
+    /// decide whether to wrap themselves in a `StyledFrame` or render directly.
+    /// `margin` counts because it is applied via the wrapper frame's
+    /// `outer_margin` - a margin-only container must still route through the
+    /// frame or the spacing is silently dropped. Text color and sizing are
+    /// intentionally excluded - they are not "frame" concerns.
     pub fn has_frame_styles(&self) -> bool {
         self.bg.is_some()
             || self.hover_bg.is_some()
@@ -316,6 +318,7 @@ impl SharedStyle {
             || self.focus_border.is_some()
             || self.padding.is_some()
             || self.corner_radius.is_some()
+            || self.margin.is_some()
     }
 }
 
@@ -512,6 +515,13 @@ mod tests {
                     ..Default::default()
                 },
             ),
+            (
+                "margin",
+                SharedStyle {
+                    margin: Some(egui::Margin::same(4)),
+                    ..Default::default()
+                },
+            ),
         ];
         for (name, style) in triggers {
             assert!(
@@ -523,11 +533,9 @@ mod tests {
 
     #[test]
     fn has_frame_styles_ignores_non_frame_props() {
-        // Margin alone doesn't count - it's applied via the wrapper Frame's
-        // outer_margin only when other frame styles are present. text_color
-        // and full_width are not frame concerns either.
+        // text_color and full_width are not frame concerns and must not flip
+        // has_frame_styles. (margin does count - see has_frame_styles_each_trigger.)
         let style = SharedStyle {
-            margin: Some(egui::Margin::same(4)),
             text_color: Some(Color32::RED),
             full_width: true,
             ..Default::default()

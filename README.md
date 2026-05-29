@@ -158,13 +158,14 @@ Styled::label(text)
 | Status | Feature |
 | :----: | :------ |
 | ✅ | `StyledButton` with bg / hover_bg / active_bg / text_color / border / corner_radius |
-| ✅ | `StyledLabel` with font_size, bold, italics, wrap |
+| ✅ | `StyledLabel` with font_size, bold, italics, `wrap_mode` (wrap / truncate / extend) |
 | ✅ | `StyledTextEdit` with hint, password, multiline, focus state styling |
 | ✅ | `StyledCheckbox` with full pseudo-state support |
 | 🚧 | `StyledSlider` generic over `T: Numeric`, but track/handle styling is shallow |
 | 🚧 | `StyledComboBox` trigger styled, popup items inherit |
 | ✅ | `StyledFrame` with bg / border / padding / margin / corner_radius |
 | ✅ | `StyledRow` / `StyledColumn` containers with gap support |
+| ✅ | `StyledStack` overlay container (layered children, offsets, alignment) |
 | ✅ | `SharedStyle` resolver, hover/focus/active falls through to egui defaults |
 | ✅ | `PseudoState` tracking via `egui::Memory` (1-frame lag, imperceptible) |
 | ✅ | `StyledTheme` design tokens (colors / spacing / radii / typography) |
@@ -306,16 +307,52 @@ Styled::button("Save").apply(primary_button(&t, &p)).show(ui);
 
 The library doesn't ship preset helpers like `primary_button` - what's "primary" is a product decision, not a library one. Define them in your app the way above, alongside whatever color type you've chosen.
 
+## Overlays (`Styled::stack()`)
+
+`row` and `column` are thin wrappers over egui's flow `Layout`, so they can't put two things in the *same* pixels. `Styled::stack()` is the exception - an overlay container where every layer shares one origin and paints on top of the previous one (first layer = bottom, last = top). You'd otherwise have to drop down to raw `painter()` calls to achieve the z-index style effect: layered backgrounds, badges, "centered text over an image", or ghost/chromatic-aberration effects.
+
+```rust
+// Chromatic-aberration "[ENTER]": three offset layers.
+Styled::stack()
+    .layer_offset(vec2(-1.5, 0.0), |ui| {
+        Styled::label("[ENTER]").text_color(cyan).extend().show(ui);
+    })
+    .layer_offset(vec2(1.5, 0.0), |ui| {
+        Styled::label("[ENTER]").text_color(magenta).extend().show(ui);
+    })
+    .layer(|ui| {
+        Styled::label("[ENTER]").text_color(white).extend().show(ui);
+    })
+    .show(ui);
+
+// Overlay aligned within the first layer (e.g. centered over a background).
+Styled::stack()
+    .layer(|ui| background.show(ui))
+    .layer_aligned(Align2::CENTER_CENTER, |ui| {
+        Styled::label("GAME OVER").extend().show(ui);
+    })
+    .show(ui);
+```
+
+- `.layer(fn)` / `.layer_offset(offset, fn)` anchor at the shared origin (optionally nudged by a pixel offset).
+- `.layer_aligned(align, fn)` positions a layer within the union of all *preceding* layers - so "background first, overlay aligned on it" works.
+- `.sense(Sense::click())` makes the whole stack report interaction; defaults to hover.
+
+Because layers are painted before the stack's final position is known (it's the parent that decides, especially under centering), the stack paints at a provisional spot and then translates its own shapes into place. Two practical notes: `.extend()` on labels (see below) avoids truncation when a layer is laid out tight, and **interactive widgets inside a stack are hit-tested at the pre-translation position** - fine for the labels/visuals this is meant for, but don't bury a `button` deep inside a centered stack.
+
+> **`.extend()`** - `StyledLabel` exposes egui's full `TextWrapMode` via `.wrap_mode(...)`, plus `.wrap()` / `.truncate()` / `.extend()` shortcuts. `.extend()` ("lay out at natural width, never wrap or truncate") is what keeps text intact inside tight rows and stacks.
+
 ## Examples
 
 ```bash
 cargo run --example basic              # buttons + frame
 cargo run --example containers         # row / column / nesting
+cargo run --example stack              # overlay container: offsets + alignment
 cargo run --example text_edit          # focus state styling
 cargo run --example theme_demo         # live theme switching with swatches
 cargo run --example composable_styles  # Apply + reusable style functions
 cargo run --example all_widgets        # every widget in one screen
-cargo run --example game_over          # full game-over screen - Area + Column + custom palette
+cargo run --example game_over          # full game-over screen - Area + Column + Stack + custom palette
 ```
 
 ## Performance

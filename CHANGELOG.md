@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `StyledStack` overlay container (`Styled::stack()`) — renders all children at a shared origin instead of in flow, the one container that can put multiple things in the same pixels. `.layer(fn)` / `.layer_offset(offset, fn)` anchor at the shared origin (optionally nudged by a pixel offset, e.g. for chromatic-aberration glitch effects); `.layer_aligned(Align2, fn)` positions a layer within the union of all *preceding* layers (so "background first, overlay centered on it" works). Z-order is call order (first = bottom). `.sense(Sense)` makes the whole stack interactive (defaults to hover). Because layers paint before the parent decides the stack's final position (especially under centering, where `next_widget_position` can be infinite), the stack paints at a provisional origin then translates only its own shapes (`PaintList::transform_range`) into the allocated rect — no extra layer, so z-order stays correct and multiple stacks in one `Ui` don't collide. Caveat: interactive widgets inside a stack are hit-tested at the pre-translation position. See `examples/stack.rs` and the updated `examples/game_over.rs`.
+
+### Fixed
+
+- `margin` was silently dropped on frameless containers. Setting only `.margin*(...)` on a `Styled::row()`, `Styled::column()`, or `Styled::stack()` (with no other frame styles) had no effect — margin is applied via the wrapper frame's `outer_margin`, but `SharedStyle::has_frame_styles()` excluded margin, so a margin-only container took the bare-render branch and skipped the frame entirely. The same `.margin_top()` worked on a `StyledLabel` (which always wraps itself in a frame), making the inconsistency surprising. `has_frame_styles()` now counts `margin`, so a margin-only container routes through `StyledFrame` (a transparent, zero-padding frame whose only effect is the outer margin) and the spacing is honored consistently.
+
+### Changed
+
+- **Breaking:** `StyledLabel::wrap(bool)` replaced with explicit wrap modes. `StyledLabel` now exposes egui's full `TextWrapMode` via `.wrap_mode(TextWrapMode)`, plus `.wrap()` / `.truncate()` / `.extend()` shortcuts. The old `.wrap(true)` / `.wrap(false)` collapsed three egui modes into a bool and could not reach `Extend` ("lay out at natural width, never wrap or truncate") — the mode needed to keep text intact inside tight rows and stacks. Migration: `.wrap(true)` → `.wrap()`, `.wrap(false)` → `.truncate()`. `TextWrapMode` is re-exported from the prelude.
+
 ## [0.2.2] - 2026-05-28
 
 ### Fixed

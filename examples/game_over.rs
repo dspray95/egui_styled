@@ -257,21 +257,44 @@ fn leaderboard(ui: &mut egui::Ui, theme: &StyledTheme, colors: &ArcadeColors, st
 
 fn play_again_hint(ui: &mut egui::Ui, theme: &StyledTheme, colors: &ArcadeColors) {
     const BLINK_PERIOD: f64 = 1.0;
+    // Chromatic-aberration offset for the [ENTER] glitch, in pixels.
+    const GLITCH_OFFSET: f32 = 1.5;
     let now = ui.input(|i| i.time);
     let visible = (now % BLINK_PERIOD) < (BLINK_PERIOD / 2.0);
 
     let row_font = theme.font_display(theme.font_size_sm);
     let row_height = row_font.size + 4.0;
 
-    // `.min_height` reserves the slot every frame so the leaderboard above
-    // doesn't reflow on each blink. `.visible(false)` skips painting without
-    // collapsing the space.
-    Styled::label("PRESS [ENTER] TO PLAY AGAIN")
-        .font(row_font)
-        .text_color(colors.text)
+    // A tight row of `.extend()` labels (no truncation even when space is
+    // tight), with `[ENTER]` rendered as three offset layers via `stack()` for
+    // a chromatic-aberration glitch. `.min_height` reserves the slot every
+    // frame so the leaderboard above doesn't reflow on each blink.
+    Styled::row()
+        .gap(0.0)
+        .align(Align::Center)
         .min_height(row_height)
         .visible(visible)
-        .show(ui);
+        .show(ui, |ui| {
+            let label = |text: &str, color: Color32| {
+                Styled::label(text.to_owned())
+                    .font(row_font.clone())
+                    .text_color(color)
+                    .extend()
+            };
+            label("PRESS ", colors.text).show(ui);
+            Styled::stack()
+                .layer_offset(Vec2::new(-GLITCH_OFFSET, 0.0), |ui| {
+                    label("[ENTER]", colors.hud_cyan).show(ui);
+                })
+                .layer_offset(Vec2::new(GLITCH_OFFSET, 0.0), |ui| {
+                    label("[ENTER]", colors.input_magenta).show(ui);
+                })
+                .layer(|ui| {
+                    label("[ENTER]", colors.text).show(ui);
+                })
+                .show(ui);
+            label(" TO PLAY AGAIN", colors.text).show(ui);
+        });
 
     ui.ctx().request_repaint();
 }
