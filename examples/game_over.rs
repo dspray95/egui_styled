@@ -15,7 +15,7 @@
 //!
 //! Run with: `cargo run --example game_over`
 
-use egui::{Align, Align2, Color32, FontFamily, Margin, Order, Vec2};
+use egui::{Align, Align2, Color32, FontFamily, Margin, Order, Vec2, vec2};
 use egui_styled::prelude::*;
 
 const FINAL_SCORE: i32 = 18_350;
@@ -147,9 +147,13 @@ fn score_block(ui: &mut egui::Ui, theme: &StyledTheme, colors: &ArcadeColors) {
         .font(theme.font_display(theme.font_size_md))
         .text_color(colors.hud_cyan)
         .show(ui);
+    // Soft glow on the score — intensity is a static value here.
+    // In a real reveal animation the consumer would compute intensity per frame
+    // (e.g. a punch curve) and pass the current value; no library state needed.
     Styled::label(format!("{:09}", FINAL_SCORE))
         .font(theme.font_display(theme.font_size_xl))
         .text_color(colors.text)
+        .glow(colors.hud_cyan, theme.glow_md, 0.6)
         .show(ui);
 }
 
@@ -266,9 +270,10 @@ fn play_again_hint(ui: &mut egui::Ui, theme: &StyledTheme, colors: &ArcadeColors
     let row_height = row_font.size + 4.0;
 
     // A tight row of `.extend()` labels (no truncation even when space is
-    // tight), with `[ENTER]` rendered as three offset layers via `stack()` for
-    // a chromatic-aberration glitch. `.min_height` reserves the slot every
-    // frame so the leaderboard above doesn't reflow on each blink.
+    // tight), with `[ENTER]` using two `.text_shadow()` calls for chromatic
+    // aberration — a cyan copy left, a magenta copy right, white glyph on top.
+    // `.min_height` reserves the slot every frame so the leaderboard above
+    // doesn't reflow on each blink.
     Styled::row()
         .gap(0.0)
         .align(Align::Center)
@@ -282,16 +287,14 @@ fn play_again_hint(ui: &mut egui::Ui, theme: &StyledTheme, colors: &ArcadeColors
                     .extend()
             };
             label("PRESS ", colors.text).show(ui);
-            Styled::stack()
-                .layer_offset(Vec2::new(-GLITCH_OFFSET, 0.0), |ui| {
-                    label("[ENTER]", colors.hud_cyan).show(ui);
-                })
-                .layer_offset(Vec2::new(GLITCH_OFFSET, 0.0), |ui| {
-                    label("[ENTER]", colors.input_magenta).show(ui);
-                })
-                .layer(|ui| {
-                    label("[ENTER]", colors.text).show(ui);
-                })
+            // Chromatic aberration: two glyph-shadow stamps at ±offset, no
+            // Styled::stack() needed — all three "layers" are one label.
+            Styled::label("[ENTER]")
+                .font(row_font.clone())
+                .text_color(colors.text)
+                .text_shadow(vec2(-GLITCH_OFFSET, 0.0), colors.hud_cyan)
+                .text_shadow(vec2(GLITCH_OFFSET, 0.0), colors.input_magenta)
+                .extend()
                 .show(ui);
             label(" TO PLAY AGAIN", colors.text).show(ui);
         });

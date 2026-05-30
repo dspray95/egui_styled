@@ -4,3 +4,4 @@ pub mod combo_box;
 pub mod label;
 pub mod slider;
 pub mod text_edit;
+pub mod text_effects;

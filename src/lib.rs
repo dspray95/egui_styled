@@ -45,6 +45,7 @@ pub use widgets::combo_box::StyledComboBox;
 pub use widgets::label::StyledLabel;
 pub use widgets::slider::StyledSlider;
 pub use widgets::text_edit::StyledTextEdit;
+pub use widgets::text_effects::{Glow, GlowQuality, TextEffects, TextShadow};
 
 use egui::{WidgetText, emath::Numeric};
 use std::ops::RangeInclusive;

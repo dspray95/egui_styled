@@ -159,6 +159,7 @@ Styled::label(text)
 | :----: | :------ |
 | ✅ | `StyledButton` with bg / hover_bg / active_bg / text_color / border / corner_radius |
 | ✅ | `StyledLabel` with font_size, bold, italics, `wrap_mode` (wrap / truncate / extend) |
+| ✅ | `StyledLabel` text effects: `.text_shadow()` / `.outline()` / `.glow()` / `.scale()` |
 | ✅ | `StyledTextEdit` with hint, password, multiline, focus state styling |
 | ✅ | `StyledCheckbox` with full pseudo-state support |
 | 🚧 | `StyledSlider` generic over `T: Numeric`, but track/handle styling is shallow |
@@ -168,11 +169,11 @@ Styled::label(text)
 | ✅ | `StyledStack` overlay container (layered children, offsets, alignment) |
 | ✅ | `SharedStyle` resolver, hover/focus/active falls through to egui defaults |
 | ✅ | `PseudoState` tracking via `egui::Memory` (1-frame lag, imperceptible) |
-| ✅ | `StyledTheme` design tokens (colors / spacing / radii / typography) |
+| ✅ | `StyledTheme` design tokens (colors / spacing / radii / typography / shadow / glow) |
 | ✅ | `ThemeExt` for `egui::Context` (`ctx.set_styled_theme()` / `ctx.styled_theme()`) |
 | ✅ | `Apply` trait for composable style functions |
+| ✅ | Snapshot/visual regression tests via `egui_kittest` |
 | ⚒️ | `Style` newtype as data (build once, merge into any widget) [future work] |
-| ⚒️ | Snapshot/visual regression tests [future work] |
 
 ## Installation
 
@@ -189,7 +190,7 @@ egui = "0.34"
 ### Geometry (`StyledTheme`)
 
 ```rust
-use egui::{CornerRadius, FontFamily};
+use egui::{CornerRadius, FontFamily, vec2};
 use egui_styled::prelude::*;
 
 pub fn geometry() -> StyledTheme {
@@ -205,6 +206,9 @@ pub fn geometry() -> StyledTheme {
         font_family_display: FontFamily::Proportional,
         font_family_body:    FontFamily::Proportional,
         font_family_mono:    FontFamily::Monospace,
+        // Text effect scale tokens (used with .text_shadow() / .glow() on StyledLabel)
+        shadow_sm: vec2(0.0, 1.0), shadow_md: vec2(0.0, 2.0), shadow_lg: vec2(0.0, 4.0),
+        glow_sm: 4.0, glow_md: 8.0, glow_lg: 16.0,
     }
 }
 ```
@@ -343,12 +347,86 @@ Because layers are painted before the stack's final position is known (it's the 
 
 > **`.extend()`** - `StyledLabel` exposes egui's full `TextWrapMode` via `.wrap_mode(...)`, plus `.wrap()` / `.truncate()` / `.extend()` shortcuts. `.extend()` ("lay out at natural width, never wrap or truncate") is what keeps text intact inside tight rows and stacks.
 
+## Text effects (`StyledLabel`)
+
+`StyledLabel` exposes four glyph-level appearance primitives. They all stamp the laid-out galley at offsets and colors rather than painting offset rectangles — so effects follow the actual letterforms, not a bounding box.
+
+All methods take plain per-frame values. **Animation stays consumer-side**: compute scale, intensity, or offset using `ctx.data` / `request_repaint` in your own code, then pass the current value to the builder.
+
+```rust
+// Drop shadow (token offset, or any Vec2)
+Styled::label("SCORE")
+    .text_shadow(theme.shadow_md, Color32::BLACK.linear_multiply(0.5))
+    .text_color(Color32::WHITE)
+    .show(ui);
+
+// Chromatic aberration — two opposite-offset shadows, one label
+Styled::label("[ENTER]")
+    .text_shadow(vec2(-2.0, 0.0), cyan)
+    .text_shadow(vec2( 2.0, 0.0), magenta)
+    .text_color(Color32::WHITE)
+    .extend()
+    .show(ui);
+
+// Faux stroke outline (8 compass-direction stamps)
+Styled::label("GAME OVER")
+    .outline(2.0, Color32::BLACK)
+    .text_color(Color32::WHITE)
+    .show(ui);
+
+// Soft glow — intensity from 0.0 (invisible) to 1.0 (full)
+Styled::label("000123456")
+    .glow(Color32::from_rgb(0, 220, 255), theme.glow_md, intensity)
+    .text_color(Color32::WHITE)
+    .show(ui);
+
+// Scale about a pivot — allocated footprint stays at natural size
+// Pair with Styled::stack().layer_fixed() to prevent overflow affecting siblings
+let resting = vec2(200.0, 40.0);
+Styled::stack()
+    .layer_fixed(resting, Align2::CENTER_CENTER, |ui| {
+        Styled::label("000123456")
+            .scale(factor, Align2::CENTER_CENTER)   // factor from your animation
+            .text_color(Color32::WHITE)
+            .show(ui);
+    })
+    .show(ui);
+```
+
+Effects compose — a single label can carry glow + chromatic shadows at once.
+
+### Theme tokens
+
+`StyledTheme` includes a shadow and glow scale that follows the same sm/md/lg ramp as spacing and rounding:
+
+| Token | Default |
+|-------|---------|
+| `shadow_sm` | `vec2(0, 1)` |
+| `shadow_md` | `vec2(0, 2)` |
+| `shadow_lg` | `vec2(0, 4)` |
+| `glow_sm` | 4 px |
+| `glow_md` | 8 px |
+| `glow_lg` | 16 px |
+
+### Glow quality
+
+egui has no blur pass, so glyph-shaped glow is faked by stamping the text many times at faint offsets distributed on a sunflower (Vogel) disk — an aperiodic golden-angle spiral with no grid or spokes, so the overlapping copies blend into a smooth halo that follows the letterforms. `samples` is a base density (count at an 8px radius); the real count scales with radius² so large glows stay smooth, and brightness is independent of the value. This is the priciest primitive; the default (64) blends cleanly at typical sizes:
+
+```rust
+// Cheaper — for many simultaneous glowing labels
+.glow_quality(32)
+
+// Smoother — for large hero text with a big radius
+.glow_quality(96)
+```
+
 ## Examples
 
 ```bash
 cargo run --example basic              # buttons + frame
 cargo run --example containers         # row / column / nesting
 cargo run --example stack              # overlay container: offsets + alignment
+cargo run --example text_effects       # shadow, outline, glow, scale — animated demos
 cargo run --example text_edit          # focus state styling
 cargo run --example theme_demo         # live theme switching with swatches
 cargo run --example composable_styles  # Apply + reusable style functions

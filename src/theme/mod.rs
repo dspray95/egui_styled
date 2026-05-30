@@ -1,4 +1,4 @@
-use egui::{CornerRadius, FontFamily, FontId};
+use egui::{CornerRadius, FontFamily, FontId, Vec2};
 
 pub mod theme_ext;
 pub mod web_palette;
@@ -37,6 +37,22 @@ pub struct StyledTheme {
     pub font_family_display: FontFamily,
     pub font_family_body: FontFamily,
     pub font_family_mono: FontFamily,
+
+    // Text effect scales (pixel offsets / radii at logical pixel density).
+    //
+    // `shadow_*` are directional offset vectors for [`StyledLabel::text_shadow`].
+    // The default ramp is a gentle downward drop shadow (Tailwind-style).
+    //
+    // `glow_*` are radius values for [`StyledLabel::glow`].
+    // Pass a theme token directly, or pass a per-frame animated `f32` — the
+    // methods accept raw values, not enum tokens.
+    pub shadow_sm: Vec2,
+    pub shadow_md: Vec2,
+    pub shadow_lg: Vec2,
+
+    pub glow_sm: f32,
+    pub glow_md: f32,
+    pub glow_lg: f32,
 }
 
 impl StyledTheme {
@@ -81,6 +97,14 @@ impl Default for StyledTheme {
             font_family_display: FontFamily::Proportional,
             font_family_body: FontFamily::Proportional,
             font_family_mono: FontFamily::Monospace,
+
+            shadow_sm: Vec2::new(0.0, 1.0),
+            shadow_md: Vec2::new(0.0, 2.0),
+            shadow_lg: Vec2::new(0.0, 4.0),
+
+            glow_sm: 4.0,
+            glow_md: 8.0,
+            glow_lg: 16.0,
         }
     }
 }
