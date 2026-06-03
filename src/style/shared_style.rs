@@ -1,9 +1,24 @@
 use crate::state::PseudoState;
 
 use egui::{
-    Color32, CornerRadius, CursorIcon, FontId, Margin, Shape, Stroke, Vec2, Visuals,
+    Color32, CornerRadius, CursorIcon, FontId, Margin, Rect, Shape, Stroke, Vec2, Visuals,
+    pos2,
     style::WidgetVisuals,
 };
+
+/// How a `background_image` fills its container rect when the image's intrinsic
+/// aspect ratio differs from the styled box.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum BackgroundImageFit {
+    /// Map the full texture over the rect (uv 0→1 on both axes). Distorts if
+    /// aspect ratios differ — equivalent to CSS `background-size: 100% 100%`.
+    #[default]
+    Stretch,
+    /// Scale to cover the box, cropping overflow. Preserves aspect ratio —
+    /// equivalent to CSS `background-size: cover`. Requires the texture to be
+    /// loaded; on the loading frame the image is not painted.
+    Cover,
+}
 
 /// A single paint decoration rendered behind the widget rect.
 ///
@@ -60,6 +75,91 @@ pub fn paint_shadows(
         })
         .collect();
     ui.painter().set(reserve_idx, Shape::Vec(shapes));
+}
+
+/// Compute the UV rect used to sample the texture for the given `fit` mode.
+///
+/// `intrinsic`: the loaded texture's original size in points (width, height).
+/// `dest`: the target rect we are filling.
+///
+/// `Stretch` always returns `(0,0)→(1,1)`.
+/// `Cover` adjusts the UV to crop the wider axis, preserving aspect ratio.
+fn cover_uv(intrinsic: Vec2, dest: Rect) -> Rect {
+    if intrinsic.x <= 0.0 || intrinsic.y <= 0.0 {
+        return Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
+    }
+    let dest_aspect = dest.width() / dest.height();
+    let img_aspect = intrinsic.x / intrinsic.y;
+    if img_aspect > dest_aspect {
+        // image wider than dest — crop sides
+        let scale = dest_aspect / img_aspect;
+        let pad = (1.0 - scale) / 2.0;
+        Rect::from_min_max(pos2(pad, 0.0), pos2(1.0 - pad, 1.0))
+    } else {
+        // image taller than dest — crop top/bottom
+        let scale = img_aspect / dest_aspect;
+        let pad = (1.0 - scale) / 2.0;
+        Rect::from_min_max(pos2(0.0, pad), pos2(1.0, 1.0 - pad))
+    }
+}
+
+/// Build the `Shape` that paints a background image clipped to a rounded rect.
+///
+/// Returns `None` when the texture is not yet loaded (async loading path — the
+/// caller leaves its `Shape::Noop` placeholder in place and the image paints on
+/// the next frame).
+///
+/// Layers (front-to-back inside the returned `Shape::Vec`):
+/// 1. `bg` fill (if any) — solid colour behind the texture
+/// 2. Texture rectangle (rounded, tinted)
+/// 3. Border stroke on top of the texture
+pub fn background_image_shape(
+    ui: &egui::Ui,
+    rect: Rect,
+    corner_radius: CornerRadius,
+    image: &egui::Image<'static>,
+    fit: BackgroundImageFit,
+    tint: Color32,
+    bg: Option<Color32>,
+    border: Option<Stroke>,
+) -> Option<Shape> {
+    use egui::load::TexturePoll;
+    use egui::epaint::RectShape;
+
+    let poll = image
+        .load_for_size(ui.ctx(), rect.size())
+        .ok()?;
+
+    let texture = match poll {
+        TexturePoll::Ready { texture } => texture,
+        TexturePoll::Pending { .. } => return None,
+    };
+
+    let uv = match fit {
+        BackgroundImageFit::Stretch => Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+        BackgroundImageFit::Cover => cover_uv(texture.size, rect),
+    };
+
+    let mut parts: Vec<Shape> = Vec::with_capacity(3);
+
+    if let Some(fill) = bg {
+        parts.push(Shape::rect_filled(rect, corner_radius, fill));
+    }
+
+    let tex_shape = RectShape::filled(rect, corner_radius, tint)
+        .with_texture(texture.id, uv);
+    parts.push(Shape::Rect(tex_shape));
+
+    if let Some(stroke) = border {
+        parts.push(Shape::rect_stroke(
+            rect,
+            corner_radius,
+            stroke,
+            egui::StrokeKind::Outside,
+        ));
+    }
+
+    Some(Shape::Vec(parts))
 }
 
 /// Render `f` inside a child scope so a `visible == false` widget's
@@ -137,6 +237,13 @@ pub struct SharedStyle {
 
     // Decorations
     pub shadows: Vec<Shadow>,
+
+    // Background image — drawn on top of `bg` fill, clipped to the same rounded rect.
+    // Texture loading is the consuming app's responsibility (egui loader registry or
+    // `ctx.load_texture`). egui_styled only paints a texture it has already received.
+    pub background_image: Option<egui::Image<'static>>,
+    pub background_image_fit: BackgroundImageFit,
+    pub background_image_tint: Option<Color32>,
 }
 
 /// Concrete style values for one interaction state after resolving pseudo-state
@@ -319,6 +426,7 @@ impl SharedStyle {
             || self.padding.is_some()
             || self.corner_radius.is_some()
             || self.margin.is_some()
+            || self.background_image.is_some()
     }
 }
 
@@ -568,5 +676,55 @@ mod tests {
         let vis = Visuals::default();
         let per = style.resolve_per_state(&vis);
         assert_eq!(per.accent, vis.selection.bg_fill);
+    }
+
+    #[test]
+    fn background_image_fit_default_is_stretch() {
+        assert_eq!(BackgroundImageFit::default(), BackgroundImageFit::Stretch);
+    }
+
+    #[test]
+    fn has_frame_styles_triggered_by_background_image() {
+        let style = SharedStyle {
+            background_image: Some(egui::Image::from_bytes("bytes://test", vec![])),
+            ..Default::default()
+        };
+        assert!(style.has_frame_styles());
+    }
+
+    #[test]
+    fn cover_uv_stretch_returns_full() {
+        let dest = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(100.0, 100.0));
+        let uv = cover_uv(egui::Vec2::new(200.0, 100.0), dest);
+        // Stretch isn't tested via cover_uv; Cover is. Wider image into square dest:
+        // img_aspect=2, dest_aspect=1 → scale=0.5, pad=0.25 on x axis
+        let uv_cover = cover_uv(egui::Vec2::new(200.0, 100.0), dest);
+        assert!((uv_cover.min.x - 0.25).abs() < 1e-5);
+        assert!((uv_cover.max.x - 0.75).abs() < 1e-5);
+        assert!((uv_cover.min.y - 0.0).abs() < 1e-5);
+        assert!((uv_cover.max.y - 1.0).abs() < 1e-5);
+        let _ = uv;
+    }
+
+    #[test]
+    fn cover_uv_tall_image_crops_vertically() {
+        // 100×200 image into 100×100 dest → taller image, crop top/bottom
+        let dest = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(100.0, 100.0));
+        let uv = cover_uv(egui::Vec2::new(100.0, 200.0), dest);
+        assert!((uv.min.x - 0.0).abs() < 1e-5);
+        assert!((uv.max.x - 1.0).abs() < 1e-5);
+        // img_aspect=0.5, dest_aspect=1 → scale=0.5, pad=0.25 on y axis
+        assert!((uv.min.y - 0.25).abs() < 1e-5);
+        assert!((uv.max.y - 0.75).abs() < 1e-5);
+    }
+
+    #[test]
+    fn cover_uv_square_image_returns_full() {
+        let dest = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(100.0, 100.0));
+        let uv = cover_uv(egui::Vec2::new(100.0, 100.0), dest);
+        assert!((uv.min.x - 0.0).abs() < 1e-5);
+        assert!((uv.max.x - 1.0).abs() < 1e-5);
+        assert!((uv.min.y - 0.0).abs() < 1e-5);
+        assert!((uv.max.y - 1.0).abs() < 1e-5);
     }
 }

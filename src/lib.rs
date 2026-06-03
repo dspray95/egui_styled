@@ -35,11 +35,12 @@ pub use containers::column::StyledColumn;
 pub use containers::frame::StyledFrame;
 pub use containers::row::StyledRow;
 pub use containers::stack::StyledStack;
-pub use style::shared_style::Shadow;
+pub use style::shared_style::{BackgroundImageFit, Shadow};
 pub use theme::StyledTheme;
 pub use theme::theme_ext::{DesignSlots, ThemeExt};
 pub use theme::web_palette::WebPalette;
 pub use widgets::button::StyledButton;
+pub use widgets::image::StyledImage;
 pub use widgets::checkbox::StyledCheckbox;
 pub use widgets::combo_box::StyledComboBox;
 pub use widgets::label::StyledLabel;
@@ -101,6 +102,15 @@ impl Styled {
     /// active app theme.
     pub fn theme() -> StyledTheme {
         StyledTheme::default()
+    }
+
+    /// Start a styled inline image (icon, portrait, thumbnail). Consumes a
+    /// finished `egui::Image` / `ImageSource`, or an `egui::include_image!(...)`
+    /// result. egui_styled never loads textures — install loaders in your app
+    /// via `egui_extras::install_image_loaders`, or register a native texture
+    /// with `ctx.load_texture`.
+    pub fn image(image: impl Into<egui::Image<'static>>) -> StyledImage {
+        StyledImage::new(image)
     }
 
     /// Start a styled label. Themed colors / sizes via builder methods.

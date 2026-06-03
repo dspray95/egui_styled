@@ -157,6 +157,36 @@ macro_rules! __impl_style_builders_body {
 
             // --- Decorations ---
 
+            // --- Background image ---
+
+            /// Set a background texture drawn on top of `bg` fill, clipped to the
+            /// same rounded rect. Accepts `egui::Image`, `egui::ImageSource`, or
+            /// an `include_image!(...)` macro result.
+            ///
+            /// Texture loading is the app's responsibility — install loaders via
+            /// `egui_extras::install_image_loaders` or register textures with
+            /// `ctx.load_texture`. egui_styled only paints, never loads.
+            pub fn background_image(mut self, image: impl Into<egui::Image<'static>>) -> Self {
+                self.style.background_image = Some(image.into());
+                self
+            }
+
+            /// Override the fill mode for `background_image`.
+            /// Default: [`BackgroundImageFit::Stretch`] (maps full texture over the rect).
+            pub fn background_image_fit(
+                mut self,
+                fit: $crate::style::shared_style::BackgroundImageFit,
+            ) -> Self {
+                self.style.background_image_fit = fit;
+                self
+            }
+
+            /// Multiply the background image colour by `tint` (default: `WHITE` = no tint).
+            pub fn background_image_tint(mut self, tint: egui::Color32) -> Self {
+                self.style.background_image_tint = Some(tint);
+                self
+            }
+
             /// Paint an offset stroke rect behind the widget.
             /// Multiple calls append; each shadow uses the widget's `corner_radius`.
             pub fn shadow(mut self, offset: egui::Vec2, width: f32, color: egui::Color32) -> Self {

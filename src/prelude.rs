@@ -10,6 +10,7 @@ pub use crate::ColorExt;
 pub use crate::DesignSlots;
 pub use crate::Glow;
 pub use crate::GlowQuality;
+pub use crate::BackgroundImageFit;
 pub use crate::Shadow;
 pub use crate::Styled;
 pub use crate::StyledTheme;
@@ -22,6 +23,7 @@ pub use egui::TextWrapMode;
 
 pub use crate::StyledArea;
 pub use crate::StyledButton;
+pub use crate::StyledImage;
 pub use crate::StyledCheckbox;
 pub use crate::StyledColumn;
 pub use crate::StyledComboBox;

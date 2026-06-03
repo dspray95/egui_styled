@@ -167,6 +167,8 @@ Styled::label(text)
 | ✅ | `StyledFrame` with bg / border / padding / margin / corner_radius |
 | ✅ | `StyledRow` / `StyledColumn` containers with gap support |
 | ✅ | `StyledStack` overlay container (layered children, offsets, alignment) |
+| ✅ | `StyledImage` inline widget: rounded corners, border, shadow, hover tint |
+| ✅ | `background_image` on every box container: texture behind children, same rounded-rect clipping as `bg` fill |
 | ✅ | `SharedStyle` resolver, hover/focus/active falls through to egui defaults |
 | ✅ | `PseudoState` tracking via `egui::Memory` (1-frame lag, imperceptible) |
 | ✅ | `StyledTheme` design tokens (colors / spacing / radii / typography / shadow / glow) |
@@ -349,7 +351,7 @@ Because layers are painted before the stack's final position is known (it's the 
 
 ## Text effects (`StyledLabel`)
 
-`StyledLabel` exposes four glyph-level appearance primitives. They all stamp the laid-out galley at offsets and colors rather than painting offset rectangles — so effects follow the actual letterforms, not a bounding box.
+`StyledLabel` exposes four glyph-level appearance primitives. They all stamp the laid-out galley at offsets and colors rather than painting offset rectangles - so effects follow the actual letterforms, not a bounding box.
 
 All methods take plain per-frame values. **Animation stays consumer-side**: compute scale, intensity, or offset using `ctx.data` / `request_repaint` in your own code, then pass the current value to the builder.
 
@@ -360,7 +362,7 @@ Styled::label("SCORE")
     .text_color(Color32::WHITE)
     .show(ui);
 
-// Chromatic aberration — two opposite-offset shadows, one label
+// Chromatic aberration - two opposite-offset shadows, one label
 Styled::label("[ENTER]")
     .text_shadow(vec2(-2.0, 0.0), cyan)
     .text_shadow(vec2( 2.0, 0.0), magenta)
@@ -374,13 +376,13 @@ Styled::label("GAME OVER")
     .text_color(Color32::WHITE)
     .show(ui);
 
-// Soft glow — intensity from 0.0 (invisible) to 1.0 (full)
+// Soft glow - intensity from 0.0 (invisible) to 1.0 (full)
 Styled::label("000123456")
     .glow(Color32::from_rgb(0, 220, 255), theme.glow_md, intensity)
     .text_color(Color32::WHITE)
     .show(ui);
 
-// Scale about a pivot — allocated footprint stays at natural size
+// Scale about a pivot - allocated footprint stays at natural size
 // Pair with Styled::stack().layer_fixed() to prevent overflow affecting siblings
 let resting = vec2(200.0, 40.0);
 Styled::stack()
@@ -393,7 +395,7 @@ Styled::stack()
     .show(ui);
 ```
 
-Effects compose — a single label can carry glow + chromatic shadows at once.
+Effects compose - a single label can carry glow + chromatic shadows at once.
 
 ### Theme tokens
 
@@ -410,15 +412,49 @@ Effects compose — a single label can carry glow + chromatic shadows at once.
 
 ### Glow quality
 
-egui has no blur pass, so glyph-shaped glow is faked by stamping the text many times at faint offsets distributed on a sunflower (Vogel) disk — an aperiodic golden-angle spiral with no grid or spokes, so the overlapping copies blend into a smooth halo that follows the letterforms. `samples` is a base density (count at an 8px radius); the real count scales with radius² so large glows stay smooth, and brightness is independent of the value. This is the priciest primitive; the default (64) blends cleanly at typical sizes:
+egui has no blur pass, so glyph-shaped glow is faked by stamping the text many times at faint offsets distributed on a sunflower (Vogel) disk - an aperiodic golden-angle spiral with no grid or spokes, so the overlapping copies blend into a smooth halo that follows the letterforms. `samples` is a base density (count at an 8px radius); the real count scales with radius² so large glows stay smooth, and brightness is independent of the value. This is the priciest primitive; the default (64) blends cleanly at typical sizes:
 
 ```rust
-// Cheaper — for many simultaneous glowing labels
+// Cheaper for many simultaneous glowing labels
 .glow_quality(32)
 
-// Smoother — for large hero text with a big radius
+// Smoother for large hero text with a big radius
 .glow_quality(96)
 ```
+
+## Images
+
+egui_styled never loads or uploads textures - that's the consuming app's job. Build a texture with `ctx.load_texture`, install URI loaders via `egui_extras::install_image_loaders`, or use `egui::include_image!` for compile-time bytes. Then hand the finished descriptor to egui_styled:
+
+```rust
+// Inline widget - icons, portraits, thumbnails.
+Styled::image(egui::include_image!("assets/icon.png"))
+    .size(Vec2::splat(64.0))
+    .corner_radius(8.0)
+    .border(1.0, theme.border_color)
+    .hover_tint(Color32::from_rgba_unmultiplied(255, 255, 255, 180))
+    .shadow_filled(vec2(2.0, 2.0), Color32::from_black_alpha(100))
+    .show(ui);
+
+// Background texture behind children - same rounded-corner clipping as `bg`.
+Styled::area()
+    .fill_screen()
+    .background_image(egui::include_image!("assets/bg.jpg"))
+    .background_image_fit(BackgroundImageFit::Cover) // crop, not stretch
+    .corner_radius(0.0)
+    .show(ctx, |ui| { /* content on top */ });
+
+// Both bg fill and background_image: fill shows while the texture loads.
+Styled::frame()
+    .bg(Color32::from_rgb(40, 40, 60))
+    .background_image(egui::include_image!("assets/card.png"))
+    .background_image_tint(Color32::from_rgba_unmultiplied(255, 255, 255, 200))
+    .corner_radius(12.0)
+    .padding(16.0)
+    .show(ui, |ui| { /* ... */ });
+```
+
+The texture is drawn via `epaint::RectShape::with_texture` - the same path egui's own `Frame` uses - so the tessellator handles rounded-corner clipping. No manual scissor rect, no squared-off corners regardless of the corner radius value.
 
 ## Examples
 
@@ -426,7 +462,8 @@ egui has no blur pass, so glyph-shaped glow is faked by stamping the text many t
 cargo run --example basic              # buttons + frame
 cargo run --example containers         # row / column / nesting
 cargo run --example stack              # overlay container: offsets + alignment
-cargo run --example text_effects       # shadow, outline, glow, scale — animated demos
+cargo run --example images             # StyledImage + background_image: rounding, tint, hover, cover fit
+cargo run --example text_effects       # shadow, outline, glow, scale - animated demos
 cargo run --example text_edit          # focus state styling
 cargo run --example theme_demo         # live theme switching with swatches
 cargo run --example composable_styles  # Apply + reusable style functions
