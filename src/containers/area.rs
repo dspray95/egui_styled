@@ -176,29 +176,72 @@ impl StyledArea {
         }
 
         let visible = self.style.visible;
+        let screen_size = ctx.content_rect().size();
         let frame = StyledFrame {
             style: self.style,
             align: self.align,
             justify: self.justify,
             gap: self.gap,
+            fill_size: self.fill_screen.then_some(screen_size),
         };
-        let fill_screen = self.fill_screen;
-        let screen_size = ctx.content_rect().size();
         let needs_size_cache = self.fixed_pos_centered.is_some();
 
+        // Main-axis (vertical) distribution within a fill-screen area. egui's
+        // top-down layout always pins the main axis to the top, so `justify`
+        // cannot center/bottom-align via `with_main_align`. Instead we offset
+        // the content with a top spacer computed from last frame's measured
+        // content height. The first time the area appears we don't yet know the
+        // content height, so we render the content invisibly purely to measure
+        // it and request an immediate repaint — the content then appears,
+        // already correctly positioned, on the next frame. This avoids a
+        // visible one-frame pop while keeping the layout in a single pass.
+        let center_vertical = self.fill_screen && self.justify.is_some();
+        let content_h_id = id.with("__fill_content_height");
+        let justify_factor = self.justify.map(|j| j.to_factor()).unwrap_or(0.0);
+        let cached_content_h = if center_vertical {
+            ctx.memory(|mem| mem.data.get_temp::<f32>(content_h_id))
+        } else {
+            None
+        };
+
+        let mut measured_content_h = 0.0f32;
         let response = area.show(ctx, |ui| {
             if visible == Some(false) {
                 ui.set_invisible();
             }
             frame
                 .show(ui, |ui| {
-                    if fill_screen {
-                        ui.set_min_size(screen_size);
+                    if center_vertical {
+                        let top_pad = ((screen_size.y - cached_content_h.unwrap_or(0.0))
+                            * justify_factor)
+                            .max(0.0);
+                        ui.add_space(top_pad);
+                        // Measure just the content (excluding the spacer) so next
+                        // frame's offset is accurate. Hide it on the first frame
+                        // (no cached height yet) to avoid a visible pop.
+                        let scope = ui.scope(|ui| {
+                            if cached_content_h.is_none() {
+                                ui.set_invisible();
+                            }
+                            body(ui)
+                        });
+                        measured_content_h = scope.response.rect.height();
+                        scope.inner
+                    } else {
+                        body(ui)
                     }
-                    body(ui)
                 })
                 .inner
         });
+
+        if center_vertical {
+            ctx.memory_mut(|mem| mem.data.insert_temp(content_h_id, measured_content_h));
+            // We measured invisibly this frame; repaint now so the centered
+            // content shows up immediately rather than waiting for an input event.
+            if cached_content_h.is_none() {
+                ctx.request_repaint();
+            }
+        }
 
         // Capture this frame's measured size so next frame can center.
         if needs_size_cache {
@@ -239,6 +282,54 @@ mod tests {
         assert!(
             (measured - expected).length() < 1.0,
             "fill_screen area measured {measured:?} but content_rect is {expected:?}"
+        );
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn fill_screen_with_justify_center_vertically_centers_content() {
+        let ctx = Context::default();
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))),
+            ..Default::default()
+        };
+
+        // Frame 1 measures the content invisibly (no cached height yet); frame 2
+        // renders it visibly, already centered. This avoids a visible pop.
+        let run_frame = |ctx: &Context, raw: egui::RawInput| -> (bool, f32, f32) {
+            let mut content_visible = true;
+            let mut widget_center_y = 0.0f32;
+            let mut screen_center_y = 0.0f32;
+            let _ = ctx.run(raw, |ctx| {
+                screen_center_y = ctx.content_rect().center().y;
+                StyledArea::new()
+                    .id("vcenter_test")
+                    .fill_screen()
+                    .align(egui::Align::Center)
+                    .justify(egui::Align::Center)
+                    .show(ctx, |ui| {
+                        content_visible = ui.is_visible();
+                        let resp = ui.label("centered");
+                        widget_center_y = resp.rect.center().y;
+                    });
+            });
+            (content_visible, widget_center_y, screen_center_y)
+        };
+
+        let (visible_1, _, _) = run_frame(&ctx, input.clone());
+        assert!(
+            !visible_1,
+            "content should be hidden on the first frame while its height is measured"
+        );
+
+        let (visible_2, widget_center_y, screen_center_y) = run_frame(&ctx, input);
+        assert!(
+            visible_2,
+            "content should be visible once its height has been measured"
+        );
+        assert!(
+            (widget_center_y - screen_center_y).abs() < 2.0,
+            "widget center y={widget_center_y} should be near screen center y={screen_center_y}"
         );
     }
 }

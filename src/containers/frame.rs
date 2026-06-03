@@ -10,6 +10,7 @@ pub struct StyledFrame {
     pub align: Option<Align>,
     pub justify: Option<Align>,
     pub gap: Option<f32>,
+    pub fill_size: Option<egui::Vec2>,
 }
 
 impl Default for StyledFrame {
@@ -25,6 +26,7 @@ impl StyledFrame {
             align: None,
             justify: None,
             gap: None,
+            fill_size: None,
         }
     }
 
@@ -95,6 +97,7 @@ impl StyledFrame {
         let align = self.align;
         let justify = self.justify;
         let gap = self.gap;
+        let fill_size = self.fill_size;
 
         // Reserve a slot for the background image before children so it paints
         // behind them on the same layer. `bgimg_slot` is `None` when there is
@@ -102,6 +105,14 @@ impl StyledFrame {
         let bgimg_slot = has_bg_image.then(|| ui.painter().add(Shape::Noop));
 
         let response = frame.show(ui, |ui| {
+            // Expand to the fill size (e.g. full screen) before building the
+            // layout, so cross-axis (horizontal) centering measures against the
+            // full width. Main-axis (vertical) centering is handled by the
+            // caller via a spacer — egui's top-down layout always pins the main
+            // axis to the top regardless of `with_main_align`.
+            if let Some(size) = fill_size {
+                ui.set_min_size(size);
+            }
             if full_width {
                 ui.set_min_width(ui.available_width());
             }
