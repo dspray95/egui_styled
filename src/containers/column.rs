@@ -75,6 +75,7 @@ impl StyledColumn {
                 style: self.style,
                 align: None,
                 justify: None,
+                gap: None,
             }
             .show(ui, |ui| render(ui).inner);
             InnerResponse::new(ir.inner, ir.response)

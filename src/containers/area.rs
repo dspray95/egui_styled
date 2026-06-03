@@ -37,6 +37,7 @@ pub struct StyledArea {
     fill_screen: bool,
     align: Option<egui::Align>,
     justify: Option<egui::Align>,
+    gap: Option<f32>,
     style: SharedStyle,
 }
 
@@ -59,6 +60,7 @@ impl StyledArea {
             fill_screen: false,
             align: None,
             justify: None,
+            gap: None,
             style: SharedStyle::default(),
         }
     }
@@ -138,6 +140,12 @@ impl StyledArea {
         self
     }
 
+    /// Spacing between children, forwarded to the inner styled frame.
+    pub fn gap(mut self, gap: f32) -> Self {
+        self.gap = Some(gap);
+        self
+    }
+
     pub fn show<R>(self, ctx: &Context, body: impl FnOnce(&mut egui::Ui) -> R) -> InnerResponse<R> {
         let id = self.id.unwrap_or_else(|| egui::Id::new("styled_area"));
         let mut area = egui::Area::new(id)
@@ -172,6 +180,7 @@ impl StyledArea {
             style: self.style,
             align: self.align,
             justify: self.justify,
+            gap: self.gap,
         };
         let fill_screen = self.fill_screen;
         let screen_size = ctx.content_rect().size();

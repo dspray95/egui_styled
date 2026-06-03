@@ -9,6 +9,7 @@ pub struct StyledFrame {
     pub style: SharedStyle,
     pub align: Option<Align>,
     pub justify: Option<Align>,
+    pub gap: Option<f32>,
 }
 
 impl Default for StyledFrame {
@@ -23,6 +24,7 @@ impl StyledFrame {
             style: SharedStyle::default(),
             align: None,
             justify: None,
+            gap: None,
         }
     }
 
@@ -36,6 +38,12 @@ impl StyledFrame {
     /// top-down inside the frame; see [`crate::StyledColumn::justify`] for details.
     pub fn justify(mut self, justify: Align) -> Self {
         self.justify = Some(justify);
+        self
+    }
+
+    /// Spacing between children, applied to both axes (`item_spacing.x` and `.y`).
+    pub fn gap(mut self, gap: f32) -> Self {
+        self.gap = Some(gap);
         self
     }
 
@@ -86,6 +94,7 @@ impl StyledFrame {
         let full_width = self.style.full_width;
         let align = self.align;
         let justify = self.justify;
+        let gap = self.gap;
 
         // Reserve a slot for the background image before children so it paints
         // behind them on the same layer. `bgimg_slot` is `None` when there is
@@ -95,6 +104,9 @@ impl StyledFrame {
         let response = frame.show(ui, |ui| {
             if full_width {
                 ui.set_min_width(ui.available_width());
+            }
+            if let Some(g) = gap {
+                ui.spacing_mut().item_spacing = egui::Vec2::splat(g);
             }
             if align.is_some() || justify.is_some() {
                 let mut layout = Layout::top_down(align.unwrap_or(Align::Min));

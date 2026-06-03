@@ -254,6 +254,7 @@ impl<'a> StyledStack<'a> {
                 style: self.style,
                 align: None,
                 justify: None,
+                gap: None,
             }
             .show(ui, render);
             let inner = ir.inner;
