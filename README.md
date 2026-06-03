@@ -179,7 +179,7 @@ Styled::label(text)
 
 ```toml
 [dependencies]
-egui_styled = "0.1"
+egui_styled = "0.4"
 egui = "0.34"
 ```
 
