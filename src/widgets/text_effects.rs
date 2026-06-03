@@ -179,8 +179,7 @@ fn paint_glow(ui: &mut egui::Ui, pos: Pos2, galley: Arc<Galley>, glow: Glow, sam
     // Hold stamp density (and therefore overlap, and therefore brightness)
     // constant as radius grows: count ∝ area ∝ radius².
     let density_scale = (glow.radius / REF_RADIUS).powi(2).clamp(0.25, 6.0);
-    let n = ((base * density_scale).round() as u32)
-        .clamp(8, MAX_SAMPLES);
+    let n = ((base * density_scale).round() as u32).clamp(8, MAX_SAMPLES);
 
     let intensity = glow.intensity.clamp(0.0, 1.0);
     // Constant overlap scales with `base`, so divide it back out to keep the
