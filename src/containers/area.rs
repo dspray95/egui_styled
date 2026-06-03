@@ -181,10 +181,14 @@ impl StyledArea {
             if visible == Some(false) {
                 ui.set_invisible();
             }
-            if fill_screen {
-                ui.set_min_size(screen_size);
-            }
-            frame.show(ui, body).inner
+            frame
+                .show(ui, |ui| {
+                    if fill_screen {
+                        ui.set_min_size(screen_size);
+                    }
+                    body(ui)
+                })
+                .inner
         });
 
         // Capture this frame's measured size so next frame can center.
@@ -198,3 +202,34 @@ impl StyledArea {
 }
 
 impl_style_builders!(StyledArea);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::{Rect, pos2, vec2};
+
+    #[test]
+    #[allow(deprecated)]
+    fn fill_screen_area_fills_content_rect_with_tiny_body() {
+        let ctx = Context::default();
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))),
+            ..Default::default()
+        };
+
+        let mut measured = Vec2::ZERO;
+        let mut expected = Vec2::ZERO;
+        let _ = ctx.run(input, |ctx| {
+            let resp = StyledArea::new().fill_screen().show(ctx, |ui| {
+                ui.label("x");
+            });
+            measured = resp.response.rect.size();
+            expected = ctx.content_rect().size();
+        });
+
+        assert!(
+            (measured - expected).length() < 1.0,
+            "fill_screen area measured {measured:?} but content_rect is {expected:?}"
+        );
+    }
+}
