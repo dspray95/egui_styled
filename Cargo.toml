@@ -22,8 +22,8 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-egui = "0.34.2"
+egui = "0.34.3"
 
 [dev-dependencies]
-eframe = "0.34"
-egui_kittest = { version = "0.34", features = ["snapshot", "wgpu"] }
+eframe = "0.34.3"
+egui_kittest = { version = "0.34.3", features = ["snapshot", "wgpu"] }

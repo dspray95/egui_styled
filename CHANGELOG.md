@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`StyledArea::fill_screen()` now fills the screen.** The area reserved the full viewport but the inner `egui::Frame` still shrink-wrapped to its content, so a `fill_screen` area with a `background_image` rendered as a small box in the top-left corner instead of covering the viewport. Root cause: `ui.set_min_size(screen_size)` was called on the area's outer `Ui` rather than on the frame's inner `Ui`; `egui::Frame::show` allocates a fresh child `Ui` that does not inherit the parent's min-size. The fix passes the min-size down into the frame body, so the frame's own `response.rect` (the rect used to paint the background image) matches the full content rect. The positioning logic (`fixed_pos(ctx.content_rect().min)`) and the priority chain (`fixed_pos_centered > fill_screen > fixed_pos > anchor`) are unchanged. A regression test asserts the invariant: a `fill_screen` area with a single-label body produces a rect within 1px of `ctx.content_rect().size()`.
+
+### Changed
+
+- **egui bumped to 0.34.3** (patch release). `eframe` and `egui_kittest` dev-dependencies updated to match.
+- **`examples/images.rs` migrated to `eframe::App::ui`.** The example now implements `eframe::App` (required `fn ui` method) instead of the deprecated `eframe::run_ui_native` + `CentralPanel::show` pattern. No visual change.
+
 ### Added
 
 - **First-class image / texture support.** egui_styled now presents images through the same styled API as boxes and buttons - themed corner radius, border, shadow, padding, and tint - without ever touching texture loading. The consuming app installs loaders (`egui_extras::install_image_loaders`) or registers native textures (`ctx.load_texture`); egui_styled only paints.
@@ -43,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `.outline(width, color)` - a faux stroke from 8 compass-direction glyph stamps at `width` pixels.
   - `.glow(color, radius, intensity)` - a soft halo that follows the letterforms. egui has no blur pass, so glow is approximated by stamping the text on a sunflower (Vogel) disk - an aperiodic golden-angle spiral (no grid/spokes) of faint copies weighted by a window that reaches zero at the edge, so overlapping copies blend into a smooth halo without moiré, ghosts, or popping when `intensity` animates. `.glow_quality(samples)` tunes the base stamp density (default 64); the real count scales with radius² so large glows stay smooth, and brightness is independent of both radius and quality. This is the priciest primitive - drop `samples` for dense UIs.
   - `.scale(factor, pivot)` - scale the painted glyphs about an `Align2` pivot via `TSTransform` over the label's shape range (the same mechanism `Styled::stack()` uses to translate). The allocated layout footprint stays at natural size, so siblings don't shift; pair with `Styled::stack().layer_fixed(...)` to control overflow.
-- **`StyledTheme` shadow & glow scale tokens** - `shadow_sm`/`shadow_md`/`shadow_lg` (offset `Vec2`s, a downward drop ramp) and `glow_sm`/`glow_md`/`glow_lg` (radius `f32`s), following the existing sm/md/lg ramp. The effect methods take raw `Vec2`/`f32`, so pass a token (`theme.glow_md`) or an animated value interchangeably.
+  - **`StyledTheme` shadow & glow scale tokens** - `shadow_sm`/`shadow_md`/`shadow_lg` (offset `Vec2`s, a downward drop ramp) and `glow_sm`/`glow_md`/`glow_lg` (radius `f32`s), following the existing sm/md/lg ramp. The effect methods take raw `Vec2`/`f32`, so pass a token (`theme.glow_md`) or an animated value interchangeably.
 - **Snapshot / visual-regression tests** via `egui_kittest` (new dev-dependency). `tests/text_effects.rs` covers shadow, chromatic aberration, outline, glow, scale, and a composed case; baselines live in `tests/snapshots/`.
 - **`examples/text_effects.rs`** - animated showcase of all four primitives plus composed effects, demonstrating the consumer-side animation model. `examples/game_over.rs` migrated to express its chromatic `[ENTER]` glitch as a single `.text_shadow()`-pair label and adds a glow to the score.
 
