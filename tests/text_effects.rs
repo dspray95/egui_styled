@@ -2,7 +2,7 @@ use egui::{Align2, Color32, Vec2, vec2};
 use egui_kittest::Harness;
 use egui_styled::prelude::*;
 
-// ── Unit tests (no rendering) ─────────────────────────────────────────────
+// Unit tests (no rendering)
 
 #[test]
 fn text_effects_is_empty_by_default() {
@@ -63,7 +63,7 @@ fn theme_glow_tokens_are_positive() {
     assert!(theme.glow_lg > theme.glow_md);
 }
 
-// ── Builder chain smoke-tests (no rendering) ─────────────────────────────
+//  Builder chain smoke-tests (no rendering)
 
 #[test]
 fn label_builder_shadow_chains() {
@@ -96,7 +96,7 @@ fn label_builder_scale() {
         .text_color(Color32::WHITE);
 }
 
-// ── Snapshot tests (require wgpu renderer) ───────────────────────────────
+//  Snapshot tests (require wgpu renderer)
 //
 // First run generates the baseline images in `tests/snapshots/`.
 // Subsequent runs compare against them. Run with:
