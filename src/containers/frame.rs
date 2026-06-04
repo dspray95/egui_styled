@@ -70,8 +70,10 @@ impl StyledFrame {
         let shadows = self.style.shadows.clone();
 
         let has_bg_image = self.style.background_image.is_some();
-        let fade_id = has_bg_image
-            .then(|| ui.make_persistent_id(ui.next_auto_id()).with("__bgimg_fade_start"));
+        let fade_id = has_bg_image.then(|| {
+            ui.make_persistent_id(ui.next_auto_id())
+                .with("__bgimg_fade_start")
+        });
 
         let mut frame = egui::Frame::default();
         // When a background image is set we paint fill + texture + border ourselves
@@ -179,7 +181,9 @@ impl StyledFrame {
             let rect = response.response.rect;
             let tint = self.style.background_image_tint.unwrap_or(Color32::WHITE);
             let fit = self.style.background_image_fit;
-            let fade = self.style.background_image_fade_in
+            let fade = self
+                .style
+                .background_image_fade_in
                 .zip(fade_id)
                 .map(|(d, id)| (id, d));
             // For Cover we need intrinsic size; load_for_size is called inside
@@ -253,8 +257,10 @@ mod tests {
         fade_secs: Option<f32>,
         time: f64,
     ) -> Vec<Shape> {
-        let mut raw = egui::RawInput::default();
-        raw.time = Some(time);
+        let raw = egui::RawInput {
+            time: Some(time),
+            ..Default::default()
+        };
         let output = ctx.run_ui(raw, |ui| {
             let mut frame = StyledFrame::new().background_image(img.clone());
             if let Some(d) = fade_secs {
@@ -282,7 +288,10 @@ mod tests {
         let shapes2 = run_frame_at(&ctx, img.clone(), Some(0.5), 0.6);
         let alpha2 = textured_rect_alpha(&shapes2).expect("textured rect present");
 
-        assert!(alpha0 < alpha1, "alpha should increase: {alpha0} < {alpha1}");
+        assert!(
+            alpha0 < alpha1,
+            "alpha should increase: {alpha0} < {alpha1}"
+        );
         assert_eq!(alpha2, 255, "alpha should be full at >= duration");
     }
 
@@ -328,8 +337,10 @@ mod tests {
         reveal: bool,
         time: f64,
     ) -> Vec<Shape> {
-        let mut raw = egui::RawInput::default();
-        raw.time = Some(time);
+        let raw = egui::RawInput {
+            time: Some(time),
+            ..Default::default()
+        };
         let output = ctx.run_ui(raw, |ui| {
             let mut frame = StyledFrame::new().background_image(img.clone());
             frame = if reveal {
@@ -339,7 +350,8 @@ mod tests {
             };
             frame.show(ui, |ui| {
                 let rect = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(10.0, 10.0));
-                ui.painter().rect_filled(rect, 0.0, Color32::from_rgb(40, 50, 60));
+                ui.painter()
+                    .rect_filled(rect, 0.0, Color32::from_rgb(40, 50, 60));
             });
         });
         output.shapes.into_iter().map(|cs| cs.shape).collect()
@@ -365,7 +377,10 @@ mod tests {
         let s2 = run_with_content(&ctx, img.clone(), 0.5, true, 0.6);
         let a2 = content_rect_alpha(&s2).expect("content present after fade");
 
-        assert!(a1 > 0 && a1 < 255, "content mid-fade alpha should be partial: {a1}");
+        assert!(
+            a1 > 0 && a1 < 255,
+            "content mid-fade alpha should be partial: {a1}"
+        );
         assert_eq!(a2, 255, "content should be full opacity after the duration");
     }
 
@@ -387,11 +402,7 @@ mod tests {
     fn has_solid_rect(shapes: &[Shape], color: Color32) -> bool {
         for shape in shapes {
             match shape {
-                Shape::Vec(inner) => {
-                    if has_solid_rect(inner, color) {
-                        return true;
-                    }
-                }
+                Shape::Vec(inner) if has_solid_rect(inner, color) => return true,
                 Shape::Rect(rs) if rs.brush.is_none() && rs.fill == color => return true,
                 _ => {}
             }

@@ -1,8 +1,7 @@
 use crate::state::PseudoState;
 
 use egui::{
-    Color32, CornerRadius, CursorIcon, FontId, Margin, Rect, Shape, Stroke, Vec2, Visuals,
-    pos2,
+    Color32, CornerRadius, CursorIcon, FontId, Margin, Rect, Shape, Stroke, Vec2, Visuals, pos2,
     style::WidgetVisuals,
 };
 
@@ -103,16 +102,6 @@ fn cover_uv(intrinsic: Vec2, dest: Rect) -> Rect {
     }
 }
 
-/// Build the `Shape` that paints a background image clipped to a rounded rect.
-///
-/// Returns `None` when the texture is not yet loaded (async loading path — the
-/// caller leaves its `Shape::Noop` placeholder in place and the image paints on
-/// the next frame).
-///
-/// Layers (front-to-back inside the returned `Shape::Vec`):
-/// 1. `bg` fill (if any) — solid colour behind the texture
-/// 2. Texture rectangle (rounded, tinted)
-/// 3. Border stroke on top of the texture
 /// Fade alpha for a background-image reveal. Stamps the first-`ready` time in
 /// `ctx` memory under `id`, so the image tint and (optionally) the body content
 /// fade in lockstep off the same clock. Returns 1.0 when `duration <= 0`, and
@@ -134,6 +123,17 @@ pub fn bgimg_fade_alpha(ctx: &egui::Context, id: egui::Id, duration: f32, ready:
     alpha
 }
 
+/// Build the `Shape` that paints a background image clipped to a rounded rect.
+///
+/// Returns `None` only when there is nothing to draw (no `bg`, no `border`, and
+/// texture not yet ready). The `bg` fill and `border` paint every frame; the
+/// textured layer is added on top once the texture is `Ready`.
+///
+/// Layers (front-to-back inside the returned `Shape::Vec`):
+/// 1. `bg` fill (if any) — solid colour behind the texture
+/// 2. Texture rectangle (rounded, tinted) — omitted while still loading
+/// 3. Border stroke on top
+#[allow(clippy::too_many_arguments)]
 pub fn background_image_shape(
     ui: &egui::Ui,
     rect: Rect,
@@ -145,8 +145,8 @@ pub fn background_image_shape(
     border: Option<Stroke>,
     fade: Option<(egui::Id, f32)>,
 ) -> Option<Shape> {
-    use egui::load::TexturePoll;
     use egui::epaint::RectShape;
+    use egui::load::TexturePoll;
 
     let mut parts: Vec<Shape> = Vec::with_capacity(3);
 
@@ -171,8 +171,7 @@ pub fn background_image_shape(
             BackgroundImageFit::Cover => cover_uv(texture.size, rect),
         };
 
-        let tex_shape = RectShape::filled(rect, corner_radius, tint)
-            .with_texture(texture.id, uv);
+        let tex_shape = RectShape::filled(rect, corner_radius, tint).with_texture(texture.id, uv);
         parts.push(Shape::Rect(tex_shape));
     }
 
