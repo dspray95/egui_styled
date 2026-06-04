@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.4] - 2026-06-04
+
+### Fixed
+
+- **`StyledColumn` now delegates `align` / `justify` / `gap` to its `StyledFrame`** when it has box styling, instead of running its own `with_layout(...).with_main_align(...)` (the no-op the frame's vertical spacer replaces). Previously `Styled::column().bg(c).full_height().justify(Center)` never centered vertically because the column bypassed the spacer added in 0.5.3. `StyledRow` keeps its own `left_to_right` layout — a row's main axis is horizontal, which the (top-down) frame spacer doesn't apply to — and continues to delegate only box styling.
+
 ## [0.5.3] - 2026-06-04
 
 ### Added
