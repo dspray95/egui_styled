@@ -7,22 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-04
+
 ### Added
 
 - **`.gap(f32)` on `StyledFrame` and `StyledArea`.** Sets `item_spacing` (both axes) on the inner `Ui`, matching the existing `.gap()` already on `StyledRow` and `StyledColumn`. Use `Styled::frame().gap(12.0)` or `Styled::area().gap(8.0)` instead of manually calling `ui.add_space(...)` between children.
-
-### Fixed
-
-- **`.justify(Align)` now works for vertical distribution on a `fill_screen` `StyledArea`.** A `Styled::area().fill_screen().align(Center).justify(Center)` centered its content horizontally but pinned it to the top vertically (likewise `justify(Max)` did not bottom-align). Root cause: egui's `Layout::top_down(..).with_main_align(..)` cannot center/bottom-align on the main (vertical) axis - `next_frame_ignore_wrap` always aligns the frame to `Align::TOP` for top-down layouts, so `with_main_align` only ever affects the cross axis. Expanding the available rect (as the `fill_screen` size fix does) has no effect on this. The fix offsets the content with a top spacer of `(screen_height - content_height) * justify.to_factor()`, computed from the content's measured height. Because the height isn't known until the content is laid out, the first frame an area appears it renders the content *invisibly* purely to measure it and requests an immediate repaint; the content then appears already correctly positioned on the next frame, so there is no visible one-frame pop. `justify(Min)` (top, the previous behavior), `Center`, and `Max` (bottom) all now resolve correctly. Only applies when both `fill_screen()` and `justify(..)` are set; all other container paths are unchanged. A regression test asserts the content is hidden on the first frame and visible and vertically centered (within 2px of screen center) on the second.
-
-- **`StyledArea::fill_screen()` now fills the screen.** The area reserved the full viewport but the inner `egui::Frame` still shrink-wrapped to its content, so a `fill_screen` area with a `background_image` rendered as a small box in the top-left corner instead of covering the viewport. Root cause: `ui.set_min_size(screen_size)` was called on the area's outer `Ui` rather than on the frame's inner `Ui`; `egui::Frame::show` allocates a fresh child `Ui` that does not inherit the parent's min-size. The fix passes the min-size down into the frame body, so the frame's own `response.rect` (the rect used to paint the background image) matches the full content rect. The positioning logic (`fixed_pos(ctx.content_rect().min)`) and the priority chain (`fixed_pos_centered > fill_screen > fixed_pos > anchor`) are unchanged. A regression test asserts the invariant: a `fill_screen` area with a single-label body produces a rect within 1px of `ctx.content_rect().size()`.
-
-### Changed
-
-- **egui bumped to 0.34.3** (patch release). `eframe` and `egui_kittest` dev-dependencies updated to match.
-- **`examples/images.rs` migrated to `eframe::App::ui`.** The example now implements `eframe::App` (required `fn ui` method) instead of the deprecated `eframe::run_ui_native` + `CentralPanel::show` pattern. No visual change.
-
-### Added
 
 - **First-class image / texture support.** egui_styled now presents images through the same styled API as boxes and buttons - themed corner radius, border, shadow, padding, and tint - without ever touching texture loading. The consuming app installs loaders (`egui_extras::install_image_loaders`) or registers native textures (`ctx.load_texture`); egui_styled only paints.
 
@@ -48,6 +37,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Breaking:** `SharedStyle` gained three new public fields (`background_image`, `background_image_fit`, `background_image_tint`). Code that constructs `SharedStyle { .. }` with a full struct literal must add the new fields or use `..SharedStyle::default()`. The builder APIs and all widget `show()` implementations are unaffected.
+- **egui bumped to 0.34.3** (patch release). `eframe` and `egui_kittest` dev-dependencies updated to match.
+- **`examples/images.rs` migrated to `eframe::App::ui`.** The example now implements `eframe::App` (required `fn ui` method) instead of the deprecated `eframe::run_ui_native` + `CentralPanel::show` pattern. No visual change.
+
+### Fixed
+
+- **`.justify(Align)` now works for vertical distribution on a `fill_screen` `StyledArea`.** A `Styled::area().fill_screen().align(Center).justify(Center)` centered its content horizontally but pinned it to the top vertically (likewise `justify(Max)` did not bottom-align). Root cause: egui's `Layout::top_down(..).with_main_align(..)` cannot center/bottom-align on the main (vertical) axis - `next_frame_ignore_wrap` always aligns the frame to `Align::TOP` for top-down layouts, so `with_main_align` only ever affects the cross axis. Expanding the available rect (as the `fill_screen` size fix does) has no effect on this. The fix offsets the content with a top spacer of `(screen_height - content_height) * justify.to_factor()`, computed from the content's measured height. Because the height isn't known until the content is laid out, the first frame an area appears it renders the content *invisibly* purely to measure it and requests an immediate repaint; the content then appears already correctly positioned on the next frame, so there is no visible one-frame pop. `justify(Min)` (top, the previous behavior), `Center`, and `Max` (bottom) all now resolve correctly. Only applies when both `fill_screen()` and `justify(..)` are set; all other container paths are unchanged. A regression test asserts the content is hidden on the first frame and visible and vertically centered (within 2px of screen center) on the second.
+
+- **`StyledArea::fill_screen()` now fills the screen.** The area reserved the full viewport but the inner `egui::Frame` still shrink-wrapped to its content, so a `fill_screen` area with a `background_image` rendered as a small box in the top-left corner instead of covering the viewport. Root cause: `ui.set_min_size(screen_size)` was called on the area's outer `Ui` rather than on the frame's inner `Ui`; `egui::Frame::show` allocates a fresh child `Ui` that does not inherit the parent's min-size. The fix passes the min-size down into the frame body, so the frame's own `response.rect` (the rect used to paint the background image) matches the full content rect. The positioning logic (`fixed_pos(ctx.content_rect().min)`) and the priority chain (`fixed_pos_centered > fill_screen > fixed_pos > anchor`) are unchanged. A regression test asserts the invariant: a `fill_screen` area with a single-label body produces a rect within 1px of `ctx.content_rect().size()`.
 
 ## [0.4.0] - 2026-06-03
 
