@@ -107,6 +107,46 @@ fn cover_uv(intrinsic: Vec2, dest: Rect) -> Rect {
 /// fade in lockstep off the same clock. Returns 1.0 when `duration <= 0`, and
 /// 0.0 while `ready` is false — without stamping, so the clock only starts once
 /// the texture has actually landed.
+/// Vertically distribute body content within a container that has a known height.
+///
+/// Adds a top spacer of `(fill_height - cached_content_h) * justify_factor`,
+/// renders the body (invisibly on the first frame when no height is cached yet),
+/// then writes the measured content height back to memory and requests a repaint
+/// on that measurement frame so the content appears correctly positioned
+/// immediately on the next frame without a visible pop.
+///
+/// - `fill_height`: the container's total available height (e.g. `screen_size.y`
+///   or `ui.available_height()` before sizing calls).
+/// - `justify_factor`: 0.0 = top, 0.5 = center, 1.0 = bottom (from
+///   [`egui::Align::to_factor`]).
+/// - `content_h_id`: a stable [`egui::Id`] used to persist the measured height
+///   between frames. Derive with `ui.make_persistent_id(...).with("some_tag")`.
+pub fn justify_body_vertically<R>(
+    ui: &mut egui::Ui,
+    fill_height: f32,
+    justify_factor: f32,
+    content_h_id: egui::Id,
+    body: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    let cached_h = ui.ctx().memory(|m| m.data.get_temp::<f32>(content_h_id));
+    let top_pad = ((fill_height - cached_h.unwrap_or(0.0)) * justify_factor).max(0.0);
+    ui.add_space(top_pad);
+    let scope = ui.scope(|ui| {
+        if cached_h.is_none() {
+            ui.set_invisible();
+        }
+        body(ui)
+    });
+    let measured_h = scope.response.rect.height();
+    ui.ctx()
+        .memory_mut(|m| m.data.insert_temp(content_h_id, measured_h));
+    if cached_h.is_none() {
+        ui.ctx().request_repaint();
+    }
+    scope.inner
+}
+
+/// Fade alpha for a background-image reveal. Stamps the first-`ready` time in
 pub fn bgimg_fade_alpha(ctx: &egui::Context, id: egui::Id, duration: f32, ready: bool) -> f32 {
     if duration <= 0.0 {
         return 1.0;
@@ -255,6 +295,7 @@ pub struct SharedStyle {
     pub min_height: Option<f32>,
     pub max_height: Option<f32>,
     pub full_width: bool,
+    pub full_height: bool,
 
     // Cursor
     pub cursor_icon: Option<CursorIcon>,

@@ -177,6 +177,9 @@ impl StyledArea {
 
         let visible = self.style.visible;
         let screen_size = ctx.content_rect().size();
+        // Vertical justify (Center/Max) is handled inside StyledFrame::show via
+        // the shared justify_body_vertically helper — fill_size gives it a
+        // determinate height to space against, and justify passes the factor.
         let frame = StyledFrame {
             style: self.style,
             align: self.align,
@@ -186,62 +189,12 @@ impl StyledArea {
         };
         let needs_size_cache = self.fixed_pos_centered.is_some();
 
-        // Main-axis (vertical) distribution within a fill-screen area. egui's
-        // top-down layout always pins the main axis to the top, so `justify`
-        // cannot center/bottom-align via `with_main_align`. Instead we offset
-        // the content with a top spacer computed from last frame's measured
-        // content height. The first time the area appears we don't yet know the
-        // content height, so we render the content invisibly purely to measure
-        // it and request an immediate repaint — the content then appears,
-        // already correctly positioned, on the next frame. This avoids a
-        // visible one-frame pop while keeping the layout in a single pass.
-        let center_vertical = self.fill_screen && self.justify.is_some();
-        let content_h_id = id.with("__fill_content_height");
-        let justify_factor = self.justify.map(|j| j.to_factor()).unwrap_or(0.0);
-        let cached_content_h = if center_vertical {
-            ctx.memory(|mem| mem.data.get_temp::<f32>(content_h_id))
-        } else {
-            None
-        };
-
-        let mut measured_content_h = 0.0f32;
         let response = area.show(ctx, |ui| {
             if visible == Some(false) {
                 ui.set_invisible();
             }
-            frame
-                .show(ui, |ui| {
-                    if center_vertical {
-                        let top_pad = ((screen_size.y - cached_content_h.unwrap_or(0.0))
-                            * justify_factor)
-                            .max(0.0);
-                        ui.add_space(top_pad);
-                        // Measure just the content (excluding the spacer) so next
-                        // frame's offset is accurate. Hide it on the first frame
-                        // (no cached height yet) to avoid a visible pop.
-                        let scope = ui.scope(|ui| {
-                            if cached_content_h.is_none() {
-                                ui.set_invisible();
-                            }
-                            body(ui)
-                        });
-                        measured_content_h = scope.response.rect.height();
-                        scope.inner
-                    } else {
-                        body(ui)
-                    }
-                })
-                .inner
+            frame.show(ui, body).inner
         });
-
-        if center_vertical {
-            ctx.memory_mut(|mem| mem.data.insert_temp(content_h_id, measured_content_h));
-            // We measured invisibly this frame; repaint now so the centered
-            // content shows up immediately rather than waiting for an input event.
-            if cached_content_h.is_none() {
-                ctx.request_repaint();
-            }
-        }
 
         // Capture this frame's measured size so next frame can center.
         if needs_size_cache {

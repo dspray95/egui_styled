@@ -149,6 +149,12 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
+            /// Stretch the widget to fill the available height of its parent.
+            pub fn full_height(mut self) -> Self {
+                self.style.full_height = true;
+                self
+            }
+
             /// Set a minimum width in points.
             pub fn min_width(mut self, width: f32) -> Self {
                 self.style.min_width = Some(width);

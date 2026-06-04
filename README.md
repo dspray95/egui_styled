@@ -164,7 +164,7 @@ Styled::label(text)
 | ✅ | `StyledCheckbox` with full pseudo-state support |
 | 🚧 | `StyledSlider` generic over `T: Numeric`, but track/handle styling is shallow |
 | 🚧 | `StyledComboBox` trigger styled, popup items inherit |
-| ✅ | `StyledFrame` with bg / border / padding / margin / corner_radius |
+| ✅ | `StyledFrame` with bg / border / padding / margin / corner_radius / min·max width·height / full_height / vertical justify |
 | ✅ | `StyledRow` / `StyledColumn` containers with gap support |
 | ✅ | `StyledStack` overlay container (layered children, offsets, alignment) |
 | ✅ | `StyledImage` inline widget: rounded corners, border, shadow, hover tint |
@@ -181,7 +181,7 @@ Styled::label(text)
 
 ```toml
 [dependencies]
-egui_styled = "0.4"
+egui_styled = "0.5"
 egui = "0.34"
 ```
 

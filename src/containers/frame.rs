@@ -2,7 +2,10 @@ use egui::{Align, Color32, InnerResponse, Layout, Shape, Ui};
 
 use crate::{
     impl_style_builders,
-    style::shared_style::{SharedStyle, background_image_shape, bgimg_fade_alpha, paint_shadows},
+    style::shared_style::{
+        SharedStyle, background_image_shape, bgimg_fade_alpha, justify_body_vertically,
+        paint_shadows,
+    },
 };
 
 /// A styled box that lives inside the current layout.
@@ -109,10 +112,23 @@ impl StyledFrame {
         }
 
         let full_width = self.style.full_width;
+        let full_height = self.style.full_height;
+        let min_width = self.style.min_width;
+        let max_width = self.style.max_width;
+        let min_height = self.style.min_height;
+        let max_height = self.style.max_height;
         let align = self.align;
         let justify = self.justify;
         let gap = self.gap;
         let fill_size = self.fill_size;
+
+        // Stable id for caching the measured content height used by vertical
+        // justify. Only allocated when justify is set (same lazy pattern as
+        // fade_id — avoids burning an auto-id slot when not needed).
+        let vjustify_id = justify.map(|_| {
+            ui.make_persistent_id(ui.next_auto_id())
+                .with("__vjustify_content_h")
+        });
 
         // Content reveal: when set, the body fades in together with the
         // background image (same id + duration → in lockstep). `None` unless
@@ -147,32 +163,74 @@ impl StyledFrame {
                 );
                 ui.multiply_opacity(bgimg_fade_alpha(ui.ctx(), *id, *duration, ready));
             }
-            // Expand to the fill size (e.g. full screen) before building the
-            // layout, so cross-axis (horizontal) centering measures against the
-            // full width. Main-axis (vertical) centering is handled by the
-            // caller via a spacer — egui's top-down layout always pins the main
-            // axis to the top regardless of `with_main_align`.
+            // Pin to exactly `fill_size` (both min and max). `set_min_size` alone
+            // only floors the area, so on a window *shrink* it stays at its
+            // previous larger width and content centers on the stale midpoint.
             if let Some(size) = fill_size {
-                // Pin to exactly `size` (both min and max). `set_min_size` alone
-                // only floors the area, so on a window *shrink* it stays at its
-                // previous larger width and content centers on the stale midpoint.
                 ui.set_min_size(size);
                 ui.set_max_size(size);
             }
+            // Apply max constraints first so full_width/full_height read the
+            // capped available size, and min constraints last so an explicit
+            // minimum always wins over full_width/full_height.
+            if let Some(w) = max_width {
+                ui.set_max_width(w);
+            }
+            if let Some(h) = max_height {
+                ui.set_max_height(h);
+            }
+            // Capture fill_height for vertical justify *before* set_min_height
+            // changes the available size. fill_size takes priority; otherwise
+            // full_height captures the (already max-capped) available height.
+            let fill_height_val: Option<f32> = fill_size.map(|s| s.y).or_else(|| {
+                if full_height {
+                    Some(ui.available_height())
+                } else {
+                    None
+                }
+            });
             if full_width {
                 ui.set_min_width(ui.available_width());
+            }
+            if full_height {
+                ui.set_min_height(ui.available_height());
+            }
+            if let Some(w) = min_width {
+                ui.set_min_width(w);
+            }
+            if let Some(h) = min_height {
+                ui.set_min_height(h);
             }
             if let Some(g) = gap {
                 ui.spacing_mut().item_spacing = egui::Vec2::splat(g);
             }
-            if align.is_some() || justify.is_some() {
-                let mut layout = Layout::top_down(align.unwrap_or(Align::Min));
-                if let Some(j) = justify {
-                    layout = layout.with_main_align(j);
+            // Vertical justify via top spacer when the frame has a determinate
+            // height and justify is Center or Max. egui's `with_main_align` is a
+            // no-op for top-down layouts, so we use the measured-spacer approach
+            // instead. Horizontal alignment is applied as the cross-axis layout
+            // inside the same body closure.
+            let justify_factor = justify.map(|j| j.to_factor()).unwrap_or(0.0);
+            match (fill_height_val, vjustify_id, justify_factor > 0.0) {
+                (Some(fill_h), Some(vid), true) => {
+                    justify_body_vertically(ui, fill_h, justify_factor, vid, |ui| {
+                        if let Some(a) = align {
+                            ui.with_layout(Layout::top_down(a), body).inner
+                        } else {
+                            body(ui)
+                        }
+                    })
                 }
-                ui.with_layout(layout, body).inner
-            } else {
-                body(ui)
+                _ => {
+                    if align.is_some() || justify.is_some() {
+                        let mut layout = Layout::top_down(align.unwrap_or(Align::Min));
+                        if let Some(j) = justify {
+                            layout = layout.with_main_align(j);
+                        }
+                        ui.with_layout(layout, body).inner
+                    } else {
+                        body(ui)
+                    }
+                }
             }
         });
 
@@ -489,6 +547,230 @@ mod tests {
         assert!(
             textured_rect_alpha(&shapes).is_none(),
             "no textured rect should appear while pending and no bg set"
+        );
+    }
+
+    /// Return the bounding rect of the first non-transparent, non-textured filled rect.
+    fn first_solid_rect(shapes: &[Shape]) -> Option<egui::Rect> {
+        for shape in shapes {
+            match shape {
+                Shape::Vec(inner) => {
+                    if let Some(r) = first_solid_rect(inner) {
+                        return Some(r);
+                    }
+                }
+                Shape::Rect(rs) if rs.brush.is_none() && rs.fill.a() > 0 => {
+                    return Some(rs.rect);
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn max_width_constrains_frame() {
+        let ctx = egui::Context::default();
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(400.0, 400.0),
+            )),
+            ..Default::default()
+        };
+        let output = ctx.run_ui(raw, |ui| {
+            // full_width makes the frame try to expand to available (400px), but
+            // max_width caps it at 100px. max is applied first so full_width reads
+            // the capped available_width.
+            StyledFrame::new()
+                .bg(Color32::RED)
+                .max_width(100.0)
+                .full_width()
+                .show(ui, |_ui| {});
+        });
+        let shapes: Vec<Shape> = output.shapes.into_iter().map(|cs| cs.shape).collect();
+        let rect = first_solid_rect(&shapes).expect("bg fill rect present");
+        assert!(
+            rect.width() <= 100.0 + 1.0,
+            "frame width {} should be <= max_width 100",
+            rect.width()
+        );
+    }
+
+    #[test]
+    fn min_height_expands_frame() {
+        let ctx = egui::Context::default();
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(400.0, 400.0),
+            )),
+            ..Default::default()
+        };
+        let output = ctx.run_ui(raw, |ui| {
+            StyledFrame::new()
+                .bg(Color32::RED)
+                .min_height(80.0)
+                .show(ui, |_ui| {});
+        });
+        let shapes: Vec<Shape> = output.shapes.into_iter().map(|cs| cs.shape).collect();
+        let rect = first_solid_rect(&shapes).expect("bg fill rect present");
+        assert!(
+            rect.height() >= 80.0 - 1.0,
+            "frame height {} should be >= min_height 80",
+            rect.height()
+        );
+    }
+
+    #[test]
+    fn full_height_fills_parent() {
+        let ctx = egui::Context::default();
+        let parent_height = 200.0;
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(400.0, parent_height),
+            )),
+            ..Default::default()
+        };
+        let output = ctx.run_ui(raw, |ui| {
+            StyledFrame::new()
+                .bg(Color32::RED)
+                .full_height()
+                .show(ui, |_ui| {});
+        });
+        let shapes: Vec<Shape> = output.shapes.into_iter().map(|cs| cs.shape).collect();
+        let rect = first_solid_rect(&shapes).expect("bg fill rect present");
+        assert!(
+            rect.height() >= parent_height - 1.0,
+            "frame height {} should fill parent height {}",
+            rect.height(),
+            parent_height
+        );
+    }
+
+    #[test]
+    fn no_size_constraints_leaves_frame_natural() {
+        let ctx = egui::Context::default();
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(400.0, 400.0),
+            )),
+            ..Default::default()
+        };
+        let output = ctx.run_ui(raw, |ui| {
+            StyledFrame::new().bg(Color32::RED).show(ui, |ui| {
+                // Some content so the frame has non-zero natural size.
+                ui.set_min_width(50.0);
+                ui.set_min_height(20.0);
+            });
+        });
+        let shapes: Vec<Shape> = output.shapes.into_iter().map(|cs| cs.shape).collect();
+        let rect = first_solid_rect(&shapes).expect("bg fill rect present");
+        // Without any size constraints the frame should be exactly content-sized.
+        assert!(
+            rect.width() >= 50.0 - 1.0 && rect.height() >= 20.0 - 1.0,
+            "unconstrained frame should match content size, got {:?}",
+            rect
+        );
+    }
+
+    /// Run a full_height + justify frame at a fixed screen size and return
+    /// (content_visible, content_center_y, screen_center_y).
+    fn run_full_height_justify(
+        ctx: &egui::Context,
+        justify: egui::Align,
+        screen_h: f32,
+    ) -> (bool, f32, f32) {
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(400.0, screen_h),
+            )),
+            ..Default::default()
+        };
+        let mut content_visible = true;
+        let mut content_center_y = 0.0f32;
+        let screen_center_y = screen_h / 2.0;
+        let _ = ctx.run_ui(raw, |ui| {
+            StyledFrame::new()
+                .bg(Color32::RED)
+                .full_height()
+                .full_width()
+                .justify(justify)
+                .show(ui, |ui| {
+                    content_visible = ui.is_visible();
+                    let resp = ui.label("hello");
+                    content_center_y = resp.rect.center().y;
+                });
+        });
+        (content_visible, content_center_y, screen_center_y)
+    }
+
+    #[test]
+    fn full_height_justify_center_hides_on_first_frame() {
+        let ctx = egui::Context::default();
+        let (visible, _, _) = run_full_height_justify(&ctx, egui::Align::Center, 300.0);
+        assert!(
+            !visible,
+            "content should be invisible on the first frame while height is measured"
+        );
+    }
+
+    #[test]
+    fn full_height_justify_center_centers_on_second_frame() {
+        let ctx = egui::Context::default();
+        // Frame 1: measurement frame (invisible).
+        run_full_height_justify(&ctx, egui::Align::Center, 300.0);
+        // Frame 2: content renders centered.
+        let (visible, cy, screen_cy) = run_full_height_justify(&ctx, egui::Align::Center, 300.0);
+        assert!(visible, "content should be visible on the second frame");
+        assert!(
+            (cy - screen_cy).abs() < 2.0,
+            "content center y={cy} should be near screen center y={screen_cy}"
+        );
+    }
+
+    #[test]
+    fn full_height_justify_max_bottom_aligns_on_second_frame() {
+        let ctx = egui::Context::default();
+        let screen_h = 300.0;
+        run_full_height_justify(&ctx, egui::Align::Max, screen_h);
+        let (visible, cy, _) = run_full_height_justify(&ctx, egui::Align::Max, screen_h);
+        assert!(visible);
+        // Bottom-aligned: content center should be near the bottom quarter.
+        assert!(
+            cy > screen_h * 0.6,
+            "bottom-aligned content center y={cy} should be in the lower portion of {screen_h}"
+        );
+    }
+
+    #[test]
+    fn no_full_height_justify_stays_top_aligned() {
+        let ctx = egui::Context::default();
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(400.0, 300.0),
+            )),
+            ..Default::default()
+        };
+        let mut content_center_y = 0.0f32;
+        let _ = ctx.run_ui(raw, |ui| {
+            StyledFrame::new()
+                .bg(Color32::RED)
+                // No full_height — no determinate height, so justify is a no-op.
+                .justify(egui::Align::Center)
+                .show(ui, |ui| {
+                    let resp = ui.label("hello");
+                    content_center_y = resp.rect.center().y;
+                });
+        });
+        // Content should sit near the top, not centered in the 300px screen.
+        assert!(
+            content_center_y < 50.0,
+            "without full_height, content should be top-aligned, got center_y={content_center_y}"
         );
     }
 }

@@ -5,7 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.5.3] - 2026-06-04
+
+### Added
+
+- **`full_height()` builder** on every styled container. Mirrors `full_width` — stretches the container to fill the parent's available height. Available on `StyledFrame`, `StyledRow`, `StyledColumn`, `StyledArea`, and `StyledStack`.
+
+- **`min_width` / `max_width` / `min_height` / `max_height` now applied by container frames.** The builders already existed on `SharedStyle` and worked on leaf widgets (button, label, slider) but were silently ignored by `StyledFrame` and the containers that use it (`StyledRow`, `StyledColumn`, `StyledArea`). They are now applied inside the layout closure so `.max_width(200.0)` on a frame actually caps it. `max_*` is applied before `full_width` / `full_height` so those read the already-capped available size; `min_*` is applied last so explicit minimums always win.
+
+- **Vertical justify (`Center` / `Max`) now works on full-height and fill containers.** `.justify(Align::Center)` or `.justify(Align::Max)` on a `StyledFrame` (or any container) with a determinate height (`full_height()` set, or `fill_size` from `fill_screen()`) now vertically centers or bottom-aligns the body content. Previously `justify` was applied via egui's `with_main_align` which is a no-op for top-down layouts, so content always pinned to the top. The fix uses a measured top-spacer (same invisible-first-frame approach `StyledArea` already used) extracted into a shared `justify_body_vertically` helper. `StyledArea` now delegates to the same path via `StyledFrame`, removing ~35 lines of duplicated logic.
 
 ## [0.5.2] - 2026-06-04
 
