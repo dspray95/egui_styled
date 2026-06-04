@@ -132,7 +132,10 @@ impl StyledImage {
             // Apply fit and corner radius to the egui::Image descriptor.
             // corner_radius is applied directly on the Image — egui's tessellator
             // clips the texture to the rounded rect, avoiding squared-off corners.
-            let mut img = self.image.corner_radius(per.corner_radius).tint(current_tint);
+            let mut img = self
+                .image
+                .corner_radius(per.corner_radius)
+                .tint(current_tint);
             match self.fit {
                 ImageFitSpec::Default => {}
                 ImageFitSpec::ExactSize(s) => img = img.fit_to_exact_size(s),
@@ -173,7 +176,13 @@ impl StyledImage {
                 })
                 .inner;
 
-            paint_shadows(ui, shadow_idx, resp.rect, per.corner_radius, &self.style.shadows);
+            paint_shadows(
+                ui,
+                shadow_idx,
+                resp.rect,
+                per.corner_radius,
+                &self.style.shadows,
+            );
 
             resp
         });
@@ -207,8 +216,8 @@ mod tests {
 
     #[test]
     fn tint_builder_sets_field() {
-        let img = StyledImage::new(egui::Image::from_bytes("bytes://test", vec![]))
-            .tint(Color32::RED);
+        let img =
+            StyledImage::new(egui::Image::from_bytes("bytes://test", vec![])).tint(Color32::RED);
         assert_eq!(img.tint, Some(Color32::RED));
     }
 
@@ -222,30 +231,26 @@ mod tests {
     #[test]
     fn size_builder_sets_exact_fit() {
         let size = Vec2::new(64.0, 64.0);
-        let img = StyledImage::new(egui::Image::from_bytes("bytes://test", vec![]))
-            .size(size);
+        let img = StyledImage::new(egui::Image::from_bytes("bytes://test", vec![])).size(size);
         assert!(matches!(img.fit, ImageFitSpec::ExactSize(s) if s == size));
     }
 
     #[test]
     fn max_size_builder_sets_max_fit() {
         let size = Vec2::new(128.0, 128.0);
-        let img = StyledImage::new(egui::Image::from_bytes("bytes://test", vec![]))
-            .max_size(size);
+        let img = StyledImage::new(egui::Image::from_bytes("bytes://test", vec![])).max_size(size);
         assert!(matches!(img.fit, ImageFitSpec::MaxSize(s) if s == size));
     }
 
     #[test]
     fn visible_false_captured_in_style() {
-        let img = StyledImage::new(egui::Image::from_bytes("bytes://test", vec![]))
-            .visible(false);
+        let img = StyledImage::new(egui::Image::from_bytes("bytes://test", vec![])).visible(false);
         assert_eq!(img.style.visible, Some(false));
     }
 
     #[test]
     fn id_override_sets_field() {
-        let img = StyledImage::new(egui::Image::from_bytes("bytes://test", vec![]))
-            .id("my_image");
+        let img = StyledImage::new(egui::Image::from_bytes("bytes://test", vec![])).id("my_image");
         assert!(img.id_override.is_some());
     }
 }

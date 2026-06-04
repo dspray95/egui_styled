@@ -227,6 +227,17 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
+            /// Reveal the whole area — background image *and* body content — in
+            /// together over `seconds`, the first time the image's texture
+            /// finishes loading. The `bg` backdrop stays opaque, so the area
+            /// reveals as a unit instead of content showing over a bare backdrop
+            /// while the art is still decoding.
+            pub fn reveal_with_background_image(mut self, seconds: f32) -> Self {
+                self.style.background_image_fade_in = Some(seconds);
+                self.style.background_image_fade_content = true;
+                self
+            }
+
             /// Paint an offset stroke rect behind the widget.
             /// Multiple calls append; each shadow uses the widget's `corner_radius`.
             pub fn shadow(mut self, offset: egui::Vec2, width: f32, color: egui::Color32) -> Self {
