@@ -172,7 +172,7 @@ macro_rules! __impl_style_builders_body {
             }
 
             /// Override the fill mode for `background_image`.
-            /// Default: [`BackgroundImageFit::Stretch`] (maps full texture over the rect).
+            /// Default: [`BackgroundImageFit::Stretch`](crate::BackgroundImageFit::Stretch) (maps full texture over the rect).
             pub fn background_image_fit(
                 mut self,
                 fit: $crate::style::shared_style::BackgroundImageFit,
