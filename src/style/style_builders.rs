@@ -15,21 +15,28 @@ macro_rules! __impl_style_builders_body {
         impl $($gen)* $ty {
             // --- Background colors ---
 
+            /// Set the base background fill colour.
             pub fn bg(mut self, color: egui::Color32) -> Self {
                 self.style.bg = Some(color);
                 self
             }
 
+            /// Background fill while the pointer is hovering. Falls back to
+            /// [`bg`](Self::bg) when unset.
             pub fn hover_bg(mut self, color: egui::Color32) -> Self {
                 self.style.hover_bg = Some(color);
                 self
             }
 
+            /// Background fill while the widget is pressed/active. Falls back to
+            /// [`hover_bg`](Self::hover_bg) / [`bg`](Self::bg) when unset.
             pub fn active_bg(mut self, color: egui::Color32) -> Self {
                 self.style.active_bg = Some(color);
                 self
             }
 
+            /// Background fill while the widget has keyboard focus. Falls back to
+            /// [`bg`](Self::bg) when unset.
             pub fn focus_bg(mut self, color: egui::Color32) -> Self {
                 self.style.focus_bg = Some(color);
                 self
@@ -42,6 +49,8 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
+            /// Accent colour while hovering. Falls back to [`accent`](Self::accent)
+            /// when unset.
             pub fn hover_accent(mut self, color: egui::Color32) -> Self {
                 self.style.hover_accent = Some(color);
                 self
@@ -49,11 +58,14 @@ macro_rules! __impl_style_builders_body {
 
             // --- Text properties ---
 
+            /// Set the text/foreground colour for the widget's label.
             pub fn text_color(mut self, color: egui::Color32) -> Self {
                 self.style.text_color = Some(color);
                 self
             }
 
+            /// Set the label font size in points. On widgets with a dedicated
+            /// `font` builder, an explicit `font` takes precedence.
             pub fn font_size(mut self, size: f32) -> Self {
                 self.style.font_size = Some(size);
                 self
@@ -61,16 +73,21 @@ macro_rules! __impl_style_builders_body {
 
             // --- Border / Stroke ---
 
+            /// Set the base border stroke (`width` in points, `color`).
             pub fn border(mut self, width: f32, color: egui::Color32) -> Self {
                 self.style.border = Some(egui::Stroke::new(width, color));
                 self
             }
 
+            /// Border stroke while hovering. Falls back to [`border`](Self::border)
+            /// when unset.
             pub fn hover_border(mut self, width: f32, color: egui::Color32) -> Self {
                 self.style.hover_border = Some(egui::Stroke::new(width, color));
                 self
             }
 
+            /// Border stroke while focused. Falls back to [`border`](Self::border)
+            /// when unset.
             pub fn focus_border(mut self, width: f32, color: egui::Color32) -> Self {
                 self.style.focus_border = Some(egui::Stroke::new(width, color));
                 self
@@ -78,16 +95,21 @@ macro_rules! __impl_style_builders_body {
 
             // --- Geometry ---
 
+            /// Set the corner radius. Accepts an `f32` (uniform) or any
+            /// `Into<egui::CornerRadius>` for per-corner control.
             pub fn corner_radius(mut self, corner_radius: impl Into<egui::CornerRadius>) -> Self {
                 self.style.corner_radius = Some(corner_radius.into());
                 self
             }
 
+            /// Set inner padding (space between the border and the content).
+            /// Accepts any `Into<egui::Margin>`.
             pub fn padding(mut self, padding: impl Into<egui::Margin>) -> Self {
                 self.style.padding = Some(padding.into());
                 self
             }
 
+            /// Set the top outer margin in points (space outside the border).
             pub fn margin_top(mut self, val: f32) -> Self {
                 let mut m = self.style.margin.unwrap_or_default();
                 m.top = val.round().clamp(i8::MIN as f32, i8::MAX as f32) as i8;
@@ -95,6 +117,7 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
+            /// Set the bottom outer margin in points (space outside the border).
             pub fn margin_bottom(mut self, val: f32) -> Self {
                 let mut m = self.style.margin.unwrap_or_default();
                 m.bottom = val.round().clamp(i8::MIN as f32, i8::MAX as f32) as i8;
@@ -102,6 +125,7 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
+            /// Set the left outer margin in points (space outside the border).
             pub fn margin_left(mut self, val: f32) -> Self {
                 let mut m = self.style.margin.unwrap_or_default();
                 m.left = val.round().clamp(i8::MIN as f32, i8::MAX as f32) as i8;
@@ -109,6 +133,7 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
+            /// Set the right outer margin in points (space outside the border).
             pub fn margin_right(mut self, val: f32) -> Self {
                 let mut m = self.style.margin.unwrap_or_default();
                 m.right = val.round().clamp(i8::MIN as f32, i8::MAX as f32) as i8;
@@ -118,26 +143,31 @@ macro_rules! __impl_style_builders_body {
 
             // --- Sizing ---
 
+            /// Stretch the widget to fill the available width of its parent.
             pub fn full_width(mut self) -> Self {
                 self.style.full_width = true;
                 self
             }
 
+            /// Set a minimum width in points.
             pub fn min_width(mut self, width: f32) -> Self {
                 self.style.min_width = Some(width);
                 self
             }
 
+            /// Set a maximum width in points.
             pub fn max_width(mut self, width: f32) -> Self {
                 self.style.max_width = Some(width);
                 self
             }
 
+            /// Set a minimum height in points.
             pub fn min_height(mut self, height: f32) -> Self {
                 self.style.min_height = Some(height);
                 self
             }
 
+            /// Set a maximum height in points.
             pub fn max_height(mut self, height: f32) -> Self {
                 self.style.max_height = Some(height);
                 self
@@ -145,11 +175,14 @@ macro_rules! __impl_style_builders_body {
 
             // --- Interaction ---
 
+            /// Set the cursor icon shown while hovering the widget.
             pub fn cursor(mut self, icon: egui::CursorIcon) -> Self {
                 self.style.cursor_icon = Some(icon);
                 self
             }
 
+            /// Show or hide the widget. When `false` the widget still occupies
+            /// its layout space but is not painted or interactive.
             pub fn visible(mut self, visible: bool) -> Self {
                 self.style.visible = Some(visible);
                 self

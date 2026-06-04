@@ -5,6 +5,17 @@ use crate::{
     style::shared_style::{SharedStyle, background_image_shape, paint_shadows},
 };
 
+/// A styled box that lives inside the current layout.
+///
+/// The in-layout counterpart to [`StyledArea`](crate::StyledArea): use
+/// `StyledFrame` for a filled / bordered / padded panel inside the current
+/// `Ui` tree, and [`StyledArea`](crate::StyledArea) for floating,
+/// screen-anchored placement. Applies the [`SharedStyle`] box builders
+/// (`bg`, `border`, `padding`, `corner_radius`, `margin`, `background_image`,
+/// shadows) and optional [`align`](Self::align) / [`justify`](Self::justify) /
+/// [`gap`](Self::gap) for its children.
+///
+/// Construct via [`Styled::frame`](crate::Styled::frame).
 pub struct StyledFrame {
     pub style: SharedStyle,
     pub align: Option<Align>,

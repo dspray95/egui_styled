@@ -6,6 +6,17 @@ use crate::{
     style::shared_style::{SharedStyle, paint_shadows, render_scoped},
 };
 
+/// A clickable button with per-state (hover / focus / active) styling.
+///
+/// Wraps egui's button with the [`SharedStyle`] box builders (`bg`, `border`,
+/// `corner_radius`, `padding`, …) plus per-state color variants (`hover_bg`,
+/// `active_bg`, `focus_bg`, …) that resolve through egui's active `Visuals`
+/// for anything left unset. An optional leading [`image`](Self::image) and an
+/// explicit [`font`](Self::font) round out the label.
+///
+/// Construct via [`Styled::button`](crate::Styled::button) and call
+/// [`show`](Self::show) to add it to a `Ui`. Set [`id`](Self::id) when the
+/// button is conditionally rendered so its pseudo-state stays stable.
 pub struct StyledButton {
     text: WidgetText,
     image: Option<Image<'static>>,
