@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-06-04
+
+### Fixed
+
+- **`bg` fill now paints immediately while a `background_image` texture is loading.** Previously, when both `.bg(color)` and `.background_image(...)` were set, the fill was withheld until the texture finished decoding — the app's clear color showed through during the load window. The fill now paints from the first frame; the image appears on top once ready. Fade paths (`background_image_fade_in`, `reveal_with_background_image`) and the no-image path are unchanged.
+
 ## [0.5.1] - 2026-06-04
 
 ### Added

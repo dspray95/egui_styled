@@ -2,7 +2,7 @@ use egui::{Align, Color32, InnerResponse, Layout, Shape, Ui};
 
 use crate::{
     impl_style_builders,
-    style::shared_style::{SharedStyle, background_image_shape, paint_shadows},
+    style::shared_style::{SharedStyle, background_image_shape, bgimg_fade_alpha, paint_shadows},
 };
 
 /// A styled box that lives inside the current layout.
@@ -112,12 +112,39 @@ impl StyledFrame {
         let gap = self.gap;
         let fill_size = self.fill_size;
 
+        // Content reveal: when set, the body fades in together with the
+        // background image (same id + duration → in lockstep). `None` unless
+        // `reveal_with_background_image` was used and an image is present.
+        let reveal = if self.style.background_image_fade_content {
+            match (
+                self.style.background_image_fade_in,
+                fade_id,
+                self.style.background_image.clone(),
+            ) {
+                (Some(duration), Some(id), Some(image)) => Some((duration, id, image)),
+                _ => None,
+            }
+        } else {
+            None
+        };
+
         // Reserve a slot for the background image before children so it paints
         // behind them on the same layer. `bgimg_slot` is `None` when there is
         // no background image and the slot is never set.
         let bgimg_slot = has_bg_image.then(|| ui.painter().add(Shape::Noop));
 
         let response = frame.show(ui, |ui| {
+            // Fade the body in lockstep with the background image when a content
+            // reveal is requested. Applied before any content is drawn; the bg
+            // fill/image are painted on a separate slot, so the backdrop stays
+            // opaque while image + content come up together.
+            if let Some((duration, id, image)) = &reveal {
+                let ready = matches!(
+                    image.load_for_size(ui.ctx(), ui.available_size()),
+                    Ok(egui::load::TexturePoll::Ready { .. })
+                );
+                ui.multiply_opacity(bgimg_fade_alpha(ui.ctx(), *id, *duration, ready));
+            }
             // Expand to the fill size (e.g. full screen) before building the
             // layout, so cross-axis (horizontal) centering measures against the
             // full width. Main-axis (vertical) centering is handled by the
@@ -267,5 +294,190 @@ mod tests {
         let shapes = run_frame_at(&ctx, img, None, 0.0);
         let alpha = textured_rect_alpha(&shapes).expect("textured rect present");
         assert_eq!(alpha, 255, "no-fade path must paint at full opacity");
+    }
+
+    /// Alpha of the body content rect: a non-textured rect with non-zero colour.
+    /// Skips the textured background image (`brush.is_some()`) and egui::Frame's
+    /// own fully-transparent `(0,0,0,0)` fill rect.
+    fn content_rect_alpha(shapes: &[Shape]) -> Option<u8> {
+        for shape in shapes {
+            match shape {
+                Shape::Vec(inner) => {
+                    if let Some(a) = content_rect_alpha(inner) {
+                        return Some(a);
+                    }
+                }
+                Shape::Rect(rs)
+                    if rs.brush.is_none()
+                        && (rs.fill.r() > 0 || rs.fill.g() > 0 || rs.fill.b() > 0) =>
+                {
+                    return Some(rs.fill.a());
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    /// Render a frame with an opaque content rect; `reveal` toggles
+    /// `reveal_with_background_image` vs image-only `background_image_fade_in`.
+    fn run_with_content(
+        ctx: &egui::Context,
+        img: egui::Image<'static>,
+        secs: f32,
+        reveal: bool,
+        time: f64,
+    ) -> Vec<Shape> {
+        let mut raw = egui::RawInput::default();
+        raw.time = Some(time);
+        let output = ctx.run_ui(raw, |ui| {
+            let mut frame = StyledFrame::new().background_image(img.clone());
+            frame = if reveal {
+                frame.reveal_with_background_image(secs)
+            } else {
+                frame.background_image_fade_in(secs)
+            };
+            frame.show(ui, |ui| {
+                let rect = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(10.0, 10.0));
+                ui.painter().rect_filled(rect, 0.0, Color32::from_rgb(40, 50, 60));
+            });
+        });
+        output.shapes.into_iter().map(|cs| cs.shape).collect()
+    }
+
+    #[test]
+    fn reveal_fades_content_in_with_image() {
+        let ctx = egui::Context::default();
+        let img = load_ready_texture(&ctx);
+
+        // t=0: opacity 0 → content recorded as Shape::Noop, no solid rect.
+        let s0 = run_with_content(&ctx, img.clone(), 0.5, true, 0.0);
+        assert!(
+            content_rect_alpha(&s0).is_none(),
+            "content should be invisible at the fade start"
+        );
+
+        // t=0.25: half-way through the fade.
+        let s1 = run_with_content(&ctx, img.clone(), 0.5, true, 0.25);
+        let a1 = content_rect_alpha(&s1).expect("content present mid-fade");
+
+        // t=0.6: past the duration → full opacity.
+        let s2 = run_with_content(&ctx, img.clone(), 0.5, true, 0.6);
+        let a2 = content_rect_alpha(&s2).expect("content present after fade");
+
+        assert!(a1 > 0 && a1 < 255, "content mid-fade alpha should be partial: {a1}");
+        assert_eq!(a2, 255, "content should be full opacity after the duration");
+    }
+
+    #[test]
+    fn image_only_fade_does_not_fade_content() {
+        let ctx = egui::Context::default();
+        let img = load_ready_texture(&ctx);
+
+        // background_image_fade_in (no content reveal): content full opacity at t=0.
+        let shapes = run_with_content(&ctx, img, 0.5, false, 0.0);
+        assert_eq!(
+            content_rect_alpha(&shapes),
+            Some(255),
+            "image-only fade must leave content at full opacity"
+        );
+    }
+
+    /// True if `shapes` contains a solid (non-textured) rect filled with `color`.
+    fn has_solid_rect(shapes: &[Shape], color: Color32) -> bool {
+        for shape in shapes {
+            match shape {
+                Shape::Vec(inner) => {
+                    if has_solid_rect(inner, color) {
+                        return true;
+                    }
+                }
+                Shape::Rect(rs) if rs.brush.is_none() && rs.fill == color => return true,
+                _ => {}
+            }
+        }
+        false
+    }
+
+    fn run_frame_with_bg(
+        ctx: &egui::Context,
+        img: egui::Image<'static>,
+        bg: Color32,
+    ) -> Vec<Shape> {
+        let raw = egui::RawInput::default();
+        let output = ctx.run_ui(raw, |ui| {
+            StyledFrame::new()
+                .bg(bg)
+                .background_image(img.clone())
+                .show(ui, |_ui| {});
+        });
+        output.shapes.into_iter().map(|cs| cs.shape).collect()
+    }
+
+    /// A pending image source — uses `from_bytes` with no loader installed, so
+    /// `load_for_size` returns `Pending` every frame.
+    fn pending_image() -> egui::Image<'static> {
+        egui::Image::from_bytes("bytes://pending_test_image", vec![0u8; 4])
+    }
+
+    #[test]
+    fn bg_set_pending_texture_paints_bg_fill_only() {
+        let ctx = egui::Context::default();
+        let img = pending_image();
+        let bg_color = Color32::from_rgb(200, 100, 50);
+
+        let shapes = run_frame_with_bg(&ctx, img, bg_color);
+
+        assert!(
+            has_solid_rect(&shapes, bg_color),
+            "bg fill must paint while texture is pending"
+        );
+        assert!(
+            textured_rect_alpha(&shapes).is_none(),
+            "no textured rect should be present while pending"
+        );
+    }
+
+    #[test]
+    fn bg_set_ready_texture_paints_both() {
+        let ctx = egui::Context::default();
+        let img = load_ready_texture(&ctx);
+        let bg_color = Color32::from_rgb(200, 100, 50);
+
+        let shapes = run_frame_with_bg(&ctx, img, bg_color);
+
+        assert!(
+            has_solid_rect(&shapes, bg_color),
+            "bg fill must be present when texture is ready"
+        );
+        assert!(
+            textured_rect_alpha(&shapes).is_some(),
+            "textured rect must be present when texture is ready"
+        );
+    }
+
+    #[test]
+    fn no_bg_pending_texture_paints_nothing() {
+        let ctx = egui::Context::default();
+        let img = pending_image();
+
+        let raw = egui::RawInput::default();
+        let output = ctx.run_ui(raw, |ui| {
+            StyledFrame::new()
+                .background_image(img.clone())
+                .show(ui, |_ui| {});
+        });
+        let shapes: Vec<Shape> = output.shapes.into_iter().map(|cs| cs.shape).collect();
+
+        // No bg fill and no textured rect — the slot stays Noop.
+        let bg_color = Color32::from_rgb(200, 100, 50);
+        assert!(
+            !has_solid_rect(&shapes, bg_color),
+            "no solid rect expected with no bg set"
+        );
+        assert!(
+            textured_rect_alpha(&shapes).is_none(),
+            "no textured rect should appear while pending and no bg set"
+        );
     }
 }

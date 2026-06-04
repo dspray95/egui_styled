@@ -113,6 +113,27 @@ fn cover_uv(intrinsic: Vec2, dest: Rect) -> Rect {
 /// 1. `bg` fill (if any) — solid colour behind the texture
 /// 2. Texture rectangle (rounded, tinted)
 /// 3. Border stroke on top of the texture
+/// Fade alpha for a background-image reveal. Stamps the first-`ready` time in
+/// `ctx` memory under `id`, so the image tint and (optionally) the body content
+/// fade in lockstep off the same clock. Returns 1.0 when `duration <= 0`, and
+/// 0.0 while `ready` is false — without stamping, so the clock only starts once
+/// the texture has actually landed.
+pub fn bgimg_fade_alpha(ctx: &egui::Context, id: egui::Id, duration: f32, ready: bool) -> f32 {
+    if duration <= 0.0 {
+        return 1.0;
+    }
+    if !ready {
+        return 0.0;
+    }
+    let now = ctx.input(|i| i.time);
+    let start = ctx.memory_mut(|m| *m.data.get_temp_mut_or_insert_with(id, || now));
+    let alpha = (((now - start) / duration as f64).clamp(0.0, 1.0)) as f32;
+    if alpha < 1.0 {
+        ctx.request_repaint();
+    }
+    alpha
+}
+
 pub fn background_image_shape(
     ui: &egui::Ui,
     rect: Rect,
@@ -127,44 +148,33 @@ pub fn background_image_shape(
     use egui::load::TexturePoll;
     use egui::epaint::RectShape;
 
-    let poll = image
-        .load_for_size(ui.ctx(), rect.size())
-        .ok()?;
-
-    let texture = match poll {
-        TexturePoll::Ready { texture } => texture,
-        TexturePoll::Pending { .. } => return None,
-    };
-
-    let tint = match fade {
-        Some((id, duration)) if duration > 0.0 => {
-            let now = ui.ctx().input(|i| i.time);
-            let start = ui.ctx().memory_mut(|m| {
-                *m.data.get_temp_mut_or_insert_with(id, || now)
-            });
-            let alpha = (((now - start) / duration as f64).clamp(0.0, 1.0)) as f32;
-            if alpha < 1.0 {
-                ui.ctx().request_repaint();
-            }
-            tint.gamma_multiply(alpha)
-        }
-        _ => tint,
-    };
-
-    let uv = match fit {
-        BackgroundImageFit::Stretch => Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-        BackgroundImageFit::Cover => cover_uv(texture.size, rect),
-    };
-
     let mut parts: Vec<Shape> = Vec::with_capacity(3);
 
+    // Bg fill paints every frame from the first — does not wait for the texture.
     if let Some(fill) = bg {
         parts.push(Shape::rect_filled(rect, corner_radius, fill));
     }
 
-    let tex_shape = RectShape::filled(rect, corner_radius, tint)
-        .with_texture(texture.id, uv);
-    parts.push(Shape::Rect(tex_shape));
+    // Probe the texture; only add the textured layer when it is Ready.
+    let poll = image.load_for_size(ui.ctx(), rect.size()).ok();
+    if let Some(TexturePoll::Ready { texture }) = poll {
+        let tint = match fade {
+            // We only reach here once the texture is Ready.
+            Some((id, duration)) if duration > 0.0 => {
+                tint.gamma_multiply(bgimg_fade_alpha(ui.ctx(), id, duration, true))
+            }
+            _ => tint,
+        };
+
+        let uv = match fit {
+            BackgroundImageFit::Stretch => Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+            BackgroundImageFit::Cover => cover_uv(texture.size, rect),
+        };
+
+        let tex_shape = RectShape::filled(rect, corner_radius, tint)
+            .with_texture(texture.id, uv);
+        parts.push(Shape::Rect(tex_shape));
+    }
 
     if let Some(stroke) = border {
         parts.push(Shape::rect_stroke(
@@ -175,7 +185,11 @@ pub fn background_image_shape(
         ));
     }
 
-    Some(Shape::Vec(parts))
+    if parts.is_empty() {
+        None
+    } else {
+        Some(Shape::Vec(parts))
+    }
 }
 
 /// Render `f` inside a child scope so a `visible == false` widget's
@@ -264,6 +278,10 @@ pub struct SharedStyle {
     /// the bg backdrop over the given duration once its texture is Ready.
     /// `None` = no fade (snap in, default behavior).
     pub background_image_fade_in: Option<f32>,
+    /// When `true`, the body content fades in together with the background image
+    /// (same timing) instead of rendering immediately over the backdrop. Set via
+    /// `reveal_with_background_image`. The `bg` fill stays opaque.
+    pub background_image_fade_content: bool,
 }
 
 /// Concrete style values for one interaction state after resolving pseudo-state
