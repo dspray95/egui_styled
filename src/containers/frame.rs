@@ -70,6 +70,8 @@ impl StyledFrame {
         let shadows = self.style.shadows.clone();
 
         let has_bg_image = self.style.background_image.is_some();
+        let fade_id = has_bg_image
+            .then(|| ui.make_persistent_id(ui.next_auto_id()).with("__bgimg_fade_start"));
 
         let mut frame = egui::Frame::default();
         // When a background image is set we paint fill + texture + border ourselves
@@ -122,7 +124,11 @@ impl StyledFrame {
             // caller via a spacer — egui's top-down layout always pins the main
             // axis to the top regardless of `with_main_align`.
             if let Some(size) = fill_size {
+                // Pin to exactly `size` (both min and max). `set_min_size` alone
+                // only floors the area, so on a window *shrink* it stays at its
+                // previous larger width and content centers on the stale midpoint.
                 ui.set_min_size(size);
+                ui.set_max_size(size);
             }
             if full_width {
                 ui.set_min_width(ui.available_width());
@@ -146,6 +152,9 @@ impl StyledFrame {
             let rect = response.response.rect;
             let tint = self.style.background_image_tint.unwrap_or(Color32::WHITE);
             let fit = self.style.background_image_fit;
+            let fade = self.style.background_image_fade_in
+                .zip(fade_id)
+                .map(|(d, id)| (id, d));
             // For Cover we need intrinsic size; load_for_size is called inside
             // background_image_shape and covers the Pending (not-yet-loaded) case.
             if let Some(shape) = background_image_shape(
@@ -157,6 +166,7 @@ impl StyledFrame {
                 tint,
                 self.style.bg,
                 self.style.border,
+                fade,
             ) {
                 ui.painter().set(slot, shape);
             }
@@ -176,3 +186,86 @@ impl StyledFrame {
 }
 
 impl_style_builders!(StyledFrame);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::{Color32, epaint::Shape};
+
+    fn load_ready_texture(ctx: &egui::Context) -> egui::Image<'static> {
+        let handle = ctx.load_texture(
+            "fade_test",
+            egui::ColorImage::new([4, 4], vec![Color32::WHITE; 16]),
+            Default::default(),
+        );
+        let sized = egui::load::SizedTexture::from_handle(&handle);
+        egui::Image::from_texture(sized)
+    }
+
+    /// Walk a shape tree and return the fill alpha of the first textured rect.
+    fn textured_rect_alpha(shapes: &[Shape]) -> Option<u8> {
+        for shape in shapes {
+            match shape {
+                Shape::Vec(inner) => {
+                    if let Some(a) = textured_rect_alpha(inner) {
+                        return Some(a);
+                    }
+                }
+                Shape::Rect(rs) if rs.brush.is_some() => {
+                    return Some(rs.fill.a());
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    fn run_frame_at(
+        ctx: &egui::Context,
+        img: egui::Image<'static>,
+        fade_secs: Option<f32>,
+        time: f64,
+    ) -> Vec<Shape> {
+        let mut raw = egui::RawInput::default();
+        raw.time = Some(time);
+        let output = ctx.run_ui(raw, |ui| {
+            let mut frame = StyledFrame::new().background_image(img.clone());
+            if let Some(d) = fade_secs {
+                frame = frame.background_image_fade_in(d);
+            }
+            frame.show(ui, |_ui| {});
+        });
+        output.shapes.into_iter().map(|cs| cs.shape).collect()
+    }
+
+    #[test]
+    fn fade_in_alpha_increases_and_reaches_full() {
+        let ctx = egui::Context::default();
+        let img = load_ready_texture(&ctx);
+
+        // Frame at t=0: start is stamped, alpha = 0/0.5 = 0 → WHITE multiplied = transparent
+        let shapes0 = run_frame_at(&ctx, img.clone(), Some(0.5), 0.0);
+        let alpha0 = textured_rect_alpha(&shapes0).expect("textured rect present");
+
+        // Frame at t=0.25: alpha = 0.25/0.5 = 0.5 → 128
+        let shapes1 = run_frame_at(&ctx, img.clone(), Some(0.5), 0.25);
+        let alpha1 = textured_rect_alpha(&shapes1).expect("textured rect present");
+
+        // Frame at t=0.6: alpha >= 1.0 → full
+        let shapes2 = run_frame_at(&ctx, img.clone(), Some(0.5), 0.6);
+        let alpha2 = textured_rect_alpha(&shapes2).expect("textured rect present");
+
+        assert!(alpha0 < alpha1, "alpha should increase: {alpha0} < {alpha1}");
+        assert_eq!(alpha2, 255, "alpha should be full at >= duration");
+    }
+
+    #[test]
+    fn no_fade_paints_full_opacity_on_first_ready_frame() {
+        let ctx = egui::Context::default();
+        let img = load_ready_texture(&ctx);
+
+        let shapes = run_frame_at(&ctx, img, None, 0.0);
+        let alpha = textured_rect_alpha(&shapes).expect("textured rect present");
+        assert_eq!(alpha, 255, "no-fade path must paint at full opacity");
+    }
+}

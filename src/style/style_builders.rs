@@ -220,6 +220,13 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
+            /// Fade the background image in over `seconds` the first time its
+            /// texture finishes loading, instead of snapping in. Default: no fade.
+            pub fn background_image_fade_in(mut self, seconds: f32) -> Self {
+                self.style.background_image_fade_in = Some(seconds);
+                self
+            }
+
             /// Paint an offset stroke rect behind the widget.
             /// Multiple calls append; each shadow uses the widget's `corner_radius`.
             pub fn shadow(mut self, offset: egui::Vec2, width: f32, color: egui::Color32) -> Self {

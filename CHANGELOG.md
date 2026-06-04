@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-06-04
+
+### Added
+
+- **`background_image_fade_in(seconds: f32)`** builder on every box container. When set, the background image fades up from the `bg` backdrop over the given duration (linear alpha) the first time its texture finishes loading, instead of snapping in. The fade clock is stamped in `egui::Memory` on the first `Ready` frame, `ctx.request_repaint()` is called until alpha reaches 1.0, and the alpha is folded into `background_image_tint` (default `WHITE`). `None` / unset = current snap-in behavior unchanged. New field `SharedStyle::background_image_fade_in: Option<f32>`.
+
+### Fixed
+
+- **`StyledFrame::fill_size` / `StyledArea::fill_screen` no longer loses its size on window shrink.** The area was pinned with `set_min_size` only (a floor), so shrinking the window left the frame at its previous wider extent; content centered against that stale width instead of the new one. The fix pins with both `set_min_size` and `set_max_size` so the area contracts as well as expands.
+
+### Documentation
+
+- **Fixed broken intra-doc link** to `BackgroundImageFit::Stretch` on the `background_image_fit` builders (it rendered as plain text on docs.rs because the macro-expanded doc comment couldn't resolve the unqualified path; now uses `crate::BackgroundImageFit::Stretch`).
+- **Type-level docs added** for `StyledButton` and `StyledFrame`, so their docs.rs item pages carry a summary like the other core types.
+- **Shared builder methods documented** once in the `impl_style_builders!` macro body - `bg` / `hover_bg` / `active_bg` / `focus_bg`, `hover_accent`, `text_color`, `font_size`, `border` / `hover_border` / `focus_border`, `corner_radius`, `padding`, the `margin_*` setters, the sizing builders (`full_width`, `min/max_width`, `min/max_height`), `cursor`, and `visible`. This documents those methods across every styled type at once (missing-docs warnings dropped from 441 to 163).
+
 ## [0.5.0] - 2026-06-04
 
 ### Added

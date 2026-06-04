@@ -122,6 +122,7 @@ pub fn background_image_shape(
     tint: Color32,
     bg: Option<Color32>,
     border: Option<Stroke>,
+    fade: Option<(egui::Id, f32)>,
 ) -> Option<Shape> {
     use egui::load::TexturePoll;
     use egui::epaint::RectShape;
@@ -133,6 +134,21 @@ pub fn background_image_shape(
     let texture = match poll {
         TexturePoll::Ready { texture } => texture,
         TexturePoll::Pending { .. } => return None,
+    };
+
+    let tint = match fade {
+        Some((id, duration)) if duration > 0.0 => {
+            let now = ui.ctx().input(|i| i.time);
+            let start = ui.ctx().memory_mut(|m| {
+                *m.data.get_temp_mut_or_insert_with(id, || now)
+            });
+            let alpha = (((now - start) / duration as f64).clamp(0.0, 1.0)) as f32;
+            if alpha < 1.0 {
+                ui.ctx().request_repaint();
+            }
+            tint.gamma_multiply(alpha)
+        }
+        _ => tint,
     };
 
     let uv = match fit {
@@ -244,6 +260,10 @@ pub struct SharedStyle {
     pub background_image: Option<egui::Image<'static>>,
     pub background_image_fit: BackgroundImageFit,
     pub background_image_tint: Option<Color32>,
+    /// Opt-in fade-in duration (seconds). When `Some`, the image fades up from
+    /// the bg backdrop over the given duration once its texture is Ready.
+    /// `None` = no fade (snap in, default behavior).
+    pub background_image_fade_in: Option<f32>,
 }
 
 /// Concrete style values for one interaction state after resolving pseudo-state
