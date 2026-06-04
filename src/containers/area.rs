@@ -332,4 +332,65 @@ mod tests {
             "widget center y={widget_center_y} should be near screen center y={screen_center_y}"
         );
     }
+
+    #[test]
+    #[allow(deprecated)]
+    fn fill_screen_recenters_content_after_resize() {
+        let ctx = Context::default();
+
+        let run_at = |ctx: &Context, w: f32, h: f32| -> (f32, f32, f32, f32) {
+            let raw = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(w, h))),
+                ..Default::default()
+            };
+            let mut center = (0.0f32, 0.0f32);
+            let mut screen_center = (0.0f32, 0.0f32);
+            let _ = ctx.run(raw, |ctx| {
+                let sc = ctx.content_rect().center();
+                screen_center = (sc.x, sc.y);
+                StyledArea::new()
+                    .id("resize_test")
+                    .fill_screen()
+                    .align(egui::Align::Center)
+                    .justify(egui::Align::Center)
+                    .show(ctx, |ui| {
+                        let resp = ui.label("centered");
+                        center = (resp.rect.center().x, resp.rect.center().y);
+                    });
+            });
+            (center.0, center.1, screen_center.0, screen_center.1)
+        };
+
+        // Warm up at the initial size (justify needs a frame to measure height).
+        run_at(&ctx, 800.0, 600.0);
+        run_at(&ctx, 800.0, 600.0);
+
+        // Now "resize" larger on the same context (memory persists, as on a real
+        // window resize) and run two frames to let the height-measure settle.
+        run_at(&ctx, 1600.0, 1000.0);
+        let (cx, cy, scx, scy) = run_at(&ctx, 1600.0, 1000.0);
+
+        assert!(
+            (cx - scx).abs() < 2.0,
+            "after growing, content center x={cx} should track screen center x={scx}"
+        );
+        assert!(
+            (cy - scy).abs() < 2.0,
+            "after growing, content center y={cy} should track screen center y={scy}"
+        );
+
+        // ...then SHRINK back down. This is the reported failure: the content
+        // stays centered on the old (wider) midpoint, i.e. right of the new center.
+        run_at(&ctx, 800.0, 600.0);
+        let (sx, sy, sscx, sscy) = run_at(&ctx, 800.0, 600.0);
+
+        assert!(
+            (sx - sscx).abs() < 2.0,
+            "after shrinking, content center x={sx} should track screen center x={sscx}"
+        );
+        assert!(
+            (sy - sscy).abs() < 2.0,
+            "after shrinking, content center y={sy} should track screen center y={sscy}"
+        );
+    }
 }
