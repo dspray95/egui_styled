@@ -3,7 +3,7 @@ use egui::{Color32, Id, Image, Response, Shape, Ui, Vec2};
 use crate::{
     impl_style_builders,
     state::PseudoState,
-    style::shared_style::{SharedStyle, paint_shadows, render_scoped},
+    style::shared_style::{SharedStyle, paint_shadows, paint_side_borders, render_scoped},
 };
 
 /// An inline image widget (icon, portrait, thumbnail) with themed styling.
@@ -157,17 +157,20 @@ impl StyledImage {
                     let resp = ui.add(img);
 
                     // Paint border on top of the image (Outside so it doesn't
-                    // clip into the texture area).
-                    if per.inactive.border != egui::Stroke::NONE {
-                        let border = if pseudo.hovered {
-                            per.hovered.border
-                        } else {
-                            per.inactive.border
-                        };
+                    // clip into the texture area). Per-side overrides paint each
+                    // edge as a line segment; otherwise the uniform stroke.
+                    let state = if pseudo.hovered {
+                        &per.hovered
+                    } else {
+                        &per.inactive
+                    };
+                    if state.has_border_overrides {
+                        paint_side_borders(ui.painter(), resp.rect, state.border_sides);
+                    } else if state.border != egui::Stroke::NONE {
                         ui.painter().rect_stroke(
                             resp.rect,
                             per.corner_radius,
-                            border,
+                            state.border,
                             egui::StrokeKind::Outside,
                         );
                     }

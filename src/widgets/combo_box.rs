@@ -85,6 +85,7 @@ impl StyledComboBox {
                 })
                 .inner;
 
+            SharedStyle::paint_widget_side_borders(ui, &result.response, &per);
             // Use the outer response rect for shadows.
             paint_shadows(
                 ui,

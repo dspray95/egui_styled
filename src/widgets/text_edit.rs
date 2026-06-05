@@ -132,9 +132,16 @@ impl<'a> StyledTextEdit<'a> {
                         &per.inactive
                     };
                     let padding = per.padding;
+                    // Per-side overrides are painted after the widget; keep the
+                    // custom frame's uniform stroke off so they don't double up.
+                    let frame_stroke = if resolved.has_border_overrides {
+                        egui::Stroke::NONE
+                    } else {
+                        resolved.border
+                    };
                     let custom_frame = egui::Frame::new()
                         .fill(resolved.bg)
-                        .stroke(resolved.border)
+                        .stroke(frame_stroke)
                         .corner_radius(per.corner_radius)
                         .inner_margin(padding);
                     text_edit = text_edit.frame(custom_frame).margin(padding);
@@ -147,6 +154,7 @@ impl<'a> StyledTextEdit<'a> {
                 })
                 .inner;
 
+            SharedStyle::paint_widget_side_borders(ui, &response, &per);
             paint_shadows(
                 ui,
                 shadow_idx,

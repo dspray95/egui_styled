@@ -2,9 +2,10 @@ use egui::{Align, Color32, InnerResponse, Layout, Shape, Ui};
 
 use crate::{
     impl_style_builders,
+    state::PseudoState,
     style::shared_style::{
         SharedStyle, background_image_shape, bgimg_fade_alpha, justify_body_vertically,
-        paint_shadows,
+        paint_shadows, paint_side_borders,
     },
 };
 
@@ -72,6 +73,18 @@ impl StyledFrame {
         let corner_radius = self.style.corner_radius.unwrap_or_default();
         let shadows = self.style.shadows.clone();
 
+        // A frame is non-interactive, so resolve its border against the base
+        // (inactive) state. `Some` only when per-side overrides are set — that's
+        // the signal to paint edges manually and skip egui's uniform stroke.
+        let border_sides = {
+            let resolved = self
+                .style
+                .resolve(PseudoState::default(), &ui.visuals().widgets.inactive);
+            resolved
+                .has_border_overrides
+                .then_some(resolved.border_sides)
+        };
+
         let has_bg_image = self.style.background_image.is_some();
         let fade_id = has_bg_image.then(|| {
             ui.make_persistent_id(ui.next_auto_id())
@@ -106,7 +119,12 @@ impl StyledFrame {
             if let Some(m) = self.style.margin {
                 frame = frame.outer_margin(m);
             }
-            if let Some(b) = self.style.border {
+            // When per-side overrides are set we paint the border ourselves
+            // after the frame renders; otherwise delegate the uniform stroke
+            // to egui so rounded corners are handled for us.
+            if border_sides.is_none()
+                && let Some(b) = self.style.border
+            {
                 frame = frame.stroke(b);
             }
         }
@@ -255,11 +273,18 @@ impl StyledFrame {
                 tint,
                 self.style.bg,
                 self.style.border,
+                border_sides,
                 fade,
             ) {
                 ui.painter().set(slot, shape);
             }
             // If None (still loading) the Shape::Noop stays, image appears next frame.
+        }
+
+        // Per-side borders for the non-bg-image path (the bg-image path paints
+        // them inside `background_image_shape`). Drawn on top of the frame.
+        if !has_bg_image && let Some(sides) = border_sides {
+            paint_side_borders(ui.painter(), response.response.rect, sides);
         }
 
         paint_shadows(

@@ -5,7 +5,9 @@ use egui::{
 
 use crate::{
     impl_style_builders,
-    style::shared_style::{SharedStyle, paint_shadows, render_scoped},
+    style::shared_style::{
+        ResolvedBorder, SharedStyle, paint_shadows, paint_side_borders, render_scoped,
+    },
 };
 
 use super::text_effects::{Glow, GlowQuality, TextEffects, TextShadow, paint_text_effects};
@@ -233,6 +235,23 @@ impl StyledLabel {
         let wv = &visuals.widgets.inactive;
         let bg = self.style.bg.unwrap_or(egui::Color32::TRANSPARENT);
         let border = self.style.border.unwrap_or(Stroke::NONE);
+        // Labels are static (no hover/focus), so only base per-side overrides
+        // apply. Each unset side falls back to the uniform `border` (NONE here,
+        // not the widget bg_stroke labels deliberately omit).
+        let side_overrides = self.style.border_sides;
+        let has_border_overrides = side_overrides.any();
+        let border_sides = ResolvedBorder {
+            top: side_overrides.top.unwrap_or(border),
+            right: side_overrides.right.unwrap_or(border),
+            bottom: side_overrides.bottom.unwrap_or(border),
+            left: side_overrides.left.unwrap_or(border),
+        };
+        // Suppress the frame's uniform stroke when we paint per-side ourselves.
+        let frame_border = if has_border_overrides {
+            Stroke::NONE
+        } else {
+            border
+        };
         let corner_radius = self.style.corner_radius.unwrap_or(wv.corner_radius);
         let padding = self.style.padding.unwrap_or_default();
         let margin = self.style.margin.unwrap_or_default();
@@ -247,7 +266,7 @@ impl StyledLabel {
 
             let response = egui::Frame::new()
                 .fill(bg)
-                .stroke(border)
+                .stroke(frame_border)
                 .corner_radius(corner_radius)
                 .inner_margin(padding)
                 .outer_margin(margin)
@@ -285,6 +304,9 @@ impl StyledLabel {
                 })
                 .inner;
 
+            if has_border_overrides {
+                paint_side_borders(ui.painter(), response.rect, border_sides);
+            }
             paint_shadows(ui, shadow_idx, response.rect, corner_radius, &style_shadows);
             response
         });

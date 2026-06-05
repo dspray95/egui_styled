@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.5] - 2026-06-05
+
+### Added
+
+- **CSS-style per-side borders** on every styled type. New builders `border_top` / `border_right` / `border_bottom` / `border_left`, plus the convenience pairs `border_x` (left + right) and `border_y` (top + bottom), and matching `hover_border_*` / `focus_border_*` variants. Each unset side falls back to the uniform `border` for the same state (and then egui's default), following the same `focus > hover > base` precedence as the existing border. Works on `StyledFrame` and the containers that delegate to it (`StyledColumn`, `StyledRow`, `StyledStack`) as well as the interactive widgets (`StyledButton`, `StyledCheckbox`, `StyledComboBox`, `StyledImage`, `StyledLabel`, `StyledSlider`, `StyledTextEdit`).
+
+  The uniform-border path is unchanged: per-side painting only activates when a side override is actually set, so existing borders (including their corner-radius rounding) render exactly as before. Note that partial borders are drawn as straight edges and do **not** follow `corner_radius` rounding — egui has no per-side rounded-stroke primitive.
+
 ## [0.5.4] - 2026-06-04
 
 ### Fixed

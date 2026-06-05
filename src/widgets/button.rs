@@ -128,6 +128,7 @@ impl StyledButton {
                 })
                 .inner;
 
+            SharedStyle::paint_widget_side_borders(ui, &response, &per);
             paint_shadows(
                 ui,
                 shadow_idx,

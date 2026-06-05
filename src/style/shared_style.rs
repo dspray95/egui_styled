@@ -76,6 +76,53 @@ pub fn paint_shadows(
     ui.painter().set(reserve_idx, Shape::Vec(shapes));
 }
 
+/// Per-side border overrides. Each side is `None` until the user sets it via a
+/// `border_top` / `border_left` / … builder; an unset side falls back to the
+/// uniform `border` (and then egui's default) at resolve time.
+#[derive(Clone, Copy, Default, Debug)]
+pub struct SideStrokes {
+    pub top: Option<Stroke>,
+    pub right: Option<Stroke>,
+    pub bottom: Option<Stroke>,
+    pub left: Option<Stroke>,
+}
+
+impl SideStrokes {
+    /// True if any side has an explicit override.
+    pub fn any(&self) -> bool {
+        self.top.is_some() || self.right.is_some() || self.bottom.is_some() || self.left.is_some()
+    }
+}
+
+/// A border resolved to a concrete `Stroke` per side. Produced by
+/// [`SharedStyle::resolve`]; consumed by [`paint_side_borders`] when the user
+/// set per-side overrides.
+#[derive(Clone, Copy, Debug)]
+pub struct ResolvedBorder {
+    pub top: Stroke,
+    pub right: Stroke,
+    pub bottom: Stroke,
+    pub left: Stroke,
+}
+
+/// Paint each border side as a straight line segment along the matching edge of
+/// `rect`. Only sides with a positive stroke width are drawn.
+///
+/// Unlike egui's uniform `bg_stroke`, partial borders are **not** rounded around
+/// the corner radius — each side is a straight edge. This is fine for the common
+/// case (left/right or top/bottom borders) and keeps the painting trivial.
+pub fn paint_side_borders(painter: &egui::Painter, rect: Rect, border: ResolvedBorder) {
+    let line = |a, b, stroke: Stroke| {
+        if stroke.width > 0.0 {
+            painter.add(Shape::line_segment([a, b], stroke));
+        }
+    };
+    line(rect.left_top(), rect.right_top(), border.top);
+    line(rect.right_top(), rect.right_bottom(), border.right);
+    line(rect.left_bottom(), rect.right_bottom(), border.bottom);
+    line(rect.left_top(), rect.left_bottom(), border.left);
+}
+
 /// Compute the UV rect used to sample the texture for the given `fit` mode.
 ///
 /// `intrinsic`: the loaded texture's original size in points (width, height).
@@ -183,6 +230,7 @@ pub fn background_image_shape(
     tint: Color32,
     bg: Option<Color32>,
     border: Option<Stroke>,
+    border_sides: Option<ResolvedBorder>,
     fade: Option<(egui::Id, f32)>,
 ) -> Option<Shape> {
     use egui::epaint::RectShape;
@@ -215,7 +263,19 @@ pub fn background_image_shape(
         parts.push(Shape::Rect(tex_shape));
     }
 
-    if let Some(stroke) = border {
+    if let Some(sides) = border_sides {
+        // Per-side overrides: paint each edge as a straight line segment, same
+        // as `paint_side_borders`. Takes precedence over the uniform `border`.
+        let mut push = |a, b, stroke: Stroke| {
+            if stroke.width > 0.0 {
+                parts.push(Shape::line_segment([a, b], stroke));
+            }
+        };
+        push(rect.left_top(), rect.right_top(), sides.top);
+        push(rect.right_top(), rect.right_bottom(), sides.right);
+        push(rect.left_bottom(), rect.right_bottom(), sides.bottom);
+        push(rect.left_top(), rect.left_bottom(), sides.left);
+    } else if let Some(stroke) = border {
         parts.push(Shape::rect_stroke(
             rect,
             corner_radius,
@@ -284,6 +344,13 @@ pub struct SharedStyle {
     pub hover_border: Option<Stroke>,
     pub focus_border: Option<Stroke>,
 
+    // Per-side border overrides. Each side falls back to the matching uniform
+    // border above when unset. `border_sides` is the base state; the hover/focus
+    // variants override it under those interaction states.
+    pub border_sides: SideStrokes,
+    pub hover_border_sides: SideStrokes,
+    pub focus_border_sides: SideStrokes,
+
     // Geometry
     pub corner_radius: Option<CornerRadius>,
     pub padding: Option<Margin>,
@@ -330,7 +397,15 @@ pub struct SharedStyle {
 pub struct ResolvedStyle {
     pub bg: Color32,
     pub text_color: Color32,
+    /// Uniform border representative — preserves existing behavior (egui
+    /// `bg_stroke`, focus ring). Equal to the resolved uniform base stroke.
     pub border: Stroke,
+    /// Full per-side border. Each side = override.or(uniform base).or(default).
+    /// Only painted (via [`paint_side_borders`]) when `has_border_overrides`.
+    pub border_sides: ResolvedBorder,
+    /// True when this state has any per-side override set. Drives the switch
+    /// between egui's uniform painting and manual per-side painting.
+    pub has_border_overrides: bool,
     pub corner_radius: CornerRadius,
     pub padding: Margin,
     pub margin: Margin,
@@ -375,6 +450,22 @@ impl SharedStyle {
             _ => self.border.unwrap_or(default.bg_stroke),
         };
 
+        // Per-side overrides follow the same focus > hover > base precedence as
+        // the uniform border. Each side falls back to `border` (the resolved
+        // uniform stroke) when not explicitly overridden for this state.
+        let sides = match state {
+            _ if state.focused && self.focus_border_sides.any() => self.focus_border_sides,
+            _ if state.hovered && self.hover_border_sides.any() => self.hover_border_sides,
+            _ => self.border_sides,
+        };
+        let has_border_overrides = sides.any();
+        let border_sides = ResolvedBorder {
+            top: sides.top.unwrap_or(border),
+            right: sides.right.unwrap_or(border),
+            bottom: sides.bottom.unwrap_or(border),
+            left: sides.left.unwrap_or(border),
+        };
+
         let text_color = match state {
             _ if state.hovered && self.hover_text_color.is_some() => self.hover_text_color.unwrap(),
             _ => self.text_color.unwrap_or(default.text_color()),
@@ -384,6 +475,8 @@ impl SharedStyle {
             bg,
             text_color,
             border,
+            border_sides,
+            has_border_overrides,
             corner_radius: self.corner_radius.unwrap_or(default.corner_radius),
             padding: self.padding.unwrap_or_default(),
             margin: self.margin.unwrap_or_default(),
@@ -468,7 +561,13 @@ impl SharedStyle {
         for (resolved, wv) in states {
             wv.bg_fill = resolved.bg;
             wv.weak_bg_fill = resolved.bg;
-            wv.bg_stroke = resolved.border;
+            // When per-side overrides are present we paint the border ourselves
+            // (egui's bg_stroke is uniform-only), so suppress egui's stroke.
+            wv.bg_stroke = if resolved.has_border_overrides {
+                Stroke::NONE
+            } else {
+                resolved.border
+            };
             wv.corner_radius = per.corner_radius;
             wv.expansion = 0.0;
             wv.fg_stroke = Stroke::new(wv.fg_stroke.width, resolved.text_color);
@@ -476,13 +575,48 @@ impl SharedStyle {
         // Also update the open state for combo-box menus.
         vis.widgets.open.bg_fill = per.inactive.bg;
         vis.widgets.open.weak_bg_fill = per.inactive.bg;
-        vis.widgets.open.bg_stroke = per.inactive.border;
+        vis.widgets.open.bg_stroke = if per.inactive.has_border_overrides {
+            Stroke::NONE
+        } else {
+            per.inactive.border
+        };
         vis.widgets.open.corner_radius = per.corner_radius;
         vis.widgets.open.expansion = 0.0;
 
         vis.extreme_bg_color = per.inactive.bg;
         vis.selection.bg_fill = per.accent;
         vis.selection.stroke = per.focused.border;
+    }
+
+    /// Pick the `ResolvedStyle` matching a widget response's interaction state,
+    /// mirroring which `WidgetVisuals` slot egui itself would paint with.
+    pub fn for_response<'a>(
+        per: &'a PerStateStyle,
+        response: &egui::Response,
+    ) -> &'a ResolvedStyle {
+        if response.has_focus() {
+            &per.focused
+        } else if response.is_pointer_button_down_on() {
+            &per.active
+        } else if response.hovered() {
+            &per.hovered
+        } else {
+            &per.inactive
+        }
+    }
+
+    /// Paint per-side borders for a widget when the response's interaction state
+    /// has overrides set. No-op otherwise (egui already painted the uniform
+    /// `bg_stroke`). Call after the widget renders, using its response rect.
+    pub fn paint_widget_side_borders(
+        ui: &egui::Ui,
+        response: &egui::Response,
+        per: &PerStateStyle,
+    ) {
+        let state = Self::for_response(per, response);
+        if state.has_border_overrides {
+            paint_side_borders(ui.painter(), response.rect, state.border_sides);
+        }
     }
 
     /// True if any field that an [`egui::Frame`] could render is set.
@@ -501,6 +635,9 @@ impl SharedStyle {
             || self.border.is_some()
             || self.hover_border.is_some()
             || self.focus_border.is_some()
+            || self.border_sides.any()
+            || self.hover_border_sides.any()
+            || self.focus_border_sides.any()
             || self.padding.is_some()
             || self.corner_radius.is_some()
             || self.margin.is_some()
@@ -631,6 +768,115 @@ mod tests {
     }
 
     #[test]
+    fn side_override_sets_only_that_side() {
+        let left = Stroke::new(3.0, Color32::RED);
+        let style = SharedStyle {
+            border_sides: SideStrokes {
+                left: Some(left),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let visuals = default_visuals();
+        let resolved = style.resolve(PseudoState::default(), &visuals);
+        assert!(resolved.has_border_overrides);
+        assert_eq!(resolved.border_sides.left, left);
+        // Unset sides fall back to the uniform base (here egui's default stroke).
+        assert_eq!(resolved.border_sides.top, visuals.bg_stroke);
+        assert_eq!(resolved.border_sides.right, visuals.bg_stroke);
+        assert_eq!(resolved.border_sides.bottom, visuals.bg_stroke);
+    }
+
+    #[test]
+    fn side_override_falls_back_to_uniform_border() {
+        let uniform = Stroke::new(1.0, Color32::GRAY);
+        let left = Stroke::new(3.0, Color32::RED);
+        let style = SharedStyle {
+            border: Some(uniform),
+            border_sides: SideStrokes {
+                left: Some(left),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let resolved = style.resolve(PseudoState::default(), &default_visuals());
+        assert_eq!(resolved.border_sides.left, left);
+        assert_eq!(resolved.border_sides.top, uniform);
+        assert_eq!(resolved.border_sides.right, uniform);
+        assert_eq!(resolved.border_sides.bottom, uniform);
+        // The uniform representative is unchanged.
+        assert_eq!(resolved.border, uniform);
+    }
+
+    #[test]
+    fn no_side_override_means_no_overrides_flag() {
+        let uniform = Stroke::new(1.0, Color32::GRAY);
+        let style = SharedStyle {
+            border: Some(uniform),
+            ..Default::default()
+        };
+        let resolved = style.resolve(PseudoState::default(), &default_visuals());
+        assert!(!resolved.has_border_overrides);
+        assert_eq!(resolved.border, uniform);
+    }
+
+    #[test]
+    fn focus_side_override_beats_base() {
+        let base_left = Stroke::new(1.0, Color32::GRAY);
+        let focus_left = Stroke::new(2.0, Color32::YELLOW);
+        let style = SharedStyle {
+            border_sides: SideStrokes {
+                left: Some(base_left),
+                ..Default::default()
+            },
+            focus_border_sides: SideStrokes {
+                left: Some(focus_left),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let focused = PseudoState {
+            hovered: false,
+            active: false,
+            focused: true,
+        };
+        assert_eq!(
+            style.resolve(focused, &default_visuals()).border_sides.left,
+            focus_left
+        );
+        // Base state still uses the base side.
+        assert_eq!(
+            style
+                .resolve(PseudoState::default(), &default_visuals())
+                .border_sides
+                .left,
+            base_left
+        );
+    }
+
+    #[test]
+    fn paint_side_borders_only_emits_positive_width_sides() {
+        let ctx = egui::Context::default();
+        let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let rect = Rect::from_min_size(pos2(0.0, 0.0), Vec2::new(50.0, 30.0));
+            // Only left + right have width; top + bottom are zero-width.
+            let border = ResolvedBorder {
+                top: Stroke::NONE,
+                right: Stroke::new(2.0, Color32::RED),
+                bottom: Stroke::new(0.0, Color32::RED),
+                left: Stroke::new(2.0, Color32::RED),
+            };
+            paint_side_borders(ui.painter(), rect, border);
+        });
+        let segments = output
+            .shapes
+            .iter()
+            .filter(|cs| matches!(cs.shape, Shape::LineSegment { .. }))
+            .count();
+        assert_eq!(segments, 2, "expected one segment per positive-width side");
+    }
+
+    #[test]
     fn has_frame_styles_empty() {
         assert!(!SharedStyle::default().has_frame_styles());
     }
@@ -705,6 +951,16 @@ mod tests {
                 "margin",
                 SharedStyle {
                     margin: Some(egui::Margin::same(4)),
+                    ..Default::default()
+                },
+            ),
+            (
+                "border_sides",
+                SharedStyle {
+                    border_sides: SideStrokes {
+                        left: Some(Stroke::new(1.0, Color32::RED)),
+                        ..Default::default()
+                    },
                     ..Default::default()
                 },
             ),

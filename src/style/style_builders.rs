@@ -93,6 +93,133 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
+            // Per-side borders
+            //
+            // CSS-style individual edges. Each unset side falls back to the
+            // uniform `border` for the same state. When any side is set, the
+            // border is painted as straight per-edge line segments (no
+            // corner-radius rounding of partial borders).
+
+            /// Set the base top border (`width` in points, `color`).
+            pub fn border_top(mut self, width: f32, color: egui::Color32) -> Self {
+                self.style.border_sides.top = Some(egui::Stroke::new(width, color));
+                self
+            }
+
+            /// Set the base right border (`width` in points, `color`).
+            pub fn border_right(mut self, width: f32, color: egui::Color32) -> Self {
+                self.style.border_sides.right = Some(egui::Stroke::new(width, color));
+                self
+            }
+
+            /// Set the base bottom border (`width` in points, `color`).
+            pub fn border_bottom(mut self, width: f32, color: egui::Color32) -> Self {
+                self.style.border_sides.bottom = Some(egui::Stroke::new(width, color));
+                self
+            }
+
+            /// Set the base left border (`width` in points, `color`).
+            pub fn border_left(mut self, width: f32, color: egui::Color32) -> Self {
+                self.style.border_sides.left = Some(egui::Stroke::new(width, color));
+                self
+            }
+
+            /// Set the base left **and** right borders in one call.
+            pub fn border_x(mut self, width: f32, color: egui::Color32) -> Self {
+                let s = egui::Stroke::new(width, color);
+                self.style.border_sides.left = Some(s);
+                self.style.border_sides.right = Some(s);
+                self
+            }
+
+            /// Set the base top **and** bottom borders in one call.
+            pub fn border_y(mut self, width: f32, color: egui::Color32) -> Self {
+                let s = egui::Stroke::new(width, color);
+                self.style.border_sides.top = Some(s);
+                self.style.border_sides.bottom = Some(s);
+                self
+            }
+
+            /// Top border while hovering. Falls back to [`border_top`](Self::border_top).
+            pub fn hover_border_top(mut self, width: f32, color: egui::Color32) -> Self {
+                self.style.hover_border_sides.top = Some(egui::Stroke::new(width, color));
+                self
+            }
+
+            /// Right border while hovering. Falls back to [`border_right`](Self::border_right).
+            pub fn hover_border_right(mut self, width: f32, color: egui::Color32) -> Self {
+                self.style.hover_border_sides.right = Some(egui::Stroke::new(width, color));
+                self
+            }
+
+            /// Bottom border while hovering. Falls back to [`border_bottom`](Self::border_bottom).
+            pub fn hover_border_bottom(mut self, width: f32, color: egui::Color32) -> Self {
+                self.style.hover_border_sides.bottom = Some(egui::Stroke::new(width, color));
+                self
+            }
+
+            /// Left border while hovering. Falls back to [`border_left`](Self::border_left).
+            pub fn hover_border_left(mut self, width: f32, color: egui::Color32) -> Self {
+                self.style.hover_border_sides.left = Some(egui::Stroke::new(width, color));
+                self
+            }
+
+            /// Left and right borders while hovering.
+            pub fn hover_border_x(mut self, width: f32, color: egui::Color32) -> Self {
+                let s = egui::Stroke::new(width, color);
+                self.style.hover_border_sides.left = Some(s);
+                self.style.hover_border_sides.right = Some(s);
+                self
+            }
+
+            /// Top and bottom borders while hovering.
+            pub fn hover_border_y(mut self, width: f32, color: egui::Color32) -> Self {
+                let s = egui::Stroke::new(width, color);
+                self.style.hover_border_sides.top = Some(s);
+                self.style.hover_border_sides.bottom = Some(s);
+                self
+            }
+
+            /// Top border while focused. Falls back to [`border_top`](Self::border_top).
+            pub fn focus_border_top(mut self, width: f32, color: egui::Color32) -> Self {
+                self.style.focus_border_sides.top = Some(egui::Stroke::new(width, color));
+                self
+            }
+
+            /// Right border while focused. Falls back to [`border_right`](Self::border_right).
+            pub fn focus_border_right(mut self, width: f32, color: egui::Color32) -> Self {
+                self.style.focus_border_sides.right = Some(egui::Stroke::new(width, color));
+                self
+            }
+
+            /// Bottom border while focused. Falls back to [`border_bottom`](Self::border_bottom).
+            pub fn focus_border_bottom(mut self, width: f32, color: egui::Color32) -> Self {
+                self.style.focus_border_sides.bottom = Some(egui::Stroke::new(width, color));
+                self
+            }
+
+            /// Left border while focused. Falls back to [`border_left`](Self::border_left).
+            pub fn focus_border_left(mut self, width: f32, color: egui::Color32) -> Self {
+                self.style.focus_border_sides.left = Some(egui::Stroke::new(width, color));
+                self
+            }
+
+            /// Left and right borders while focused.
+            pub fn focus_border_x(mut self, width: f32, color: egui::Color32) -> Self {
+                let s = egui::Stroke::new(width, color);
+                self.style.focus_border_sides.left = Some(s);
+                self.style.focus_border_sides.right = Some(s);
+                self
+            }
+
+            /// Top and bottom borders while focused.
+            pub fn focus_border_y(mut self, width: f32, color: egui::Color32) -> Self {
+                let s = egui::Stroke::new(width, color);
+                self.style.focus_border_sides.top = Some(s);
+                self.style.focus_border_sides.bottom = Some(s);
+                self
+            }
+
             // --- Geometry ---
 
             /// Set the corner radius. Accepts an `f32` (uniform) or any

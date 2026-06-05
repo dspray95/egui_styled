@@ -95,6 +95,7 @@ impl<'a, T: Numeric> StyledSlider<'a, T> {
                 })
                 .inner;
 
+            SharedStyle::paint_widget_side_borders(ui, &response, &per);
             paint_shadows(
                 ui,
                 shadow_idx,
