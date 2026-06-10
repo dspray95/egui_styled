@@ -145,6 +145,41 @@ fn layout_demo(ui: &mut egui::Ui) {
 
             ui.separator();
 
+            // ── Wrapping rows ─────────────────────────────────────────────────
+            Styled::label("Wrapping rows")
+                .font_size(16.0)
+                .text_color(fg)
+                .bold()
+                .show(ui);
+            Styled::label("wrap() — tag cloud / chip bar, resize the window to see reflow")
+                .font_size(12.0)
+                .text_color(dim)
+                .show(ui);
+
+            Styled::row()
+                .full_width()
+                .wrap()
+                .gap(6.0)
+                .bg(card_bg)
+                .corner_radius(6.0)
+                .padding(10.0)
+                .show(ui, |ui| {
+                    for tag in [
+                        "egui", "rust", "ui", "layout", "flex", "wrap", "responsive",
+                        "widgets", "buttons", "labels", "frames", "rows", "columns",
+                    ] {
+                        Styled::button(tag)
+                            .bg(rgb(55, 65, 95))
+                            .hover_bg(highlight)
+                            .text_color(fg)
+                            .corner_radius(12.0)
+                            .padding(egui::Margin { left: 10, right: 10, top: 4, bottom: 4 })
+                            .show(ui);
+                    }
+                });
+
+            ui.separator();
+
             // ── Combining spacer + percentage ─────────────────────────────────
             Styled::label("Combining spacer + percentage")
                 .font_size(16.0)
