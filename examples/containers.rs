@@ -70,6 +70,24 @@ fn containers_example(ui: &mut egui::Ui) {
                     Styled::spacer().show(ui);
                     Styled::label("Right-aligned").text_color(Color32::WHITE).show(ui);
                 });
+
+            ui.separator();
+            ui.label("Percentage sizing — width_pct(50).max_width(200):");
+
+            // Two cards: each 50% wide, capped at 200px. Responsive as window resizes.
+            Styled::row().gap(8.0).show(ui, |ui| {
+                for label in ["Card A", "Card B"] {
+                    Styled::frame()
+                        .width_pct(50.0)
+                        .max_width(200.0)
+                        .bg(rgb(50, 60, 90))
+                        .corner_radius(6.0)
+                        .padding(12.0)
+                        .show(ui, |ui| {
+                            ui.label(label);
+                        });
+                }
+            });
         });
 }
 

@@ -117,6 +117,8 @@ impl<'a> StyledTextEdit<'a> {
                     }
                     if let Some(width) = self.desired_width {
                         text_edit = text_edit.desired_width(width);
+                    } else if let Some(w) = self.style.resolved_width_pct(ui.available_width()) {
+                        text_edit = text_edit.desired_width(w);
                     } else if self.style.full_width {
                         text_edit = text_edit.desired_width(ui.available_width());
                     }

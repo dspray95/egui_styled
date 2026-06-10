@@ -313,6 +313,22 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
+            /// Set width as a percentage (0–100) of the parent's available width.
+            /// Resolves to a definite size at render time, superseding `full_width`.
+            /// Composes with `min_width`/`max_width` as clamps after resolution.
+            pub fn width_pct(mut self, pct: f32) -> Self {
+                self.style.width_pct = Some(pct);
+                self
+            }
+
+            /// Set height as a percentage (0–100) of the parent's available height.
+            /// Resolves to a definite size at render time, superseding `full_height`.
+            /// Composes with `min_height`/`max_height` as clamps after resolution.
+            pub fn height_pct(mut self, pct: f32) -> Self {
+                self.style.height_pct = Some(pct);
+                self
+            }
+
             // --- Interaction ---
 
             /// Set the cursor icon shown while hovering the widget.

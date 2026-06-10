@@ -135,6 +135,7 @@ impl StyledFrame {
         let max_width = self.style.max_width;
         let min_height = self.style.min_height;
         let max_height = self.style.max_height;
+        let style_for_pct = self.style.clone();
         let align = self.align;
         let justify = self.justify;
         let gap = self.gap;
@@ -188,36 +189,52 @@ impl StyledFrame {
                 ui.set_min_size(size);
                 ui.set_max_size(size);
             }
-            // Apply max constraints first so full_width/full_height read the
-            // capped available size, and min constraints last so an explicit
-            // minimum always wins over full_width/full_height.
-            if let Some(w) = max_width {
-                ui.set_max_width(w);
-            }
-            if let Some(h) = max_height {
-                ui.set_max_height(h);
-            }
-            // Capture fill_height for vertical justify *before* set_min_height
-            // changes the available size. fill_size takes priority; otherwise
-            // full_height captures the (already max-capped) available height.
-            let fill_height_val: Option<f32> = fill_size.map(|s| s.y).or_else(|| {
-                if full_height {
-                    Some(ui.available_height())
-                } else {
-                    None
-                }
-            });
-            if full_width {
-                ui.set_min_width(ui.available_width());
-            }
-            if full_height {
-                ui.set_min_height(ui.available_height());
-            }
-            if let Some(w) = min_width {
+            // Capture available before any sizing mutations for pct resolution.
+            let avail_w = ui.available_width();
+            let avail_h = ui.available_height();
+            let pct_w = style_for_pct.resolved_width_pct(avail_w);
+            let pct_h = style_for_pct.resolved_height_pct(avail_h);
+
+            if let Some(w) = pct_w {
+                // Definite width: pin both min and max; supersedes full_width.
                 ui.set_min_width(w);
+                ui.set_max_width(w);
+            } else {
+                // Apply max constraints first so full_width reads the capped
+                // available size, and min constraints last so an explicit minimum
+                // always wins over full_width.
+                if let Some(w) = max_width {
+                    ui.set_max_width(w);
+                }
+                if full_width {
+                    ui.set_min_width(ui.available_width());
+                }
+                if let Some(w) = min_width {
+                    ui.set_min_width(w);
+                }
             }
-            if let Some(h) = min_height {
+
+            // Capture fill_height for vertical justify *before* set_min_height
+            // changes the available size. Precedence: fill_size > height_pct > full_height.
+            let fill_height_val: Option<f32> = fill_size
+                .map(|s| s.y)
+                .or(pct_h)
+                .or_else(|| if full_height { Some(avail_h) } else { None });
+
+            if let Some(h) = pct_h {
+                // Definite height: pin both min and max; supersedes full_height.
                 ui.set_min_height(h);
+                ui.set_max_height(h);
+            } else {
+                if let Some(h) = max_height {
+                    ui.set_max_height(h);
+                }
+                if full_height {
+                    ui.set_min_height(ui.available_height());
+                }
+                if let Some(h) = min_height {
+                    ui.set_min_height(h);
+                }
             }
             if let Some(g) = gap {
                 ui.spacing_mut().item_spacing = egui::Vec2::splat(g);
@@ -796,6 +813,76 @@ mod tests {
         assert!(
             content_center_y < 50.0,
             "without full_height, content should be top-aligned, got center_y={content_center_y}"
+        );
+    }
+
+    #[test]
+    fn width_pct_50_is_half_screen() {
+        let ctx = egui::Context::default();
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(400.0, 400.0),
+            )),
+            ..Default::default()
+        };
+        let output = ctx.run_ui(raw, |ui| {
+            StyledFrame::new().bg(Color32::RED).width_pct(50.0).show(ui, |_ui| {});
+        });
+        let shapes: Vec<Shape> = output.shapes.into_iter().map(|cs| cs.shape).collect();
+        let rect = first_solid_rect(&shapes).expect("bg fill rect present");
+        assert!(
+            (rect.width() - 200.0).abs() < 2.0,
+            "width_pct(50) on 400px screen should be ~200px, got {}",
+            rect.width()
+        );
+    }
+
+    #[test]
+    fn width_pct_clamped_by_max_width() {
+        let ctx = egui::Context::default();
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(400.0, 400.0),
+            )),
+            ..Default::default()
+        };
+        let output = ctx.run_ui(raw, |ui| {
+            StyledFrame::new()
+                .bg(Color32::RED)
+                .width_pct(50.0)
+                .max_width(120.0)
+                .show(ui, |_ui| {});
+        });
+        let shapes: Vec<Shape> = output.shapes.into_iter().map(|cs| cs.shape).collect();
+        let rect = first_solid_rect(&shapes).expect("bg fill rect present");
+        assert!(
+            rect.width() <= 121.0,
+            "width_pct(50).max_width(120) on 400px should cap at 120px, got {}",
+            rect.width()
+        );
+    }
+
+    #[test]
+    fn height_pct_50_is_half_screen() {
+        let ctx = egui::Context::default();
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(400.0, 300.0),
+            )),
+            ..Default::default()
+        };
+        let output = ctx.run_ui(raw, |ui| {
+            StyledFrame::new().bg(Color32::RED).height_pct(50.0).show(ui, |_ui| {});
+        });
+        let shapes: Vec<Shape> = output.shapes.into_iter().map(|cs| cs.shape).collect();
+        let rect = first_solid_rect(&shapes).expect("bg fill rect present");
+        assert!(
+            (rect.height() - 150.0).abs() < 2.0,
+            "height_pct(50) on 300px screen should be ~150px, got {}",
+            rect.height()
         );
     }
 }

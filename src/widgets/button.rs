@@ -70,8 +70,20 @@ impl StyledButton {
         let response = render_scoped(ui, visible, |ui| {
             let shadow_idx = ui.painter().add(Shape::Noop);
 
-            if self.style.full_width {
-                ui.set_min_width(ui.available_width());
+            let avail_w = ui.available_width();
+            let avail_h = ui.available_height();
+            let pct_w = self.style.resolved_width_pct(avail_w);
+            let pct_h = self.style.resolved_height_pct(avail_h);
+
+            if let Some(w) = pct_w {
+                ui.set_min_width(w);
+                ui.set_max_width(w);
+            } else if self.style.full_width {
+                ui.set_min_width(avail_w);
+            }
+            if let Some(h) = pct_h {
+                ui.set_min_height(h);
+                ui.set_max_height(h);
             }
 
             let response = ui
@@ -110,12 +122,14 @@ impl StyledButton {
                         Some(img) => egui::Button::opt_image_and_text(Some(img), Some(text)),
                         None => egui::Button::new(text),
                     };
-                    let min_w = if self.style.full_width {
-                        ui.available_width()
-                    } else {
-                        self.style.min_width.unwrap_or(0.0)
-                    };
-                    let min_h = self.style.min_height.unwrap_or(0.0);
+                    let min_w = pct_w.unwrap_or_else(|| {
+                        if self.style.full_width {
+                            ui.available_width()
+                        } else {
+                            self.style.min_width.unwrap_or(0.0)
+                        }
+                    });
+                    let min_h = pct_h.unwrap_or(self.style.min_height.unwrap_or(0.0));
                     if min_w > 0.0 || min_h > 0.0 {
                         btn = btn.min_size(egui::Vec2 { x: min_w, y: min_h });
                     }

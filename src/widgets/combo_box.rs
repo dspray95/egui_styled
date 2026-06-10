@@ -70,7 +70,14 @@ impl StyledComboBox {
 
                     let mut cb =
                         ComboBox::from_id_salt(self.id_source).selected_text(selected_text);
-                    if let Some(w) = self.width {
+                    // Resolve width: pct supersedes explicit .width(), which supersedes default.
+                    if let Some(w) = self.style.resolved_width_pct(ui.available_width()) {
+                        cb = cb.width(w);
+                    } else if let Some(w) = self.width {
+                        cb = cb.width(w);
+                    } else if self.style.full_width {
+                        cb = cb.width(ui.available_width());
+                    } else if let Some(w) = self.style.min_width {
                         cb = cb.width(w);
                     }
 

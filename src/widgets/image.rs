@@ -151,8 +151,17 @@ impl StyledImage {
 
             let resp = wrapper
                 .show(ui, |ui| {
-                    if self.style.full_width {
-                        ui.set_min_width(ui.available_width());
+                    let avail_w = ui.available_width();
+                    let avail_h = ui.available_height();
+                    if let Some(w) = self.style.resolved_width_pct(avail_w) {
+                        ui.set_min_width(w);
+                        ui.set_max_width(w);
+                    } else if self.style.full_width {
+                        ui.set_min_width(avail_w);
+                    }
+                    if let Some(h) = self.style.resolved_height_pct(avail_h) {
+                        ui.set_min_height(h);
+                        ui.set_max_height(h);
                     }
                     let resp = ui.add(img);
 

@@ -363,6 +363,14 @@ pub struct SharedStyle {
     pub max_height: Option<f32>,
     pub full_width: bool,
     pub full_height: bool,
+    /// Width as a percentage (0–100) of the parent's available width.
+    /// When set, resolves to a definite size and supersedes `full_width`.
+    /// Composed with `min_width`/`max_width` as clamps after resolution.
+    pub width_pct: Option<f32>,
+    /// Height as a percentage (0–100) of the parent's available height.
+    /// When set, resolves to a definite size and supersedes `full_height`.
+    /// Composed with `min_height`/`max_height` as clamps after resolution.
+    pub height_pct: Option<f32>,
 
     // Cursor
     pub cursor_icon: Option<CursorIcon>,
@@ -434,6 +442,38 @@ pub struct PerStateStyle {
 }
 
 impl SharedStyle {
+    /// Resolve `width_pct` to a definite width in points, clamped by
+    /// `min_width`/`max_width`. `avail` should be `ui.available_width()`
+    /// captured before any sizing mutations. Returns `None` when unset.
+    pub fn resolved_width_pct(&self, avail: f32) -> Option<f32> {
+        self.width_pct.map(|p| {
+            let mut w = avail * p / 100.0;
+            if let Some(m) = self.max_width {
+                w = w.min(m);
+            }
+            if let Some(m) = self.min_width {
+                w = w.max(m);
+            }
+            w
+        })
+    }
+
+    /// Resolve `height_pct` to a definite height in points, clamped by
+    /// `min_height`/`max_height`. `avail` should be `ui.available_height()`
+    /// captured before any sizing mutations. Returns `None` when unset.
+    pub fn resolved_height_pct(&self, avail: f32) -> Option<f32> {
+        self.height_pct.map(|p| {
+            let mut h = avail * p / 100.0;
+            if let Some(m) = self.max_height {
+                h = h.min(m);
+            }
+            if let Some(m) = self.min_height {
+                h = h.max(m);
+            }
+            h
+        })
+    }
+
     /// Resolve against current pseudo-state and egui's active visuals.
     /// Kept for back-compat; prefer `resolve_per_state` for new widget code.
     pub fn resolve(&self, state: PseudoState, default: &WidgetVisuals) -> ResolvedStyle {
@@ -1060,5 +1100,47 @@ mod tests {
         assert!((uv.max.x - 1.0).abs() < 1e-5);
         assert!((uv.min.y - 0.0).abs() < 1e-5);
         assert!((uv.max.y - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn resolved_width_pct_none_when_unset() {
+        let style = SharedStyle::default();
+        assert!(style.resolved_width_pct(400.0).is_none());
+    }
+
+    #[test]
+    fn resolved_width_pct_half_of_avail() {
+        let style = SharedStyle { width_pct: Some(50.0), ..Default::default() };
+        let w = style.resolved_width_pct(400.0).unwrap();
+        assert!((w - 200.0).abs() < 1e-4, "50% of 400 = 200, got {w}");
+    }
+
+    #[test]
+    fn resolved_width_pct_clamped_by_max_width() {
+        let style = SharedStyle {
+            width_pct: Some(50.0),
+            max_width: Some(120.0),
+            ..Default::default()
+        };
+        let w = style.resolved_width_pct(400.0).unwrap();
+        assert!((w - 120.0).abs() < 1e-4, "50% of 400 clamped to max_width 120, got {w}");
+    }
+
+    #[test]
+    fn resolved_width_pct_floored_by_min_width() {
+        let style = SharedStyle {
+            width_pct: Some(10.0),
+            min_width: Some(80.0),
+            ..Default::default()
+        };
+        let w = style.resolved_width_pct(400.0).unwrap();
+        assert!((w - 80.0).abs() < 1e-4, "10% of 400=40 raised to min_width 80, got {w}");
+    }
+
+    #[test]
+    fn resolved_height_pct_half_of_avail() {
+        let style = SharedStyle { height_pct: Some(50.0), ..Default::default() };
+        let h = style.resolved_height_pct(300.0).unwrap();
+        assert!((h - 150.0).abs() < 1e-4, "50% of 300 = 150, got {h}");
     }
 }
