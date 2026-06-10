@@ -1,14 +1,17 @@
 use egui::{Align, InnerResponse, Layout, Ui};
 
 use crate::{
-    containers::frame::StyledFrame, impl_style_builders, style::shared_style::SharedStyle,
+    containers::distribute::DistributedRow,
+    containers::frame::StyledFrame,
+    containers::wrap::WrappingRow,
+    impl_style_builders,
+    style::shared_style::{Distribution, SharedStyle},
 };
 
 pub struct StyledRow {
     gap: Option<f32>,
     align: Option<Align>,
     justify: Option<Align>,
-    wrap: bool,
     style: SharedStyle,
 }
 
@@ -24,7 +27,6 @@ impl StyledRow {
             gap: None,
             align: None,
             justify: None,
-            wrap: false,
             style: SharedStyle::default(),
         }
     }
@@ -52,15 +54,59 @@ impl StyledRow {
     }
 
     /// Wrap children onto a new line when they run out of horizontal room
-    /// (CSS `flex-wrap: wrap`). When set, `gap` applies to both axes so the
-    /// vertical spacing between wrapped lines matches the horizontal gap.
+    /// (CSS `flex-wrap: wrap`). Transitions to [`WrappingRow`] — add children
+    /// with `.item()` and render with `.show(ui)`.
     ///
-    /// Requires a bounded width to know where to break — a panel, a
-    /// `full_width` row, or any sized parent. In an unbounded/infinite-width
-    /// parent wrapping won't trigger.
-    pub fn wrap(mut self) -> Self {
-        self.wrap = true;
-        self
+    /// This is item-based (rather than a `show(ui, body)` closure) because it
+    /// measures each child's natural width to place it, which is what lets
+    /// scope-isolated styled widgets wrap — see [`WrappingRow`]. `gap` applies
+    /// to both axes, so the vertical spacing between wrapped lines matches the
+    /// horizontal gap. Requires a bounded width (`full_width` or a sized parent)
+    /// to know where to break.
+    pub fn wrap<'a>(self) -> WrappingRow<'a> {
+        WrappingRow {
+            gap: self.gap.unwrap_or(0.0),
+            align: self.align,
+            style: self.style,
+            items: Vec::new(),
+        }
+    }
+
+    /// Distribute children evenly with no leading/trailing space and equal gaps
+    /// between items (CSS `justify-content: space-between`). Transitions to
+    /// [`DistributedRow`] — call `.item()` to add children, then `.show(ui)`.
+    pub fn space_between<'a>(self) -> DistributedRow<'a> {
+        DistributedRow {
+            mode: Distribution::SpaceBetween,
+            min_gap: self.gap.unwrap_or(0.0),
+            align: self.align,
+            style: self.style,
+            items: Vec::new(),
+        }
+    }
+
+    /// Distribute children with equal space around each item (CSS
+    /// `justify-content: space-around`). Transitions to [`DistributedRow`].
+    pub fn space_around<'a>(self) -> DistributedRow<'a> {
+        DistributedRow {
+            mode: Distribution::SpaceAround,
+            min_gap: self.gap.unwrap_or(0.0),
+            align: self.align,
+            style: self.style,
+            items: Vec::new(),
+        }
+    }
+
+    /// Distribute children with equal space between, before, and after every
+    /// item (CSS `justify-content: space-evenly`). Transitions to [`DistributedRow`].
+    pub fn space_evenly<'a>(self) -> DistributedRow<'a> {
+        DistributedRow {
+            mode: Distribution::SpaceEvenly,
+            min_gap: self.gap.unwrap_or(0.0),
+            align: self.align,
+            style: self.style,
+            items: Vec::new(),
+        }
     }
 
     pub fn show<R>(self, ui: &mut Ui, body: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
@@ -71,21 +117,25 @@ impl StyledRow {
         let gap = self.gap;
         let align = self.align;
         let justify = self.justify;
-        let wrap = self.wrap;
         let render = move |ui: &mut Ui| {
             let mut layout = Layout::left_to_right(align.unwrap_or(Align::Center));
-            if wrap {
-                layout = layout.with_main_wrap(true);
-            }
             if let Some(j) = justify {
                 layout = layout.with_main_align(j);
             }
-            ui.with_layout(layout, |ui| {
+            // Seed a one-row height instead of the full available height.
+            // `with_layout` would pass `available_size_before_wrap()` (the entire
+            // remaining height), and a `left_to_right(Center)` layout then centers
+            // content across that whole span — ballooning the row to fill its
+            // parent vertically. `ui.horizontal` avoids this by seeding the height
+            // with `interact_size.y`; we replicate that so custom align / justify
+            // still work without ballooning.
+            let initial_size = egui::vec2(
+                ui.available_size_before_wrap().x,
+                ui.spacing().interact_size.y,
+            );
+            ui.allocate_ui_with_layout(initial_size, layout, |ui| {
                 if let Some(gap) = gap {
                     ui.spacing_mut().item_spacing.x = gap;
-                    if wrap {
-                        ui.spacing_mut().item_spacing.y = gap;
-                    }
                 }
                 body(ui)
             })
@@ -112,7 +162,6 @@ impl_style_builders!(StyledRow);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use egui::Color32;
 
     fn screen(w: f32, h: f32) -> egui::RawInput {
         egui::RawInput {
@@ -124,16 +173,14 @@ mod tests {
         }
     }
 
-    // Measure the span from the first to the last widget added in the row body.
-    fn measure_wrap_height(ctx: &egui::Context, screen_w: f32, do_wrap: bool, gap: f32) -> f32 {
+    #[test]
+    fn plain_row_stays_single_line() {
+        // A non-wrapping row keeps all children on one line (one-line height).
+        let ctx = egui::Context::default();
         let mut first_top = f32::MAX;
         let mut last_bottom = f32::MIN;
-        let _ = ctx.run_ui(screen(screen_w, 400.0), |ui| {
-            let mut row = StyledRow::new().full_width().gap(gap);
-            if do_wrap {
-                row = row.wrap();
-            }
-            row.show(ui, |ui| {
+        let _ = ctx.run_ui(screen(80.0, 400.0), |ui| {
+            StyledRow::new().full_width().gap(4.0).show(ui, |ui| {
                 for label in ["Alpha", "Beta", "Gamma", "Delta", "Epsilon"] {
                     let rect = ui.label(label).rect;
                     first_top = first_top.min(rect.top());
@@ -141,32 +188,7 @@ mod tests {
                 }
             });
         });
-        (last_bottom - first_top).max(0.0)
-    }
-
-    #[test]
-    fn wrap_breaks_into_multiple_lines() {
-        let ctx = egui::Context::default();
-        // 80px wide — not enough for 5 labels on one line.
-        let h = measure_wrap_height(&ctx, 80.0, true, 4.0);
-        assert!(h > 25.0, "wrapped row should be taller than one line, got {h}");
-    }
-
-    #[test]
-    fn no_wrap_stays_single_line() {
-        let ctx = egui::Context::default();
-        let h = measure_wrap_height(&ctx, 80.0, false, 4.0);
+        let h = (last_bottom - first_top).max(0.0);
         assert!(h < 25.0, "non-wrapped row should be one line tall, got {h}");
-    }
-
-    #[test]
-    fn wrap_gap_applies_to_both_axes() {
-        let ctx = egui::Context::default();
-        let h_large = measure_wrap_height(&ctx, 80.0, true, 20.0);
-        let h_zero = measure_wrap_height(&ctx, 80.0, true, 0.0);
-        assert!(
-            h_large > h_zero,
-            "gap(20) wrapped row ({h_large}) should be taller than gap(0) ({h_zero})"
-        );
     }
 }

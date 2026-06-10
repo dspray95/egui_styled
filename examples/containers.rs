@@ -46,30 +46,22 @@ fn containers_example(ui: &mut egui::Ui) {
             });
 
             ui.separator();
-            ui.label("Spacer — pushes siblings to the far edge:");
+            ui.label("space_between — pins children to opposite edges:");
 
-            // [Left] ----spacer---- [Right]
+            // [Left] ........ [Right] — measured, so nothing overflows.
             Styled::row()
                 .full_width()
                 .bg(rgb(40, 40, 50))
                 .corner_radius(6.0)
                 .padding(8.0)
-                .show(ui, |ui| {
+                .space_between()
+                .item(|ui| {
                     Styled::label("Left").text_color(Color32::WHITE).show(ui);
-                    Styled::spacer().show(ui);
+                })
+                .item(|ui| {
                     Styled::label("Right").text_color(Color32::WHITE).show(ui);
-                });
-
-            // [spacer] [Right-aligned]
-            Styled::row()
-                .full_width()
-                .bg(rgb(40, 40, 50))
-                .corner_radius(6.0)
-                .padding(8.0)
-                .show(ui, |ui| {
-                    Styled::spacer().show(ui);
-                    Styled::label("Right-aligned").text_color(Color32::WHITE).show(ui);
-                });
+                })
+                .show(ui);
 
             ui.separator();
             ui.label("Percentage sizing — width_pct(50).max_width(200):");

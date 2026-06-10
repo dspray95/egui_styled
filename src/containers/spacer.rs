@@ -1,5 +1,5 @@
 /// A flexible spacer that consumes all remaining main-axis space in the
-/// current layout, pushing following siblings to the far edge.
+/// current layout, pushing the cursor to the far edge.
 ///
 /// Direction-aware: expands horizontally inside a row, vertically inside a
 /// column. Most useful inside a **bounded** container — one with a determinate
@@ -8,14 +8,31 @@
 /// expands to the full parent available space, which will balloon the
 /// container's size.
 ///
-/// With a **single** spacer the pattern is unambiguous:
-/// - `[A] [spacer] [B]` → A at the left edge, B at the right edge.
-/// - `[spacer] [A]` → A at the right (or bottom) edge.
+/// # Caveat: content placed *after* a spacer overflows
 ///
-/// With **two or more** spacers in the same container, the first consumes all
-/// remaining space and the second is a no-op — even N-way distribution is not
-/// supported here. Use `justify(Align::Center)` or the upcoming
-/// `space-between` modifier for that.
+/// Because this is immediate-mode, a spacer cannot reserve room for siblings
+/// that have not been rendered yet — it consumes **all** remaining space, so a
+/// trailing widget is pushed *past* the edge by its own width:
+///
+/// ```text
+/// [A] [spacer] [B]   →   A at the left edge, but B overflows off the right.
+/// ```
+///
+/// For overflow-free edge-pinning and even distribution
+/// (`[A] ........ [B]`, nav bars, button groups), use the measured
+/// [`DistributedRow`](crate::DistributedRow) API instead — its invisible
+/// measure pass sizes the gaps so nothing overflows:
+///
+/// ```ignore
+/// Styled::row().full_width()
+///     .space_between()
+///     .item(|ui| { Styled::label("A").show(ui); })
+///     .item(|ui| { Styled::label("B").show(ui); })
+///     .show(ui);
+/// ```
+///
+/// The spacer remains handy when there is **no** trailing content (e.g.
+/// padding out the end of a bounded container).
 ///
 /// Construct via [`Styled::spacer`](crate::Styled::spacer).
 pub struct StyledSpacer;
@@ -112,6 +129,34 @@ mod tests {
             "A ({}) should be above B ({})",
             a_rect.bottom(),
             b_rect.top()
+        );
+    }
+
+    /// Regression: a styled row (bg/padding ⇒ routes through `StyledFrame`)
+    /// inside a tall parent must stay content-height, not balloon to fill the
+    /// parent vertically. `ui.with_layout` seeds a `left_to_right(Center)` layout
+    /// with the full available height, which centers content across the whole
+    /// span; `StyledRow` seeds a one-row height instead (like `ui.horizontal`).
+    #[test]
+    fn styled_bg_row_stays_content_height_in_tall_parent() {
+        let ctx = egui::Context::default();
+        let screen_h = 600.0;
+        let mut h = 0.0f32;
+        let _ = ctx.run_ui(screen(640.0, screen_h), |ui| {
+            let r = crate::StyledRow::new()
+                .full_width()
+                .bg(egui::Color32::RED)
+                .padding(10.0)
+                .show(ui, |ui| {
+                    ui.label("Left");
+                    StyledSpacer::new().show(ui);
+                    ui.label("Right");
+                });
+            h = r.response.rect.height();
+        });
+        assert!(
+            h < 100.0,
+            "styled bg row in a 600px parent should be ~one line tall, got {h}"
         );
     }
 

@@ -219,7 +219,7 @@ impl StyledFrame {
             let fill_height_val: Option<f32> = fill_size
                 .map(|s| s.y)
                 .or(pct_h)
-                .or_else(|| if full_height { Some(avail_h) } else { None });
+                .or(if full_height { Some(avail_h) } else { None });
 
             if let Some(h) = pct_h {
                 // Definite height: pin both min and max; supersedes full_height.

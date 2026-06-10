@@ -193,6 +193,91 @@ pub fn justify_body_vertically<R>(
     scope.inner
 }
 
+/// How to distribute children horizontally across available width.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Distribution {
+    SpaceBetween,
+    SpaceAround,
+    SpaceEvenly,
+}
+
+/// Compute leading space `L` and inter-item gap `G` for a distribution mode.
+///
+/// Returns `(L, G)`. When `slack <= 0` or `n == 0`, falls back to `(0, min_gap)`.
+pub fn distribution_spacing(mode: Distribution, slack: f32, n: usize, min_gap: f32) -> (f32, f32) {
+    if n == 0 {
+        return (0.0, min_gap);
+    }
+    if slack <= 0.0 {
+        return (0.0, min_gap);
+    }
+    let nf = n as f32;
+    let (l, g) = match mode {
+        Distribution::SpaceBetween => {
+            if n <= 1 {
+                (0.0, 0.0)
+            } else {
+                (0.0, slack / (nf - 1.0))
+            }
+        }
+        Distribution::SpaceAround => (slack / (2.0 * nf), slack / nf),
+        Distribution::SpaceEvenly => (slack / (nf + 1.0), slack / (nf + 1.0)),
+    };
+    (l, g.max(min_gap))
+}
+
+/// Lay out a row of items with CSS-style distribution using a cross-frame W cache.
+///
+/// On the first frame (no cached W), renders items invisibly with zero spacing to
+/// measure content width, caches it, and requests a repaint. On subsequent frames,
+/// uses the cached W to compute leading space and inter-item gap per `mode`.
+#[allow(clippy::too_many_arguments)]
+pub fn distribute_row_horizontally(
+    ui: &mut egui::Ui,
+    avail: f32,
+    mode: Distribution,
+    min_gap: f32,
+    n: usize,
+    cross_align: egui::Align,
+    content_w_id: egui::Id,
+    render_items: impl FnOnce(&mut egui::Ui),
+) {
+    let cached_w = ui.ctx().memory(|m| m.data.get_temp::<f32>(content_w_id));
+    let layout = egui::Layout::left_to_right(cross_align);
+    // Seed with a one-row height so a `left_to_right(Center)` layout does not
+    // balloon to fill the parent's full height (see the note in `StyledRow`).
+    let initial_size = egui::vec2(avail, ui.spacing().interact_size.y);
+
+    if let Some(w) = cached_w {
+        let slack = (avail - w).max(0.0);
+        let (leading, gap) = distribution_spacing(mode, slack, n, min_gap);
+
+        ui.allocate_ui_with_layout(initial_size, layout, |ui| {
+            ui.spacing_mut().item_spacing.x = 0.0;
+            if leading > 0.0 {
+                ui.add_space(leading);
+            }
+            ui.spacing_mut().item_spacing.x = gap;
+            render_items(ui);
+        });
+    } else {
+        // Measure frame: invisible, zero spacing, record content width.
+        let scope = ui.scope(|ui| {
+            ui.set_invisible();
+            ui.allocate_ui_with_layout(initial_size, layout, |ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                render_items(ui);
+                ui.min_rect().width()
+            })
+            .inner
+        });
+        let measured_w = scope.inner;
+        ui.ctx()
+            .memory_mut(|m| m.data.insert_temp(content_w_id, measured_w));
+        ui.ctx().request_repaint();
+    }
+}
+
 /// Fade alpha for a background-image reveal. Stamps the first-`ready` time in
 pub fn bgimg_fade_alpha(ctx: &egui::Context, id: egui::Id, duration: f32, ready: bool) -> f32 {
     if duration <= 0.0 {
@@ -1142,5 +1227,47 @@ mod tests {
         let style = SharedStyle { height_pct: Some(50.0), ..Default::default() };
         let h = style.resolved_height_pct(300.0).unwrap();
         assert!((h - 150.0).abs() < 1e-4, "50% of 300 = 150, got {h}");
+    }
+
+    // ── distribution_spacing pure-math tests ────────────────────────────────
+
+    #[test]
+    fn dist_between_equal_gaps() {
+        // avail=400, W=100, n=3 → slack=300, L=0, G=150
+        let (l, g) = distribution_spacing(Distribution::SpaceBetween, 300.0, 3, 0.0);
+        assert!((l - 0.0).abs() < 1e-4, "between: L should be 0, got {l}");
+        assert!((g - 150.0).abs() < 1e-4, "between: G should be 150, got {g}");
+    }
+
+    #[test]
+    fn dist_around_equal_margin() {
+        // slack=300, n=3 → L=50, G=100
+        let (l, g) = distribution_spacing(Distribution::SpaceAround, 300.0, 3, 0.0);
+        assert!((l - 50.0).abs() < 1e-4, "around: L should be 50, got {l}");
+        assert!((g - 100.0).abs() < 1e-4, "around: G should be 100, got {g}");
+    }
+
+    #[test]
+    fn dist_evenly_equal_everywhere() {
+        // slack=400, n=3 → L=G=100
+        let (l, g) = distribution_spacing(Distribution::SpaceEvenly, 400.0, 3, 0.0);
+        assert!((l - 100.0).abs() < 1e-4, "evenly: L should be 100, got {l}");
+        assert!((g - 100.0).abs() < 1e-4, "evenly: G should be 100, got {g}");
+    }
+
+    #[test]
+    fn dist_single_item_centers_for_around_evenly() {
+        // n=1, around/evenly: L = slack/2
+        let (l_around, _) = distribution_spacing(Distribution::SpaceAround, 200.0, 1, 0.0);
+        let (l_evenly, _) = distribution_spacing(Distribution::SpaceEvenly, 200.0, 1, 0.0);
+        assert!((l_around - 100.0).abs() < 1e-4, "around n=1: L=100, got {l_around}");
+        assert!((l_evenly - 100.0).abs() < 1e-4, "evenly n=1: L=100, got {l_evenly}");
+    }
+
+    #[test]
+    fn dist_zero_slack_uses_min_gap() {
+        let (l, g) = distribution_spacing(Distribution::SpaceBetween, 0.0, 3, 8.0);
+        assert!((l - 0.0).abs() < 1e-4, "zero slack: L=0, got {l}");
+        assert!((g - 8.0).abs() < 1e-4, "zero slack: G=min_gap=8, got {g}");
     }
 }
