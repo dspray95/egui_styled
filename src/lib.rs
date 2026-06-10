@@ -34,6 +34,7 @@ pub use containers::area::StyledArea;
 pub use containers::column::StyledColumn;
 pub use containers::frame::StyledFrame;
 pub use containers::row::StyledRow;
+pub use containers::spacer::StyledSpacer;
 pub use containers::stack::StyledStack;
 pub use style::shared_style::{BackgroundImageFit, Shadow};
 pub use theme::StyledTheme;
@@ -89,6 +90,13 @@ impl Styled {
     /// Start a styled vertical layout. Pair with `.gap(...)` for spacing.
     pub fn column() -> StyledColumn {
         StyledColumn::new()
+    }
+
+    /// A flexible spacer that consumes all remaining main-axis space in the
+    /// current layout, pushing following siblings to the far edge.
+    /// Only meaningful inside a bounded container (`full_width`/`full_height`/fixed).
+    pub fn spacer() -> StyledSpacer {
+        StyledSpacer::new()
     }
 
     /// Start a stack (overlay) container. All children share a common origin

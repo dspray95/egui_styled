@@ -64,6 +64,13 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
+            /// Text/foreground colour while the pointer is hovering. Falls back
+            /// to [`text_color`](Self::text_color) when unset.
+            pub fn hover_text_color(mut self, color: egui::Color32) -> Self {
+                self.style.hover_text_color = Some(color);
+                self
+            }
+
             /// Set the label font size in points. On widgets with a dedicated
             /// `font` builder, an explicit `font` takes precedence.
             pub fn font_size(mut self, size: f32) -> Self {

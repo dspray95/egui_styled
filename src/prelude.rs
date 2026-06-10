@@ -31,5 +31,6 @@ pub use crate::StyledImage;
 pub use crate::StyledLabel;
 pub use crate::StyledRow;
 pub use crate::StyledSlider;
+pub use crate::StyledSpacer;
 pub use crate::StyledStack;
 pub use crate::StyledTextEdit;
