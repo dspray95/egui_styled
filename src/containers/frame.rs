@@ -194,6 +194,15 @@ impl StyledFrame {
             let avail_h = ui.available_height();
             let pct_w = style_for_pct.resolved_width_pct(avail_w);
             let pct_h = style_for_pct.resolved_height_pct(avail_h);
+            // Compute effective definite width for aspect ratio derivation.
+            let effective_w = pct_w.or_else(|| {
+                if full_width {
+                    Some(max_width.map_or(avail_w, |m| avail_w.min(m)))
+                } else {
+                    None
+                }
+            });
+            let aspect_h = effective_w.and_then(|w| style_for_pct.resolved_aspect_height(w));
 
             if let Some(w) = pct_w {
                 // Definite width: pin both min and max; supersedes full_width.
@@ -215,14 +224,18 @@ impl StyledFrame {
             }
 
             // Capture fill_height for vertical justify *before* set_min_height
-            // changes the available size. Precedence: fill_size > height_pct > full_height.
+            // changes the available size. Precedence: fill_size > height_pct > aspect > full_height.
             let fill_height_val: Option<f32> = fill_size
                 .map(|s| s.y)
                 .or(pct_h)
+                .or(aspect_h)
                 .or(if full_height { Some(avail_h) } else { None });
 
             if let Some(h) = pct_h {
                 // Definite height: pin both min and max; supersedes full_height.
+                ui.set_min_height(h);
+                ui.set_max_height(h);
+            } else if let Some(h) = aspect_h {
                 ui.set_min_height(h);
                 ui.set_max_height(h);
             } else {

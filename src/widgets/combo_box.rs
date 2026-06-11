@@ -70,15 +70,16 @@ impl StyledComboBox {
 
                     let mut cb =
                         ComboBox::from_id_salt(self.id_source).selected_text(selected_text);
-                    // Resolve width: pct supersedes explicit .width(), which supersedes default.
-                    if let Some(w) = self.style.resolved_width_pct(ui.available_width()) {
+                    // Resolve width via the centralized resolver; explicit .width()
+                    // takes precedence over style-based sizing.
+                    let sz = self.style.resolve_size(ui.available_width(), ui.available_height());
+                    if let Some(w) = self.width {
                         cb = cb.width(w);
-                    } else if let Some(w) = self.width {
+                    } else if let Some(w) = sz.definite_w.or(sz.min_w) {
                         cb = cb.width(w);
-                    } else if self.style.full_width {
-                        cb = cb.width(ui.available_width());
-                    } else if let Some(w) = self.style.min_width {
-                        cb = cb.width(w);
+                    }
+                    if let Some(w) = sz.max_w {
+                        ui.set_max_width(w);
                     }
 
                     let mut wrapper = egui::Frame::new();

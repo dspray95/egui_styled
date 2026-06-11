@@ -329,6 +329,14 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
+            /// Derive height from width (width ÷ height, e.g. `16.0/9.0`).
+            /// Requires a definite width (`width_pct` or `full_width`); no-op otherwise.
+            /// Overridden by an explicit `height_pct` or `full_height`.
+            pub fn aspect_ratio(mut self, ratio: f32) -> Self {
+                self.style.aspect_ratio = Some(ratio);
+                self
+            }
+
             // --- Interaction ---
 
             /// Set the cursor icon shown while hovering the widget.
@@ -419,4 +427,53 @@ macro_rules! __impl_style_builders_body {
 
         impl $($gen)* $crate::apply::Apply for $ty {}
     };
+}
+
+#[cfg(test)]
+mod tests {
+    /// Compile-time coverage: every SharedStyle field must have a builder here.
+    /// Add a call below whenever you add a field to SharedStyle. This test fails
+    /// to COMPILE (not at runtime) if a builder is missing.
+    #[test]
+    fn all_shared_builders_compile() {
+        use crate::Styled;
+        let _ = Styled::frame()
+            .bg(egui::Color32::RED)
+            .hover_bg(egui::Color32::RED)
+            .active_bg(egui::Color32::RED)
+            .focus_bg(egui::Color32::RED)
+            .accent(egui::Color32::RED)
+            .hover_accent(egui::Color32::RED)
+            .text_color(egui::Color32::RED)
+            .hover_text_color(egui::Color32::RED)
+            .font_size(14.0)
+            .border(1.0, egui::Color32::RED)
+            .hover_border(1.0, egui::Color32::RED)
+            .focus_border(1.0, egui::Color32::RED)
+            .border_top(1.0, egui::Color32::RED)
+            .border_right(1.0, egui::Color32::RED)
+            .border_bottom(1.0, egui::Color32::RED)
+            .border_left(1.0, egui::Color32::RED)
+            .corner_radius(4.0)
+            .padding(8.0)
+            .margin_top(4.0)
+            .margin_bottom(4.0)
+            .margin_left(4.0)
+            .margin_right(4.0)
+            .full_width()
+            .full_height()
+            .min_width(10.0)
+            .max_width(100.0)
+            .min_height(10.0)
+            .max_height(100.0)
+            .width_pct(50.0)
+            .height_pct(50.0)
+            .aspect_ratio(1.0)
+            .cursor(egui::CursorIcon::Default)
+            .visible(true)
+            .shadow(egui::Vec2::ZERO, 1.0, egui::Color32::BLACK)
+            .shadow_filled(egui::Vec2::ZERO, egui::Color32::BLACK);
+        // font_id: set via widget-specific .font() builder — intentional omission.
+        // background_image_fade_content: set via .reveal_with_background_image() — intentional alias.
+    }
 }

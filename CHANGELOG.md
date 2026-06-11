@@ -5,25 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-06-10
+
+### Added
+
+- **`StyledSpacer`** (`Styled::spacer()`) - a flexible spacer that consumes all remaining main-axis space in the current layout, pushing following siblings to the far edge. Only meaningful inside a bounded container (`full_width` / `full_height` / fixed). Works for both horizontal (inside `StyledRow`) and vertical (inside `StyledColumn`) axes.
+
+- **Percentage sizing** - `width_pct(pct: f32)` and `height_pct(pct: f32)` builders on every styled type. Resolve to a definite size as a percentage of the parent's available width/height at render time, superseding `full_width` / `full_height`. Composed with `min_width` / `max_width` / `min_height` / `max_height` as clamps after resolution.
+
+- **`WrappingRow`** (`Styled::row().wrap()`) - a horizontal row whose children flow onto new lines when they run out of width (CSS `flex-wrap: wrap`). Uses a cross-frame invisible-measurement pass to record each item's natural width, then places items on lines manually. This works correctly with `Styled::button`, `Styled::label`, and other scope-isolated styled widgets that egui's native `with_main_wrap` can't wrap. Built via an item API: `.item(|ui| { ... })` chains return `WrappingRow`; `.show(ui)` renders.
+
+- **Distribution** - three CSS justify-content modes on `StyledRow`, each returning a `DistributedRow` with the same `.item(fn).show(ui)` API:
+  - `space_between()` - items pinned to both ends, equal gaps between items.
+  - `space_around()` - equal space on each side of each item (half-gap at edges).
+  - `space_evenly()` - equal space before, between, and after every item (same gap everywhere).
+  `DistributedRow` measures item widths cross-frame (invisible first pass), computes slack, and places items with `allocate_ui_with_layout`. Inherits `gap` as a minimum gap floor and all box styling from the originating `StyledRow`.
+
+- **Aspect ratio** - `aspect_ratio(ratio: f32)` builder on every styled type (width ÷ height, CSS convention: `16.0/9.0` is a wide box). Derives height from a resolved definite width (`width_pct` or `full_width`); no-op when no definite width is available. Height precedence: `fill_size` > `height_pct` > **aspect-derived** > `full_height`. Clamped by `min_height` / `max_height`.
+
+- **`hover_text_color` builder** on every styled type. Previously `SharedStyle` had the field but the builder was never added to the macro, so it was impossible to set without constructing `SharedStyle` directly.
+
+- **Centralized size resolution** via `SharedStyle::resolve_size` — one method encodes the full sizing precedence for all widgets and containers. All leaf widgets (`StyledButton`, `StyledLabel`, `StyledSlider`, `StyledCheckbox`, `StyledComboBox`, `StyledTextEdit`, `StyledImage`) now delegate through it, closing the class of bug where a new `SharedStyle` field works on frames but is silently ignored on interactive widgets.
+
+- **`max_width` and `max_height` now honored on all leaf widgets.** `StyledButton`, `StyledLabel`, `StyledSlider`, `StyledCheckbox` previously accepted these builders but applied them only on containers. They now pin a hard upper bound on the widget's allocated size.
+
+- **`aspect_ratio` now honored on all interactive widgets.** Previously `aspect_ratio` only applied to `StyledFrame` (and containers). It now works on every styled widget via the centralized resolver.
+
+- **Builder coverage compile-test** in `style_builders.rs`. Running `cargo test --lib` will fail at compile time if a `SharedStyle` field is added without a corresponding builder method in the macro.
+
+### Fixed
+
+- **`aspect_ratio` was silently ignored on `StyledImage`.** The image widget had a bespoke size-resolution block that never called `resolved_aspect_height`. It now delegates to `resolve_size` like every other leaf widget.
+
+- **`full_width` / `width_pct` in a floating `StyledArea` (without `fill_screen`) no longer sets `min_width` to infinity.** Non-fill-screen areas expose an unbounded available width to their children; percentage and full-width sizing now degrades gracefully to content-sized in that context.
+
+### Changed
+
+- **`StyledRow::wrap()`** now returns `WrappingRow` instead of `StyledRow` with a `wrap: bool` flag. The new `WrappingRow` requires the item-based API (`.item(fn).show(ui)`); the old closure-based `.show(ui, |ui| { ... })` is no longer available on wrapping rows. Plain (non-wrapping) `StyledRow::show` is unchanged.
+- **`StyledRow::space_between()` / `space_around()` / `space_evenly()`** return `DistributedRow` instead of `StyledRow`. These previously existed as layout hints and did nothing; they are now fully implemented.
+
 ## [0.5.5] - 2026-06-05
 
 ### Added
 
 - **CSS-style per-side borders** on every styled type. New builders `border_top` / `border_right` / `border_bottom` / `border_left`, plus the convenience pairs `border_x` (left + right) and `border_y` (top + bottom), and matching `hover_border_*` / `focus_border_*` variants. Each unset side falls back to the uniform `border` for the same state (and then egui's default), following the same `focus > hover > base` precedence as the existing border. Works on `StyledFrame` and the containers that delegate to it (`StyledColumn`, `StyledRow`, `StyledStack`) as well as the interactive widgets (`StyledButton`, `StyledCheckbox`, `StyledComboBox`, `StyledImage`, `StyledLabel`, `StyledSlider`, `StyledTextEdit`).
 
-  The uniform-border path is unchanged: per-side painting only activates when a side override is actually set, so existing borders (including their corner-radius rounding) render exactly as before. Note that partial borders are drawn as straight edges and do **not** follow `corner_radius` rounding — egui has no per-side rounded-stroke primitive.
+  The uniform-border path is unchanged: per-side painting only activates when a side override is actually set, so existing borders (including their corner-radius rounding) render exactly as before. Note that partial borders are drawn as straight edges and do **not** follow `corner_radius` rounding - egui has no per-side rounded-stroke primitive.
 
 ## [0.5.4] - 2026-06-04
 
 ### Fixed
 
-- **`StyledColumn` now delegates `align` / `justify` / `gap` to its `StyledFrame`** when it has box styling, instead of running its own `with_layout(...).with_main_align(...)` (the no-op the frame's vertical spacer replaces). Previously `Styled::column().bg(c).full_height().justify(Center)` never centered vertically because the column bypassed the spacer added in 0.5.3. `StyledRow` keeps its own `left_to_right` layout — a row's main axis is horizontal, which the (top-down) frame spacer doesn't apply to — and continues to delegate only box styling.
+- **`StyledColumn` now delegates `align` / `justify` / `gap` to its `StyledFrame`** when it has box styling, instead of running its own `with_layout(...).with_main_align(...)` (the no-op the frame's vertical spacer replaces). Previously `Styled::column().bg(c).full_height().justify(Center)` never centered vertically because the column bypassed the spacer added in 0.5.3. `StyledRow` keeps its own `left_to_right` layout - a row's main axis is horizontal, which the (top-down) frame spacer doesn't apply to - and continues to delegate only box styling.
 
 ## [0.5.3] - 2026-06-04
 
 ### Added
 
-- **`full_height()` builder** on every styled container. Mirrors `full_width` — stretches the container to fill the parent's available height. Available on `StyledFrame`, `StyledRow`, `StyledColumn`, `StyledArea`, and `StyledStack`.
+- **`full_height()` builder** on every styled container. Mirrors `full_width` - stretches the container to fill the parent's available height. Available on `StyledFrame`, `StyledRow`, `StyledColumn`, `StyledArea`, and `StyledStack`.
 
 - **`min_width` / `max_width` / `min_height` / `max_height` now applied by container frames.** The builders already existed on `SharedStyle` and worked on leaf widgets (button, label, slider) but were silently ignored by `StyledFrame` and the containers that use it (`StyledRow`, `StyledColumn`, `StyledArea`). They are now applied inside the layout closure so `.max_width(200.0)` on a frame actually caps it. `max_*` is applied before `full_width` / `full_height` so those read the already-capped available size; `min_*` is applied last so explicit minimums always win.
 
@@ -33,7 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **`bg` fill now paints immediately while a `background_image` texture is loading.** Previously, when both `.bg(color)` and `.background_image(...)` were set, the fill was withheld until the texture finished decoding — the app's clear color showed through during the load window. The fill now paints from the first frame; the image appears on top once ready. Fade paths (`background_image_fade_in`, `reveal_with_background_image`) and the no-image path are unchanged.
+- **`bg` fill now paints immediately while a `background_image` texture is loading.** Previously, when both `.bg(color)` and `.background_image(...)` were set, the fill was withheld until the texture finished decoding - the app's clear color showed through during the load window. The fill now paints from the first frame; the image appears on top once ready. Fade paths (`background_image_fade_in`, `reveal_with_background_image`) and the no-image path are unchanged.
 
 ## [0.5.1] - 2026-06-04
 

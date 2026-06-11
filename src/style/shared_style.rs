@@ -456,6 +456,10 @@ pub struct SharedStyle {
     /// When set, resolves to a definite size and supersedes `full_height`.
     /// Composed with `min_height`/`max_height` as clamps after resolution.
     pub height_pct: Option<f32>,
+    /// Width-to-height ratio (CSS convention: `16.0/9.0` is a wide box).
+    /// Derives height from a resolved definite width (`width_pct` or `full_width`).
+    /// No-op when no definite width is available. Overridden by `height_pct`/`full_height`.
+    pub aspect_ratio: Option<f32>,
 
     // Cursor
     pub cursor_icon: Option<CursorIcon>,
@@ -482,6 +486,56 @@ pub struct SharedStyle {
     /// (same timing) instead of rendering immediately over the backdrop. Set via
     /// `reveal_with_background_image`. The `bg` fill stays opaque.
     pub background_image_fade_content: bool,
+}
+
+/// Output of [`SharedStyle::resolve_size`] — pre-computed dimensions for all
+/// sizing properties. Pass to [`ResolvedSize::apply_to_ui`] or inspect
+/// individual fields for widget-specific sizing APIs (e.g. `cb.width()`).
+pub struct ResolvedSize {
+    /// Definite width — both min and max should be pinned to this value.
+    /// Produced by `width_pct` or `full_width` (capped by `max_width`).
+    pub definite_w: Option<f32>,
+    /// Definite height — both min and max should be pinned to this value.
+    /// Produced by `height_pct`, `aspect_ratio`, or `full_height`.
+    pub definite_h: Option<f32>,
+    /// Pass-through minimum width (only set when `definite_w` is `None`).
+    pub min_w: Option<f32>,
+    /// Pass-through maximum width (only set when `definite_w` is `None`).
+    pub max_w: Option<f32>,
+    /// Pass-through minimum height (only set when `definite_h` is `None`).
+    pub min_h: Option<f32>,
+    /// Pass-through maximum height (only set when `definite_h` is `None`).
+    pub max_h: Option<f32>,
+}
+
+impl ResolvedSize {
+    /// Apply all sizing constraints to a `Ui`. Definite values pin both min
+    /// and max; otherwise max is applied first so `full_width` reads the
+    /// capped available size, then min.
+    pub fn apply_to_ui(&self, ui: &mut egui::Ui) {
+        if let Some(w) = self.definite_w {
+            ui.set_min_width(w);
+            ui.set_max_width(w);
+        } else {
+            if let Some(w) = self.max_w {
+                ui.set_max_width(w);
+            }
+            if let Some(w) = self.min_w {
+                ui.set_min_width(w);
+            }
+        }
+        if let Some(h) = self.definite_h {
+            ui.set_min_height(h);
+            ui.set_max_height(h);
+        } else {
+            if let Some(h) = self.max_h {
+                ui.set_max_height(h);
+            }
+            if let Some(h) = self.min_h {
+                ui.set_min_height(h);
+            }
+        }
+    }
 }
 
 /// Concrete style values for one interaction state after resolving pseudo-state
@@ -543,6 +597,21 @@ impl SharedStyle {
         })
     }
 
+    /// Derive height from `aspect_ratio` and a known definite width.
+    /// Returns `None` when unset or `ratio <= 0`. Clamped by `min_height`/`max_height`.
+    pub fn resolved_aspect_height(&self, width: f32) -> Option<f32> {
+        self.aspect_ratio.filter(|&r| r > 0.0).map(|r| {
+            let mut h = width / r;
+            if let Some(m) = self.max_height {
+                h = h.min(m);
+            }
+            if let Some(m) = self.min_height {
+                h = h.max(m);
+            }
+            h
+        })
+    }
+
     /// Resolve `height_pct` to a definite height in points, clamped by
     /// `min_height`/`max_height`. `avail` should be `ui.available_height()`
     /// captured before any sizing mutations. Returns `None` when unset.
@@ -557,6 +626,48 @@ impl SharedStyle {
             }
             h
         })
+    }
+
+    /// Centralized size resolver. Encodes the full sizing precedence for all
+    /// styled widgets:
+    /// - Width: `width_pct` > `full_width` (capped by `max_width`) > pass-through `min/max_width`
+    /// - Height: `height_pct` > `aspect_ratio` (from definite width) > `full_height` > pass-through
+    ///
+    /// Non-finite `avail` values (floating [`StyledArea`] without `fill_screen`)
+    /// are clamped to `0.0`, so `full_width`/`width_pct` degrade to content-sized
+    /// rather than setting an infinite minimum width.
+    pub fn resolve_size(&self, avail_w: f32, avail_h: f32) -> ResolvedSize {
+        let avail_w = if avail_w.is_finite() { avail_w } else { 0.0 };
+        let avail_h = if avail_h.is_finite() { avail_h } else { 0.0 };
+
+        let definite_w = if let Some(w) = self.resolved_width_pct(avail_w) {
+            Some(w)
+        } else if self.full_width && avail_w > 0.0 {
+            let w = self.max_width.map_or(avail_w, |m| avail_w.min(m));
+            Some(self.min_width.map_or(w, |m| w.max(m)))
+        } else {
+            None
+        };
+
+        let definite_h = if let Some(h) = self.resolved_height_pct(avail_h) {
+            Some(h)
+        } else if let Some(dw) = definite_w {
+            self.resolved_aspect_height(dw)
+        } else if self.full_height && avail_h > 0.0 {
+            let h = self.max_height.map_or(avail_h, |m| avail_h.min(m));
+            Some(self.min_height.map_or(h, |m| h.max(m)))
+        } else {
+            None
+        };
+
+        ResolvedSize {
+            definite_w,
+            definite_h,
+            min_w: if definite_w.is_none() { self.min_width } else { None },
+            max_w: if definite_w.is_none() { self.max_width } else { None },
+            min_h: if definite_h.is_none() { self.min_height } else { None },
+            max_h: if definite_h.is_none() { self.max_height } else { None },
+        }
     }
 
     /// Resolve against current pseudo-state and egui's active visuals.
@@ -1195,7 +1306,10 @@ mod tests {
 
     #[test]
     fn resolved_width_pct_half_of_avail() {
-        let style = SharedStyle { width_pct: Some(50.0), ..Default::default() };
+        let style = SharedStyle {
+            width_pct: Some(50.0),
+            ..Default::default()
+        };
         let w = style.resolved_width_pct(400.0).unwrap();
         assert!((w - 200.0).abs() < 1e-4, "50% of 400 = 200, got {w}");
     }
@@ -1208,7 +1322,10 @@ mod tests {
             ..Default::default()
         };
         let w = style.resolved_width_pct(400.0).unwrap();
-        assert!((w - 120.0).abs() < 1e-4, "50% of 400 clamped to max_width 120, got {w}");
+        assert!(
+            (w - 120.0).abs() < 1e-4,
+            "50% of 400 clamped to max_width 120, got {w}"
+        );
     }
 
     #[test]
@@ -1219,12 +1336,18 @@ mod tests {
             ..Default::default()
         };
         let w = style.resolved_width_pct(400.0).unwrap();
-        assert!((w - 80.0).abs() < 1e-4, "10% of 400=40 raised to min_width 80, got {w}");
+        assert!(
+            (w - 80.0).abs() < 1e-4,
+            "10% of 400=40 raised to min_width 80, got {w}"
+        );
     }
 
     #[test]
     fn resolved_height_pct_half_of_avail() {
-        let style = SharedStyle { height_pct: Some(50.0), ..Default::default() };
+        let style = SharedStyle {
+            height_pct: Some(50.0),
+            ..Default::default()
+        };
         let h = style.resolved_height_pct(300.0).unwrap();
         assert!((h - 150.0).abs() < 1e-4, "50% of 300 = 150, got {h}");
     }
@@ -1236,7 +1359,10 @@ mod tests {
         // avail=400, W=100, n=3 → slack=300, L=0, G=150
         let (l, g) = distribution_spacing(Distribution::SpaceBetween, 300.0, 3, 0.0);
         assert!((l - 0.0).abs() < 1e-4, "between: L should be 0, got {l}");
-        assert!((g - 150.0).abs() < 1e-4, "between: G should be 150, got {g}");
+        assert!(
+            (g - 150.0).abs() < 1e-4,
+            "between: G should be 150, got {g}"
+        );
     }
 
     #[test]
@@ -1260,8 +1386,14 @@ mod tests {
         // n=1, around/evenly: L = slack/2
         let (l_around, _) = distribution_spacing(Distribution::SpaceAround, 200.0, 1, 0.0);
         let (l_evenly, _) = distribution_spacing(Distribution::SpaceEvenly, 200.0, 1, 0.0);
-        assert!((l_around - 100.0).abs() < 1e-4, "around n=1: L=100, got {l_around}");
-        assert!((l_evenly - 100.0).abs() < 1e-4, "evenly n=1: L=100, got {l_evenly}");
+        assert!(
+            (l_around - 100.0).abs() < 1e-4,
+            "around n=1: L=100, got {l_around}"
+        );
+        assert!(
+            (l_evenly - 100.0).abs() < 1e-4,
+            "evenly n=1: L=100, got {l_evenly}"
+        );
     }
 
     #[test]
@@ -1269,5 +1401,80 @@ mod tests {
         let (l, g) = distribution_spacing(Distribution::SpaceBetween, 0.0, 3, 8.0);
         assert!((l - 0.0).abs() < 1e-4, "zero slack: L=0, got {l}");
         assert!((g - 8.0).abs() < 1e-4, "zero slack: G=min_gap=8, got {g}");
+    }
+
+    #[test]
+    fn resolved_aspect_height_none_when_unset() {
+        let s = SharedStyle::default();
+        assert!(s.resolved_aspect_height(200.0).is_none());
+    }
+
+    #[test]
+    fn resolved_aspect_height_none_when_ratio_zero_or_negative() {
+        let s = SharedStyle { aspect_ratio: Some(0.0), ..Default::default() };
+        assert!(s.resolved_aspect_height(200.0).is_none());
+        let s2 = SharedStyle { aspect_ratio: Some(-1.0), ..Default::default() };
+        assert!(s2.resolved_aspect_height(200.0).is_none());
+    }
+
+    #[test]
+    fn resolved_aspect_height_basic() {
+        let s = SharedStyle { aspect_ratio: Some(2.0), ..Default::default() };
+        assert!((s.resolved_aspect_height(200.0).unwrap() - 100.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn resolved_aspect_height_16_9() {
+        let s = SharedStyle { aspect_ratio: Some(16.0 / 9.0), ..Default::default() };
+        let h = s.resolved_aspect_height(320.0).unwrap();
+        assert!((h - 180.0).abs() < 1e-3, "16:9 of 320 → 180, got {h}");
+    }
+
+    #[test]
+    fn resolved_aspect_height_clamped_by_max() {
+        let s = SharedStyle { aspect_ratio: Some(1.0), max_height: Some(50.0), ..Default::default() };
+        assert!((s.resolved_aspect_height(200.0).unwrap() - 50.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn resolved_aspect_height_floored_by_min() {
+        let s = SharedStyle { aspect_ratio: Some(10.0), min_height: Some(80.0), ..Default::default() };
+        // width/ratio = 200/10 = 20, but min_height floors to 80
+        assert!((s.resolved_aspect_height(200.0).unwrap() - 80.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn resolve_size_width_pct_50_on_400() {
+        let s = SharedStyle {
+            width_pct: Some(50.0),
+            ..Default::default()
+        };
+        let sz = s.resolve_size(400.0, 300.0);
+        assert!((sz.definite_w.unwrap() - 200.0).abs() < 1e-4);
+        assert!(sz.definite_h.is_none());
+    }
+
+    #[test]
+    fn resolve_size_aspect_from_pct() {
+        let s = SharedStyle {
+            width_pct: Some(50.0),
+            aspect_ratio: Some(2.0),
+            ..Default::default()
+        };
+        let sz = s.resolve_size(400.0, 300.0);
+        // width = 50% of 400 = 200; height = 200/2 = 100
+        assert!((sz.definite_w.unwrap() - 200.0).abs() < 1e-4);
+        assert!((sz.definite_h.unwrap() - 100.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn resolve_size_non_finite_avail_produces_no_definite() {
+        let s = SharedStyle {
+            full_width: true,
+            ..Default::default()
+        };
+        let sz = s.resolve_size(f32::INFINITY, f32::INFINITY);
+        assert!(sz.definite_w.is_none());
+        assert!(sz.definite_h.is_none());
     }
 }

@@ -346,4 +346,32 @@ mod tests {
             "after shrinking, content center y={sy} should track screen center y={sscy}"
         );
     }
+
+    #[test]
+    #[allow(deprecated)]
+    fn full_width_child_in_non_fill_screen_area_does_not_balloon() {
+        use crate::Styled;
+        let ctx = Context::default();
+
+        let mut widths = vec![];
+        for _ in 0..2 {
+            let raw = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))),
+                ..Default::default()
+            };
+            let _ = ctx.run(raw, |ctx| {
+                StyledArea::new().id("balloon_test").show(ctx, |ui| {
+                    let resp = Styled::button("test").full_width().show(ui);
+                    widths.push(resp.rect.width());
+                });
+            });
+        }
+
+        for &w in &widths {
+            assert!(
+                w.is_finite() && w < 800.0,
+                "full_width in a non-fill_screen area should not balloon: width={w}"
+            );
+        }
+    }
 }

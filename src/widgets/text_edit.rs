@@ -117,10 +117,15 @@ impl<'a> StyledTextEdit<'a> {
                     }
                     if let Some(width) = self.desired_width {
                         text_edit = text_edit.desired_width(width);
-                    } else if let Some(w) = self.style.resolved_width_pct(ui.available_width()) {
-                        text_edit = text_edit.desired_width(w);
-                    } else if self.style.full_width {
-                        text_edit = text_edit.desired_width(ui.available_width());
+                    } else {
+                        let sz =
+                            self.style.resolve_size(ui.available_width(), ui.available_height());
+                        if let Some(w) = sz.definite_w.or(sz.min_w) {
+                            text_edit = text_edit.desired_width(w);
+                        }
+                        if let Some(w) = sz.max_w {
+                            ui.set_max_width(w);
+                        }
                     }
 
                     // Pass a fully-built custom Frame so egui skips its own visuals

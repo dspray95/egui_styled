@@ -304,33 +304,72 @@ fn layout_demo(ui: &mut egui::Ui) {
 
         ui.separator();
 
-        // ── Combining spacer + percentage ─────────────────────────────────
-        Styled::label("Combining distribution + percentage")
+        // ── Aspect ratio ──────────────────────────────────────────────────
+        Styled::label("Aspect ratio")
             .font_size(16.0)
             .text_color(fg)
             .bold()
             .show(ui);
-        Styled::label("Search bar at 60% width, centered via space_around (single item)")
+        Styled::label("width_pct(60).aspect_ratio(16.0/9.0) — resize to see height track width")
+            .font_size(12.0)
+            .text_color(dim)
+            .show(ui);
+
+        Styled::frame()
+            .width_pct(60.0)
+            .aspect_ratio(16.0 / 9.0)
+            .bg(card_bg)
+            .corner_radius(6.0)
+            .show(ui, |ui| {
+                Styled::label("16 : 9").text_color(dim).show(ui);
+            });
+
+        Styled::label("width_pct(30).aspect_ratio(1.0) — square frame")
+            .font_size(12.0)
+            .text_color(dim)
+            .show(ui);
+
+        Styled::frame()
+            .width_pct(30.0)
+            .aspect_ratio(1.0)
+            .bg(card_bg)
+            .corner_radius(6.0)
+            .show(ui, |ui| {
+                Styled::label("1 : 1").text_color(dim).show(ui);
+            });
+
+        ui.separator();
+
+        // ── Combining alignment + percentage ──────────────────────────────
+        Styled::label("Combining alignment + percentage")
+            .font_size(16.0)
+            .text_color(fg)
+            .bold()
+            .show(ui);
+        Styled::label("Search bar at 60% width, centered via column align(Center)")
             .font_size(12.0)
             .text_color(dim)
             .show(ui);
 
         let mut search = String::from("Search…");
-        Styled::row()
+        Styled::frame()
             .full_width()
             .bg(card_bg)
             .corner_radius(6.0)
             .padding(10.0)
-            .space_around()
-            .item(|ui| {
-                Styled::text_edit(&mut search)
-                    .width_pct(60.0)
-                    .bg(rgb(28, 30, 45))
-                    .corner_radius(4.0)
-                    .border(1.0, rgb(60, 65, 90))
-                    .show(ui);
-            })
-            .show(ui);
+            .show(ui, |ui| {
+                Styled::column()
+                    .full_width()
+                    .align(egui::Align::Center)
+                    .show(ui, |ui| {
+                        Styled::text_edit(&mut search)
+                            .width_pct(60.0)
+                            .bg(rgb(28, 30, 45))
+                            .corner_radius(4.0)
+                            .border(1.0, rgb(60, 65, 90))
+                            .show(ui);
+                    });
+            });
     });
 }
 
