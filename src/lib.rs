@@ -32,14 +32,17 @@ pub use apply::Apply;
 pub use color::{ColorExt, rgb, rgba};
 pub use containers::area::StyledArea;
 pub use containers::column::StyledColumn;
-pub use containers::frame::StyledFrame;
 pub use containers::distribute::DistributedRow;
+pub use containers::frame::StyledFrame;
 pub use containers::row::StyledRow;
 pub use containers::spacer::StyledSpacer;
+pub use containers::stack::StyledStack;
 pub use containers::wrap::WrappingRow;
 pub use style::shared_style::Distribution;
-pub use containers::stack::StyledStack;
-pub use style::shared_style::{BackgroundImageFit, Shadow};
+pub use style::shared_style::{
+    BackgroundImageFit, BgGradient, BorderGradient, Gradient, GradientAxis, InnerGlow,
+    LinearGradient, Shadow, Sides,
+};
 pub use theme::StyledTheme;
 pub use theme::theme_ext::{DesignSlots, ThemeExt};
 pub use theme::web_palette::WebPalette;

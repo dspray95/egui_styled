@@ -3,7 +3,10 @@ use egui::{Color32, Id, Image, Response, Shape, Ui, Vec2};
 use crate::{
     impl_style_builders,
     state::PseudoState,
-    style::shared_style::{SharedStyle, paint_shadows, paint_side_borders, render_scoped},
+    style::shared_style::{
+        SharedStyle, border_gradient_mesh, gradient_shape, inner_glow_shape, paint_shadows,
+        paint_side_borders, render_scoped,
+    },
 };
 
 /// An inline image widget (icon, portrait, thumbnail) with themed styling.
@@ -122,6 +125,7 @@ impl StyledImage {
 
         let response = render_scoped(ui, visible, |ui| {
             let shadow_idx = ui.painter().add(Shape::Noop);
+            let gradient_idx = ui.painter().add(Shape::Noop);
 
             let current_tint = if pseudo.hovered {
                 self.hover_tint.or(self.tint).unwrap_or(Color32::WHITE)
@@ -156,15 +160,25 @@ impl StyledImage {
                         .apply_to_ui(ui);
                     let resp = ui.add(img);
 
-                    // Paint border on top of the image (Outside so it doesn't
-                    // clip into the texture area). Per-side overrides paint each
-                    // edge as a line segment; otherwise the uniform stroke.
                     let state = if pseudo.hovered {
                         &per.hovered
                     } else {
                         &per.inactive
                     };
-                    if state.has_border_overrides {
+
+                    // Gradient underlay (under image — paint into pre-reserved slot).
+                    if let Some(g) = &state.bg_gradient {
+                        ui.painter().set(
+                            gradient_idx,
+                            gradient_shape(ui.ctx(), resp.rect, per.corner_radius, g),
+                        );
+                    }
+
+                    // Border: gradient > per-side > uniform.
+                    if let Some(bg) = state.border_gradient {
+                        ui.painter()
+                            .add(Shape::Mesh(border_gradient_mesh(resp.rect, bg).into()));
+                    } else if state.has_border_overrides {
                         paint_side_borders(ui.painter(), resp.rect, state.border_sides);
                     } else if state.border != egui::Stroke::NONE {
                         ui.painter().rect_stroke(
@@ -173,6 +187,13 @@ impl StyledImage {
                             state.border,
                             egui::StrokeKind::Outside,
                         );
+                    }
+
+                    // Inner glow (on top of border).
+                    if let Some(glow) = state.inner_glow
+                        && let Some(shape) = inner_glow_shape(resp.rect, per.corner_radius, glow)
+                    {
+                        ui.painter().add(shape);
                     }
 
                     resp

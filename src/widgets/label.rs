@@ -6,7 +6,8 @@ use egui::{
 use crate::{
     impl_style_builders,
     style::shared_style::{
-        ResolvedBorder, SharedStyle, paint_shadows, paint_side_borders, render_scoped,
+        ResolvedBorder, SharedStyle, border_gradient_mesh, gradient_shape, inner_glow_shape,
+        paint_shadows, paint_side_borders, render_scoped,
     },
 };
 
@@ -246,8 +247,18 @@ impl StyledLabel {
             bottom: side_overrides.bottom.unwrap_or(border),
             left: side_overrides.left.unwrap_or(border),
         };
-        // Suppress the frame's uniform stroke when we paint per-side ourselves.
-        let frame_border = if has_border_overrides {
+        let bg_gradient = self.style.bg_gradient.clone();
+        let inner_glow = self.style.inner_glow;
+        let border_gradient = self.style.border_gradient;
+
+        // Suppress frame fill when a gradient is set (underlay slot repaints it).
+        let frame_bg = if bg_gradient.is_some() {
+            egui::Color32::TRANSPARENT
+        } else {
+            bg
+        };
+        // Suppress the frame's uniform stroke when we paint borders ourselves.
+        let frame_border = if has_border_overrides || border_gradient.is_some() {
             Stroke::NONE
         } else {
             border
@@ -263,9 +274,10 @@ impl StyledLabel {
 
         let response = render_scoped(ui, visible, |ui| {
             let shadow_idx = ui.painter().add(Shape::Noop);
+            let gradient_idx = ui.painter().add(Shape::Noop);
 
             let response = egui::Frame::new()
-                .fill(bg)
+                .fill(frame_bg)
                 .stroke(frame_border)
                 .corner_radius(corner_radius)
                 .inner_margin(padding)
@@ -298,9 +310,30 @@ impl StyledLabel {
                 })
                 .inner;
 
-            if has_border_overrides {
+            // Gradient underlay.
+            if let Some(g) = &bg_gradient {
+                let shapes = vec![
+                    Shape::rect_filled(response.rect, corner_radius, bg),
+                    gradient_shape(ui.ctx(), response.rect, corner_radius, g),
+                ];
+                ui.painter().set(gradient_idx, Shape::Vec(shapes));
+            }
+
+            // Border: gradient > per-side > uniform.
+            if let Some(bg) = border_gradient {
+                ui.painter()
+                    .add(Shape::Mesh(border_gradient_mesh(response.rect, bg).into()));
+            } else if has_border_overrides {
                 paint_side_borders(ui.painter(), response.rect, border_sides);
             }
+
+            // Inner glow.
+            if let Some(glow) = inner_glow
+                && let Some(shape) = inner_glow_shape(response.rect, corner_radius, glow)
+            {
+                ui.painter().add(shape);
+            }
+
             paint_shadows(ui, shadow_idx, response.rect, corner_radius, &style_shadows);
             response
         });

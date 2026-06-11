@@ -535,6 +535,39 @@ Glow is the most expensive text primitive — egui has no blur pass, so it's
 approximated by stamping the text many times on a Vogel disk. The
 default quality suits typical UI usage; tune with `.glow_quality(n)` if needed.
 
+### Gradients & glow
+
+Box-level gradient fills, inner glows, and gradient borders are available on
+every styled type, each with `hover_` / `active_` / `focus_` state variants.
+Gradients paint over the solid `bg` (like CSS `background-image` over
+`background-color`) and respect `corner_radius`.
+
+```rust
+// Background gradients — 2-stop, 4-corner, or N-stop
+Styled::frame().bg_gradient_v(top, bottom).show(ui, body);           // vertical
+Styled::frame().bg_gradient_h(left, right).show(ui, body);           // horizontal
+Styled::frame().bg_gradient(tl, tr, bl, br).show(ui, body);          // 4 corners
+Styled::frame()
+    .bg_gradient_stops_h([(0.0, red), (0.5, green), (1.0, blue)])     // N-stop / rainbow
+    .show(ui, body);
+
+// Inner glow — bright at the edge, fading inward (follows the corner radius)
+Styled::button("NEW GAME")
+    .bg(dark)
+    .inner_glow(10.0, gold)
+    .hover_inner_glow(16.0, brighter_gold)
+    .border_gradient(2.0, gold_bright, gold_dim)   // vertically-interpolated border
+    .show(ui);
+
+// Per-side glow — top/bottom/left/right, or x / y / sides
+Styled::frame().inner_glow_y(12.0, accent).show(ui, body);   // top + bottom only
+Styled::frame().inner_glow_left(14.0, accent).show(ui, body);
+```
+
+Background gradients bake into a small cached GPU texture (a 2×2 for corner
+blends, a 256-texel ramp for N-stop), so keep gradient colors from a fixed
+palette rather than animating them per frame. See `examples/gradients.rs`.
+
 ### Images
 
 `egui_styled` never loads or uploads textures itself. The app owns that part:

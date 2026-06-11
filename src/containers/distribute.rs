@@ -42,7 +42,9 @@ impl<'a> DistributedRow<'a> {
             // would read another's cached content width. `next_auto_id` advances
             // per widget and is deterministic across frames (same pattern as the
             // vertical-justify cache in `StyledFrame`).
-            let id = ui.make_persistent_id(ui.next_auto_id()).with("__distribute_w");
+            let id = ui
+                .make_persistent_id(ui.next_auto_id())
+                .with("__distribute_w");
             distribute_row_horizontally(ui, avail, mode, min_gap, n, cross_align, id, |ui| {
                 for item in items.drain(..) {
                     ui.scope(|ui| item(ui));

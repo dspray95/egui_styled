@@ -1,8 +1,8 @@
 use crate::state::PseudoState;
 
 use egui::{
-    Color32, CornerRadius, CursorIcon, FontId, Margin, Rect, Shape, Stroke, Vec2, Visuals, pos2,
-    style::WidgetVisuals,
+    Color32, CornerRadius, CursorIcon, FontId, Margin, Mesh, Rect, Shape, Stroke, Vec2, Visuals,
+    pos2, style::WidgetVisuals,
 };
 
 /// How a `background_image` fills its container rect when the image's intrinsic
@@ -76,6 +76,284 @@ pub fn paint_shadows(
     ui.painter().set(reserve_idx, Shape::Vec(shapes));
 }
 
+/// A 4-corner gradient fill painted behind a widget.
+///
+/// Colors are bilinearly interpolated across the rect using a 2×2 GPU texture,
+/// so `corner_radius` is respected (the tessellator remaps UVs per vertex along
+/// rounded paths). Use [`BgGradient::vertical`] / [`BgGradient::horizontal`] for
+/// the common 2-stop cases.
+///
+/// **Cache note:** each unique set of four colors allocates one 2×2 GPU texture
+/// per egui `Context` for its lifetime. Keep gradient colors from a fixed palette
+/// to avoid unbounded growth.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct BgGradient {
+    pub top_left: Color32,
+    pub top_right: Color32,
+    pub bottom_left: Color32,
+    pub bottom_right: Color32,
+}
+
+impl BgGradient {
+    pub fn corners(tl: Color32, tr: Color32, bl: Color32, br: Color32) -> Self {
+        Self {
+            top_left: tl,
+            top_right: tr,
+            bottom_left: bl,
+            bottom_right: br,
+        }
+    }
+    /// Vertical two-stop gradient (top color → bottom color).
+    pub fn vertical(top: Color32, bottom: Color32) -> Self {
+        Self {
+            top_left: top,
+            top_right: top,
+            bottom_left: bottom,
+            bottom_right: bottom,
+        }
+    }
+    /// Horizontal two-stop gradient (left color → right color).
+    pub fn horizontal(left: Color32, right: Color32) -> Self {
+        Self {
+            top_left: left,
+            top_right: right,
+            bottom_left: left,
+            bottom_right: right,
+        }
+    }
+}
+
+/// The axis a [`LinearGradient`] runs along.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum GradientAxis {
+    /// Top → bottom.
+    Vertical,
+    /// Left → right.
+    Horizontal,
+}
+
+/// A multi-stop linear gradient (e.g. a rainbow) along one axis.
+///
+/// Baked into a 256×1 (or 1×256) GPU texture and sampled with bilinear
+/// filtering, so `corner_radius` is respected just like [`BgGradient`]. Stops are
+/// `(position, color)` pairs with `position` in `0.0..=1.0`; they are sorted on
+/// construction and clamped at the ends.
+///
+/// **Cache note:** each unique stop set allocates one ramp texture per egui
+/// `Context` for its lifetime — keep stops from a fixed palette.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LinearGradient {
+    /// `(position, color)` stops, sorted by position.
+    pub stops: Vec<(f32, Color32)>,
+    pub axis: GradientAxis,
+}
+
+impl LinearGradient {
+    /// Build from arbitrary `(position, color)` stops along `axis`. Stops are
+    /// sorted by position; positions outside `0..=1` are clamped at sample time.
+    pub fn new(stops: impl IntoIterator<Item = (f32, Color32)>, axis: GradientAxis) -> Self {
+        let mut stops: Vec<(f32, Color32)> = stops.into_iter().collect();
+        stops.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+        Self { stops, axis }
+    }
+
+    /// Evenly-spaced stops along `axis` (first at 0.0, last at 1.0).
+    pub fn evenly_spaced(colors: impl IntoIterator<Item = Color32>, axis: GradientAxis) -> Self {
+        let colors: Vec<Color32> = colors.into_iter().collect();
+        let n = colors.len();
+        let stops = colors.into_iter().enumerate().map(|(i, c)| {
+            let pos = if n <= 1 {
+                0.0
+            } else {
+                i as f32 / (n - 1) as f32
+            };
+            (pos, c)
+        });
+        Self::new(stops, axis)
+    }
+
+    /// Sample the gradient at `t` (0.0..=1.0), interpolating between stops in
+    /// gamma space. Clamps to the first/last stop outside the stop range.
+    pub fn sample(&self, t: f32) -> Color32 {
+        match self.stops.as_slice() {
+            [] => Color32::TRANSPARENT,
+            [(_, c)] => *c,
+            stops => {
+                let t = t.clamp(0.0, 1.0);
+                if t <= stops[0].0 {
+                    return stops[0].1;
+                }
+                if t >= stops[stops.len() - 1].0 {
+                    return stops[stops.len() - 1].1;
+                }
+                let hi = stops.iter().position(|s| s.0 >= t).unwrap();
+                let (p0, c0) = stops[hi - 1];
+                let (p1, c1) = stops[hi];
+                let span = (p1 - p0).max(f32::EPSILON);
+                c0.lerp_to_gamma(c1, (t - p0) / span)
+            }
+        }
+    }
+}
+
+impl std::hash::Hash for LinearGradient {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.axis.hash(state);
+        self.stops.len().hash(state);
+        for (pos, color) in &self.stops {
+            pos.to_bits().hash(state);
+            color.hash(state);
+        }
+    }
+}
+
+/// A background gradient — either a 4-corner bilinear blend ([`BgGradient`]) or a
+/// multi-stop linear ramp ([`LinearGradient`]). Paints over the solid `bg` fill.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Gradient {
+    Corners(BgGradient),
+    Linear(LinearGradient),
+}
+
+impl std::hash::Hash for Gradient {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Gradient::Corners(g) => {
+                0u8.hash(state);
+                g.hash(state);
+            }
+            Gradient::Linear(g) => {
+                1u8.hash(state);
+                g.hash(state);
+            }
+        }
+    }
+}
+
+/// An inward glow: bright at the rect edge, fading toward the center.
+///
+/// Rendered as concentric stroke rings using `StrokeKind::Inside`. The
+/// `corner_radius` of the widget is inherited so the glow conforms to rounded
+/// corners.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct InnerGlow {
+    /// Total glow depth in logical pixels (clamped to half the rect's min dimension).
+    pub width: f32,
+    /// Glow color; alpha fades to transparent toward the center.
+    pub color: Color32,
+    /// Which edges the glow is drawn from. [`Sides::ALL`] = a full ring that
+    /// follows the corner radius; any partial selection draws straight bands
+    /// from the chosen edges (corners are not rounded).
+    pub sides: Sides,
+}
+
+impl InnerGlow {
+    /// A full-ring glow (all four sides).
+    pub fn new(width: f32, color: Color32) -> Self {
+        Self {
+            width,
+            color,
+            sides: Sides::ALL,
+        }
+    }
+
+    /// A glow drawn only from the given `sides`.
+    pub fn with_sides(width: f32, color: Color32, sides: Sides) -> Self {
+        Self {
+            width,
+            color,
+            sides,
+        }
+    }
+}
+
+/// A selection of the four rectangle edges, used by per-side [`InnerGlow`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Sides {
+    pub top: bool,
+    pub right: bool,
+    pub bottom: bool,
+    pub left: bool,
+}
+
+impl Sides {
+    /// All four edges.
+    pub const ALL: Sides = Sides {
+        top: true,
+        right: true,
+        bottom: true,
+        left: true,
+    };
+    /// Top and bottom edges only.
+    pub const Y: Sides = Sides {
+        top: true,
+        right: false,
+        bottom: true,
+        left: false,
+    };
+    /// Left and right edges only.
+    pub const X: Sides = Sides {
+        top: false,
+        right: true,
+        bottom: false,
+        left: true,
+    };
+    pub const TOP: Sides = Sides {
+        top: true,
+        right: false,
+        bottom: false,
+        left: false,
+    };
+    pub const RIGHT: Sides = Sides {
+        top: false,
+        right: true,
+        bottom: false,
+        left: false,
+    };
+    pub const BOTTOM: Sides = Sides {
+        top: false,
+        right: false,
+        bottom: true,
+        left: false,
+    };
+    pub const LEFT: Sides = Sides {
+        top: false,
+        right: false,
+        bottom: false,
+        left: true,
+    };
+
+    /// True when every edge is selected.
+    pub fn is_all(&self) -> bool {
+        self.top && self.right && self.bottom && self.left
+    }
+    /// True when at least one edge is selected.
+    pub fn any(&self) -> bool {
+        self.top || self.right || self.bottom || self.left
+    }
+}
+
+/// A border whose color interpolates vertically between `top` and `bottom`.
+///
+/// Rendered as 4 mitered trapezoid meshes (no corner-radius support — same
+/// accepted limitation as per-side borders). `border_gradient` takes precedence
+/// over both uniform `border` and per-side border overrides for the same state.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BorderGradient {
+    /// Border thickness in logical pixels.
+    pub width: f32,
+    /// Color at the top edge of the rect.
+    pub top: Color32,
+    /// Color at the bottom edge of the rect.
+    pub bottom: Color32,
+}
+
+impl BorderGradient {
+    pub fn new(width: f32, top: Color32, bottom: Color32) -> Self {
+        Self { width, top, bottom }
+    }
+}
+
 /// Per-side border overrides. Each side is `None` until the user sets it via a
 /// `border_top` / `border_left` / … builder; an unset side falls back to the
 /// uniform `border` (and then egui's default) at resolve time.
@@ -121,6 +399,429 @@ pub fn paint_side_borders(painter: &egui::Painter, rect: Rect, border: ResolvedB
     line(rect.right_top(), rect.right_bottom(), border.right);
     line(rect.left_bottom(), rect.right_bottom(), border.bottom);
     line(rect.left_top(), rect.left_bottom(), border.left);
+}
+
+/// Retrieve (or create and cache) the 2×2 gradient texture for `g`.
+///
+/// The texture is stored as a temp value in the egui `Context`'s `IdTypeMap`,
+/// keyed by the four corner colors. Each unique color quad allocates one
+/// 2×2 GPU texture per context lifetime; there is no eviction in v1.
+///
+/// **Deadlock note:** `ctx.load_texture` and `ctx.data_mut` both lock the same
+/// `ContextImpl` RwLock (egui 0.34 — read lock vs write lock). Never call
+/// `load_texture` from inside `data_mut`.
+pub fn gradient_texture(ctx: &egui::Context, g: BgGradient) -> egui::TextureHandle {
+    let key = egui::Id::new(("egui_styled::bg_gradient", g));
+    if let Some(handle) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(key)) {
+        return handle;
+    }
+    // Load OUTSIDE data_mut to avoid deadlock.
+    let img = egui::ColorImage::new(
+        [2, 2],
+        vec![g.top_left, g.top_right, g.bottom_left, g.bottom_right],
+    );
+    let handle = ctx.load_texture("egui_styled_bg_gradient", img, egui::TextureOptions::LINEAR);
+    ctx.data_mut(|d| d.insert_temp(key, handle.clone()));
+    handle
+}
+
+/// Build a `Shape` that fills `rect` (respecting `corner_radius`) with the
+/// bilinear gradient described by `g`.
+///
+/// Uses a 2×2 texture with UVs at texel centers `(0.25,0.25)–(0.75,0.75)` so
+/// the visible rect spans the full interpolation zone without clamped-edge bands.
+pub fn bg_gradient_shape(
+    ctx: &egui::Context,
+    rect: Rect,
+    cr: CornerRadius,
+    g: BgGradient,
+) -> Shape {
+    use egui::epaint::RectShape;
+    let tex = gradient_texture(ctx, g);
+    let uv = Rect::from_min_max(pos2(0.25, 0.25), pos2(0.75, 0.75));
+    Shape::Rect(RectShape::filled(rect, cr, Color32::WHITE).with_texture(tex.id(), uv))
+}
+
+/// Number of texels used to bake a [`LinearGradient`] ramp. High enough that
+/// half-texel clamp at the ends is sub-pixel.
+const LINEAR_RAMP_TEXELS: usize = 256;
+
+/// Retrieve (or bake and cache) the ramp texture for a [`LinearGradient`].
+///
+/// Vertical gradients bake to a `1×N` column, horizontal to an `N×1` row. Same
+/// deadlock-safe check-then-load pattern as [`gradient_texture`].
+pub fn linear_gradient_texture(ctx: &egui::Context, g: &LinearGradient) -> egui::TextureHandle {
+    let key = egui::Id::new(("egui_styled::linear_gradient", g));
+    if let Some(handle) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(key)) {
+        return handle;
+    }
+    let n = LINEAR_RAMP_TEXELS;
+    let pixels: Vec<Color32> = (0..n)
+        .map(|i| g.sample((i as f32 + 0.5) / n as f32))
+        .collect();
+    let size = match g.axis {
+        GradientAxis::Vertical => [1, n],
+        GradientAxis::Horizontal => [n, 1],
+    };
+    let img = egui::ColorImage::new(size, pixels);
+    let handle = ctx.load_texture(
+        "egui_styled_linear_gradient",
+        img,
+        egui::TextureOptions::LINEAR,
+    );
+    ctx.data_mut(|d| d.insert_temp(key, handle.clone()));
+    handle
+}
+
+/// Build a `Shape` that fills `rect` (respecting `corner_radius`) with a
+/// multi-stop linear gradient. UVs are inset by half a texel along the gradient
+/// axis so the ramp spans the full interpolation zone without clamped-edge bands.
+pub fn linear_gradient_shape(
+    ctx: &egui::Context,
+    rect: Rect,
+    cr: CornerRadius,
+    g: &LinearGradient,
+) -> Shape {
+    use egui::epaint::RectShape;
+    let tex = linear_gradient_texture(ctx, g);
+    let inset = 0.5 / LINEAR_RAMP_TEXELS as f32;
+    let uv = match g.axis {
+        GradientAxis::Vertical => Rect::from_min_max(pos2(0.0, inset), pos2(1.0, 1.0 - inset)),
+        GradientAxis::Horizontal => Rect::from_min_max(pos2(inset, 0.0), pos2(1.0 - inset, 1.0)),
+    };
+    Shape::Rect(RectShape::filled(rect, cr, Color32::WHITE).with_texture(tex.id(), uv))
+}
+
+/// Build the fill `Shape` for any [`Gradient`], respecting `corner_radius`.
+pub fn gradient_shape(ctx: &egui::Context, rect: Rect, cr: CornerRadius, g: &Gradient) -> Shape {
+    match g {
+        Gradient::Corners(c) => bg_gradient_shape(ctx, rect, cr, *c),
+        Gradient::Linear(l) => linear_gradient_shape(ctx, rect, cr, l),
+    }
+}
+
+/// Build a mitered "picture-frame" ring mesh between `outer` and `inner` rects.
+///
+/// Eight outer corner vertices (indices 0–7) and eight matching inner corner
+/// vertices (indices 8–15) form four trapezoid quads (top / right / bottom /
+/// left), mitered at 45° so adjacent quads share corner vertices without overlap.
+/// Each vertex's color is chosen by `outer_color` / `inner_color`, and the GPU
+/// interpolates linearly across every triangle — giving a smooth (band-free)
+/// gradient across the ring band.
+///
+/// Corner radius is not respected (straight mitered edges).
+fn ring_mesh(
+    outer: Rect,
+    inner: Rect,
+    outer_color: impl Fn(egui::Pos2) -> Color32,
+    inner_color: impl Fn(egui::Pos2) -> Color32,
+) -> Mesh {
+    let mut mesh = Mesh::default();
+
+    // Outer corners (duplicated per shared edge so each quad owns its pair).
+    //
+    //  0---1
+    //  |8-9|
+    // 7|   |2
+    // 6|   |3
+    //  |15 10
+    //  5---4
+    let o = [
+        outer.left_top(),
+        outer.right_top(),
+        outer.right_top(),
+        outer.right_bottom(),
+        outer.right_bottom(),
+        outer.left_bottom(),
+        outer.left_bottom(),
+        outer.left_top(),
+    ];
+    let i = [
+        inner.left_top(),
+        inner.right_top(),
+        inner.right_top(),
+        inner.right_bottom(),
+        inner.right_bottom(),
+        inner.left_bottom(),
+        inner.left_bottom(),
+        inner.left_top(),
+    ];
+
+    for p in &o {
+        mesh.colored_vertex(*p, outer_color(*p));
+    }
+    for p in &i {
+        mesh.colored_vertex(*p, inner_color(*p));
+    }
+
+    // 4 trapezoid quads: top / right / bottom / left.
+    // Each quad: outer[a], outer[b], inner[b], inner[a].
+    let quads: [(u32, u32); 4] = [(0, 1), (2, 3), (4, 5), (6, 7)];
+    for (a, b) in quads {
+        let ia = a + 8;
+        let ib = b + 8;
+        mesh.add_triangle(a, b, ib);
+        mesh.add_triangle(a, ib, ia);
+    }
+
+    mesh
+}
+
+/// Build a smooth ring mesh between a rounded outer outline (`rect` with corner
+/// radius `cr`) and a concentric inner outline inset by `width`.
+///
+/// Both outlines are sampled at the **same** set of arc angles per corner, so
+/// every outer vertex has a matching inner vertex and the band can be stripped
+/// into quads. Each outer vertex is colored by `outer_color`, each inner vertex
+/// by `inner_color`, and the GPU interpolates linearly across the band — no
+/// banding, and the corners follow `cr`.
+///
+/// When `width >= corner_radius` the inner corner radius collapses to 0, so the
+/// rounded outer corner fans smoothly into the sharp inset inner corner.
+fn rounded_ring_mesh(
+    rect: Rect,
+    cr: CornerRadius,
+    width: f32,
+    outer_color: impl Fn(egui::Pos2) -> Color32,
+    inner_color: impl Fn(egui::Pos2) -> Color32,
+) -> Mesh {
+    use std::f32::consts::{FRAC_PI_2, PI};
+
+    let inner = rect.shrink(width);
+    let max_r = (rect.width().min(rect.height()) * 0.5).max(0.0);
+
+    // Per corner: the radius field, the outer/inner rect corners, and the arc's
+    // start angle. Angles sweep clockwise in screen space (y down): a point on
+    // the arc is `center + r * (cos a, sin a)`, and the arc center is the rect
+    // corner pulled inward by the radius.
+    let corners = [
+        (
+            cr.nw,
+            rect.min.x,
+            rect.min.y,
+            inner.min.x,
+            inner.min.y,
+            1.0,
+            1.0,
+            PI,
+        ),
+        (
+            cr.ne,
+            rect.max.x,
+            rect.min.y,
+            inner.max.x,
+            inner.min.y,
+            -1.0,
+            1.0,
+            PI + FRAC_PI_2,
+        ),
+        (
+            cr.se,
+            rect.max.x,
+            rect.max.y,
+            inner.max.x,
+            inner.max.y,
+            -1.0,
+            -1.0,
+            PI + 2.0 * FRAC_PI_2,
+        ),
+        (
+            cr.sw,
+            rect.min.x,
+            rect.max.y,
+            inner.min.x,
+            inner.max.y,
+            1.0,
+            -1.0,
+            PI + 3.0 * FRAC_PI_2,
+        ),
+    ];
+
+    let mut outer_pts: Vec<egui::Pos2> = Vec::new();
+    let mut inner_pts: Vec<egui::Pos2> = Vec::new();
+    for (r_field, ox, oy, ix, iy, sx, sy, a0) in corners {
+        let r_o = (r_field as f32).clamp(0.0, max_r);
+        let r_i = (r_o - width).max(0.0);
+        // Arc centers: corner pulled inward along each axis by the radius.
+        let oc = egui::pos2(ox + sx * r_o, oy + sy * r_o);
+        let ic = egui::pos2(ix + sx * r_i, iy + sy * r_i);
+        let segs = if r_o < 0.5 {
+            0
+        } else {
+            (r_o * 0.5).ceil().clamp(1.0, 16.0) as usize
+        };
+        for k in 0..=segs {
+            let a = a0 + FRAC_PI_2 * (k as f32 / segs.max(1) as f32);
+            let dir = egui::vec2(a.cos(), a.sin());
+            outer_pts.push(oc + r_o * dir);
+            inner_pts.push(ic + r_i * dir);
+        }
+    }
+
+    let n = outer_pts.len() as u32;
+    let mut mesh = Mesh::default();
+    for p in &outer_pts {
+        mesh.colored_vertex(*p, outer_color(*p));
+    }
+    for p in &inner_pts {
+        mesh.colored_vertex(*p, inner_color(*p));
+    }
+    for k in 0..n {
+        let next = (k + 1) % n;
+        let (oa, ob) = (k, next);
+        let (ia, ib) = (n + k, n + next);
+        mesh.add_triangle(oa, ob, ib);
+        mesh.add_triangle(oa, ib, ia);
+    }
+    mesh
+}
+
+/// Add a straight glow band along one edge of `rect` to `mesh`: full `color` at
+/// the outer edge fading to transparent `w` pixels inward.
+fn push_glow_band(mesh: &mut Mesh, rect: Rect, side: Sides, w: f32, color: Color32) {
+    // (outer_a, outer_b, inner_a, inner_b) — outer two carry `color`, inner two transparent.
+    let (oa, ob, ia, ib) = if side == Sides::TOP {
+        (
+            rect.left_top(),
+            rect.right_top(),
+            egui::pos2(rect.left(), rect.top() + w),
+            egui::pos2(rect.right(), rect.top() + w),
+        )
+    } else if side == Sides::BOTTOM {
+        (
+            rect.left_bottom(),
+            rect.right_bottom(),
+            egui::pos2(rect.left(), rect.bottom() - w),
+            egui::pos2(rect.right(), rect.bottom() - w),
+        )
+    } else if side == Sides::LEFT {
+        (
+            rect.left_top(),
+            rect.left_bottom(),
+            egui::pos2(rect.left() + w, rect.top()),
+            egui::pos2(rect.left() + w, rect.bottom()),
+        )
+    } else {
+        // RIGHT
+        (
+            rect.right_top(),
+            rect.right_bottom(),
+            egui::pos2(rect.right() - w, rect.top()),
+            egui::pos2(rect.right() - w, rect.bottom()),
+        )
+    };
+    let base = mesh.vertices.len() as u32;
+    mesh.colored_vertex(oa, color);
+    mesh.colored_vertex(ob, color);
+    mesh.colored_vertex(ia, Color32::TRANSPARENT);
+    mesh.colored_vertex(ib, Color32::TRANSPARENT);
+    mesh.add_triangle(base, base + 1, base + 3);
+    mesh.add_triangle(base, base + 3, base + 2);
+}
+
+/// Build a smooth inner-glow shape: full `color` at the rect edge fading to
+/// transparent `width` pixels inward.
+///
+/// When `glow.sides` is [`Sides::ALL`], the glow is a full ring built with a
+/// rounded ring mesh that follows the corner radius `cr`. For any partial
+/// side selection the glow is drawn as straight bands from the chosen edges
+/// (corners are not rounded; overlapping bands at a shared corner blend
+/// additively). The fade is GPU-interpolated in premultiplied alpha, so there
+/// is no banding either way.
+///
+/// Returns `None` when `glow.width < 0.5`, the color is fully transparent, or no
+/// side is selected.
+pub fn inner_glow_shape(rect: Rect, cr: CornerRadius, glow: InnerGlow) -> Option<Shape> {
+    let max_w = (rect.width().min(rect.height()) / 2.0).max(0.0);
+    let w = glow.width.clamp(0.0, max_w);
+    if w < 0.5 || glow.color.a() == 0 || !glow.sides.any() {
+        return None;
+    }
+    let edge = glow.color;
+    if glow.sides.is_all() {
+        let mesh = rounded_ring_mesh(rect, cr, w, |_| edge, |_| Color32::TRANSPARENT);
+        return Some(Shape::Mesh(mesh.into()));
+    }
+    let mut mesh = Mesh::default();
+    if glow.sides.top {
+        push_glow_band(&mut mesh, rect, Sides::TOP, w, edge);
+    }
+    if glow.sides.bottom {
+        push_glow_band(&mut mesh, rect, Sides::BOTTOM, w, edge);
+    }
+    if glow.sides.left {
+        push_glow_band(&mut mesh, rect, Sides::LEFT, w, edge);
+    }
+    if glow.sides.right {
+        push_glow_band(&mut mesh, rect, Sides::RIGHT, w, edge);
+    }
+    Some(Shape::Mesh(mesh.into()))
+}
+
+/// Build the 4-trapezoid mitered mesh for a vertically-interpolated gradient border.
+///
+/// The border sits **inside** `rect` so the widget's layout rect is unchanged.
+/// Corner-radius is not respected (straight mitered edges — same accepted limitation
+/// as the existing per-side line-segment borders).
+pub fn border_gradient_mesh(rect: Rect, g: BorderGradient) -> Mesh {
+    let w = g
+        .width
+        .min(rect.width() / 2.0)
+        .min(rect.height() / 2.0)
+        .max(0.0);
+    let inner = rect.shrink(w);
+
+    // Color at a given y coordinate (top color at the top edge, bottom at the bottom).
+    let col = move |p: egui::Pos2| {
+        let t = ((p.y - rect.top()) / rect.height().max(1.0)).clamp(0.0, 1.0);
+        g.top.lerp_to_gamma(g.bottom, t)
+    };
+
+    ring_mesh(rect, inner, col, col)
+}
+
+/// Paint the gradient underlay (solid bg + gradient) into a pre-reserved slot.
+///
+/// When `bg_gradient` is set for the resolved state, `apply_to_visuals` has
+/// already suppressed the widget's own bg fill by setting it to TRANSPARENT.
+/// This function repaints the solid `bg` and the gradient on top of it.
+///
+/// Call pattern: reserve a `Shape::Noop` slot _before_ the widget renders, then
+/// call this _after_ the response is available.
+pub fn paint_widget_gradient_underlay(
+    ui: &egui::Ui,
+    slot: egui::layers::ShapeIdx,
+    rect: Rect,
+    cr: CornerRadius,
+    state: &ResolvedStyle,
+) {
+    if let Some(g) = &state.bg_gradient {
+        let shapes = vec![
+            Shape::rect_filled(rect, cr, state.bg),
+            gradient_shape(ui.ctx(), rect, cr, g),
+        ];
+        ui.painter().set(slot, Shape::Vec(shapes));
+    }
+}
+
+/// Paint border-gradient and/or inner-glow overlays after the widget renders.
+///
+/// `border_gradient` wins over per-side overrides and the uniform border; both
+/// can coexist with `inner_glow` (glow paints last, on top).
+///
+/// Call this in place of [`SharedStyle::paint_widget_side_borders`].
+pub fn paint_widget_overlays(ui: &egui::Ui, rect: Rect, state: &ResolvedStyle) {
+    if let Some(bg) = state.border_gradient {
+        ui.painter()
+            .add(Shape::Mesh(border_gradient_mesh(rect, bg).into()));
+    } else if state.has_border_overrides {
+        paint_side_borders(ui.painter(), rect, state.border_sides);
+    }
+    if let Some(glow) = state.inner_glow
+        && let Some(shape) = inner_glow_shape(rect, state.corner_radius, glow)
+    {
+        ui.painter().add(shape);
+    }
 }
 
 /// Compute the UV rect used to sample the texture for the given `fit` mode.
@@ -469,6 +1170,24 @@ pub struct SharedStyle {
     // `None` and `Some(true)` are both fully visible.
     pub visible: Option<bool>,
 
+    // Gradient background (paints over solid `bg`, like CSS background-image over background-color)
+    pub bg_gradient: Option<Gradient>,
+    pub hover_bg_gradient: Option<Gradient>,
+    pub active_bg_gradient: Option<Gradient>,
+    pub focus_bg_gradient: Option<Gradient>,
+
+    // Inner glow (inward fade from the rect edge)
+    pub inner_glow: Option<InnerGlow>,
+    pub hover_inner_glow: Option<InnerGlow>,
+    pub active_inner_glow: Option<InnerGlow>,
+    pub focus_inner_glow: Option<InnerGlow>,
+
+    // Gradient border (vertical color interpolation; wins over uniform border and per-side overrides)
+    pub border_gradient: Option<BorderGradient>,
+    pub hover_border_gradient: Option<BorderGradient>,
+    pub active_border_gradient: Option<BorderGradient>,
+    pub focus_border_gradient: Option<BorderGradient>,
+
     // Decorations
     pub shadows: Vec<Shadow>,
 
@@ -557,6 +1276,9 @@ pub struct ResolvedStyle {
     pub padding: Margin,
     pub margin: Margin,
     pub cursor_icon: Option<CursorIcon>,
+    pub bg_gradient: Option<Gradient>,
+    pub inner_glow: Option<InnerGlow>,
+    pub border_gradient: Option<BorderGradient>,
 }
 
 /// Resolved style for all interaction states simultaneously. Allows writing
@@ -633,7 +1355,7 @@ impl SharedStyle {
     /// - Width: `width_pct` > `full_width` (capped by `max_width`) > pass-through `min/max_width`
     /// - Height: `height_pct` > `aspect_ratio` (from definite width) > `full_height` > pass-through
     ///
-    /// Non-finite `avail` values (floating [`StyledArea`] without `fill_screen`)
+    /// Non-finite `avail` values (floating [`StyledArea`](crate::StyledArea) without `fill_screen`)
     /// are clamped to `0.0`, so `full_width`/`width_pct` degrade to content-sized
     /// rather than setting an infinite minimum width.
     pub fn resolve_size(&self, avail_w: f32, avail_h: f32) -> ResolvedSize {
@@ -663,10 +1385,26 @@ impl SharedStyle {
         ResolvedSize {
             definite_w,
             definite_h,
-            min_w: if definite_w.is_none() { self.min_width } else { None },
-            max_w: if definite_w.is_none() { self.max_width } else { None },
-            min_h: if definite_h.is_none() { self.min_height } else { None },
-            max_h: if definite_h.is_none() { self.max_height } else { None },
+            min_w: if definite_w.is_none() {
+                self.min_width
+            } else {
+                None
+            },
+            max_w: if definite_w.is_none() {
+                self.max_width
+            } else {
+                None
+            },
+            min_h: if definite_h.is_none() {
+                self.min_height
+            } else {
+                None
+            },
+            max_h: if definite_h.is_none() {
+                self.max_height
+            } else {
+                None
+            },
         }
     }
 
@@ -707,6 +1445,37 @@ impl SharedStyle {
             _ => self.text_color.unwrap_or(default.text_color()),
         };
 
+        let bg_gradient = match state {
+            _ if state.active && self.active_bg_gradient.is_some() => {
+                self.active_bg_gradient.clone()
+            }
+            _ if state.hovered && self.hover_bg_gradient.is_some() => {
+                self.hover_bg_gradient.clone()
+            }
+            _ if state.focused && self.focus_bg_gradient.is_some() => {
+                self.focus_bg_gradient.clone()
+            }
+            _ => self.bg_gradient.clone(),
+        };
+        let inner_glow = match state {
+            _ if state.active && self.active_inner_glow.is_some() => self.active_inner_glow,
+            _ if state.hovered && self.hover_inner_glow.is_some() => self.hover_inner_glow,
+            _ if state.focused && self.focus_inner_glow.is_some() => self.focus_inner_glow,
+            _ => self.inner_glow,
+        };
+        let border_gradient = match state {
+            _ if state.active && self.active_border_gradient.is_some() => {
+                self.active_border_gradient
+            }
+            _ if state.hovered && self.hover_border_gradient.is_some() => {
+                self.hover_border_gradient
+            }
+            _ if state.focused && self.focus_border_gradient.is_some() => {
+                self.focus_border_gradient
+            }
+            _ => self.border_gradient,
+        };
+
         ResolvedStyle {
             bg,
             text_color,
@@ -717,6 +1486,9 @@ impl SharedStyle {
             padding: self.padding.unwrap_or_default(),
             margin: self.margin.unwrap_or_default(),
             cursor_icon: self.cursor_icon,
+            bg_gradient,
+            inner_glow,
+            border_gradient,
         }
     }
 
@@ -795,11 +1567,16 @@ impl SharedStyle {
             (&per.active, &mut vis.widgets.active),
         ];
         for (resolved, wv) in states {
-            wv.bg_fill = resolved.bg;
-            wv.weak_bg_fill = resolved.bg;
-            // When per-side overrides are present we paint the border ourselves
-            // (egui's bg_stroke is uniform-only), so suppress egui's stroke.
-            wv.bg_stroke = if resolved.has_border_overrides {
+            // When a gradient is set we paint bg ourselves (underlay slot), so
+            // suppress egui's own fill to avoid a solid-color flash underneath.
+            wv.bg_fill = if resolved.bg_gradient.is_some() {
+                Color32::TRANSPARENT
+            } else {
+                resolved.bg
+            };
+            wv.weak_bg_fill = wv.bg_fill;
+            // Suppress egui's uniform stroke when we paint borders ourselves.
+            wv.bg_stroke = if resolved.border_gradient.is_some() || resolved.has_border_overrides {
                 Stroke::NONE
             } else {
                 resolved.border
@@ -809,13 +1586,19 @@ impl SharedStyle {
             wv.fg_stroke = Stroke::new(wv.fg_stroke.width, resolved.text_color);
         }
         // Also update the open state for combo-box menus.
-        vis.widgets.open.bg_fill = per.inactive.bg;
-        vis.widgets.open.weak_bg_fill = per.inactive.bg;
-        vis.widgets.open.bg_stroke = if per.inactive.has_border_overrides {
-            Stroke::NONE
+        let open_bg = if per.inactive.bg_gradient.is_some() {
+            Color32::TRANSPARENT
         } else {
-            per.inactive.border
+            per.inactive.bg
         };
+        vis.widgets.open.bg_fill = open_bg;
+        vis.widgets.open.weak_bg_fill = open_bg;
+        vis.widgets.open.bg_stroke =
+            if per.inactive.border_gradient.is_some() || per.inactive.has_border_overrides {
+                Stroke::NONE
+            } else {
+                per.inactive.border
+            };
         vis.widgets.open.corner_radius = per.corner_radius;
         vis.widgets.open.expansion = 0.0;
 
@@ -878,6 +1661,18 @@ impl SharedStyle {
             || self.corner_radius.is_some()
             || self.margin.is_some()
             || self.background_image.is_some()
+            || self.bg_gradient.is_some()
+            || self.hover_bg_gradient.is_some()
+            || self.active_bg_gradient.is_some()
+            || self.focus_bg_gradient.is_some()
+            || self.inner_glow.is_some()
+            || self.hover_inner_glow.is_some()
+            || self.active_inner_glow.is_some()
+            || self.focus_inner_glow.is_some()
+            || self.border_gradient.is_some()
+            || self.hover_border_gradient.is_some()
+            || self.active_border_gradient.is_some()
+            || self.focus_border_gradient.is_some()
     }
 }
 
@@ -1411,34 +2206,54 @@ mod tests {
 
     #[test]
     fn resolved_aspect_height_none_when_ratio_zero_or_negative() {
-        let s = SharedStyle { aspect_ratio: Some(0.0), ..Default::default() };
+        let s = SharedStyle {
+            aspect_ratio: Some(0.0),
+            ..Default::default()
+        };
         assert!(s.resolved_aspect_height(200.0).is_none());
-        let s2 = SharedStyle { aspect_ratio: Some(-1.0), ..Default::default() };
+        let s2 = SharedStyle {
+            aspect_ratio: Some(-1.0),
+            ..Default::default()
+        };
         assert!(s2.resolved_aspect_height(200.0).is_none());
     }
 
     #[test]
     fn resolved_aspect_height_basic() {
-        let s = SharedStyle { aspect_ratio: Some(2.0), ..Default::default() };
+        let s = SharedStyle {
+            aspect_ratio: Some(2.0),
+            ..Default::default()
+        };
         assert!((s.resolved_aspect_height(200.0).unwrap() - 100.0).abs() < 1e-4);
     }
 
     #[test]
     fn resolved_aspect_height_16_9() {
-        let s = SharedStyle { aspect_ratio: Some(16.0 / 9.0), ..Default::default() };
+        let s = SharedStyle {
+            aspect_ratio: Some(16.0 / 9.0),
+            ..Default::default()
+        };
         let h = s.resolved_aspect_height(320.0).unwrap();
         assert!((h - 180.0).abs() < 1e-3, "16:9 of 320 → 180, got {h}");
     }
 
     #[test]
     fn resolved_aspect_height_clamped_by_max() {
-        let s = SharedStyle { aspect_ratio: Some(1.0), max_height: Some(50.0), ..Default::default() };
+        let s = SharedStyle {
+            aspect_ratio: Some(1.0),
+            max_height: Some(50.0),
+            ..Default::default()
+        };
         assert!((s.resolved_aspect_height(200.0).unwrap() - 50.0).abs() < 1e-4);
     }
 
     #[test]
     fn resolved_aspect_height_floored_by_min() {
-        let s = SharedStyle { aspect_ratio: Some(10.0), min_height: Some(80.0), ..Default::default() };
+        let s = SharedStyle {
+            aspect_ratio: Some(10.0),
+            min_height: Some(80.0),
+            ..Default::default()
+        };
         // width/ratio = 200/10 = 20, but min_height floors to 80
         assert!((s.resolved_aspect_height(200.0).unwrap() - 80.0).abs() < 1e-4);
     }
@@ -1476,5 +2291,533 @@ mod tests {
         let sz = s.resolve_size(f32::INFINITY, f32::INFINITY);
         assert!(sz.definite_w.is_none());
         assert!(sz.definite_h.is_none());
+    }
+
+    // ── BgGradient / InnerGlow / BorderGradient resolution tests ─────────────
+
+    fn style_with_all_gradients() -> SharedStyle {
+        SharedStyle {
+            bg_gradient: Some(Gradient::Corners(BgGradient::vertical(
+                Color32::RED,
+                Color32::BLUE,
+            ))),
+            hover_bg_gradient: Some(Gradient::Corners(BgGradient::vertical(
+                Color32::GREEN,
+                Color32::BLUE,
+            ))),
+            active_bg_gradient: Some(Gradient::Corners(BgGradient::vertical(
+                Color32::YELLOW,
+                Color32::BLUE,
+            ))),
+            focus_bg_gradient: Some(Gradient::Corners(BgGradient::vertical(
+                Color32::WHITE,
+                Color32::BLUE,
+            ))),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn bg_gradient_active_beats_hovered_and_focused() {
+        let style = style_with_all_gradients();
+        let resolved = style.resolve(
+            PseudoState {
+                hovered: true,
+                active: true,
+                focused: true,
+            },
+            &default_visuals(),
+        );
+        assert_eq!(
+            resolved.bg_gradient,
+            Some(Gradient::Corners(BgGradient::vertical(
+                Color32::YELLOW,
+                Color32::BLUE
+            )))
+        );
+    }
+
+    #[test]
+    fn bg_gradient_hover_beats_focused() {
+        let style = style_with_all_gradients();
+        let resolved = style.resolve(
+            PseudoState {
+                hovered: true,
+                active: false,
+                focused: true,
+            },
+            &default_visuals(),
+        );
+        assert_eq!(
+            resolved.bg_gradient,
+            Some(Gradient::Corners(BgGradient::vertical(
+                Color32::GREEN,
+                Color32::BLUE
+            )))
+        );
+    }
+
+    #[test]
+    fn bg_gradient_focus_only() {
+        let style = style_with_all_gradients();
+        let resolved = style.resolve(
+            PseudoState {
+                hovered: false,
+                active: false,
+                focused: true,
+            },
+            &default_visuals(),
+        );
+        assert_eq!(
+            resolved.bg_gradient,
+            Some(Gradient::Corners(BgGradient::vertical(
+                Color32::WHITE,
+                Color32::BLUE
+            )))
+        );
+    }
+
+    #[test]
+    fn bg_gradient_falls_back_to_base() {
+        let style = style_with_all_gradients();
+        let resolved = style.resolve(PseudoState::default(), &default_visuals());
+        assert_eq!(
+            resolved.bg_gradient,
+            Some(Gradient::Corners(BgGradient::vertical(
+                Color32::RED,
+                Color32::BLUE
+            )))
+        );
+    }
+
+    fn style_with_all_glows() -> SharedStyle {
+        SharedStyle {
+            inner_glow: Some(InnerGlow::new(4.0, Color32::RED)),
+            hover_inner_glow: Some(InnerGlow::new(8.0, Color32::GREEN)),
+            active_inner_glow: Some(InnerGlow::new(12.0, Color32::YELLOW)),
+            focus_inner_glow: Some(InnerGlow::new(6.0, Color32::WHITE)),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn inner_glow_active_beats_hovered_and_focused() {
+        let style = style_with_all_glows();
+        let resolved = style.resolve(
+            PseudoState {
+                hovered: true,
+                active: true,
+                focused: true,
+            },
+            &default_visuals(),
+        );
+        assert_eq!(
+            resolved.inner_glow,
+            Some(InnerGlow::new(12.0, Color32::YELLOW))
+        );
+    }
+
+    #[test]
+    fn inner_glow_hover_beats_focused() {
+        let style = style_with_all_glows();
+        let resolved = style.resolve(
+            PseudoState {
+                hovered: true,
+                active: false,
+                focused: true,
+            },
+            &default_visuals(),
+        );
+        assert_eq!(
+            resolved.inner_glow,
+            Some(InnerGlow::new(8.0, Color32::GREEN))
+        );
+    }
+
+    #[test]
+    fn inner_glow_falls_back_to_base() {
+        let style = style_with_all_glows();
+        let resolved = style.resolve(PseudoState::default(), &default_visuals());
+        assert_eq!(resolved.inner_glow, Some(InnerGlow::new(4.0, Color32::RED)));
+    }
+
+    fn style_with_all_border_gradients() -> SharedStyle {
+        SharedStyle {
+            border_gradient: Some(BorderGradient::new(2.0, Color32::RED, Color32::BLUE)),
+            hover_border_gradient: Some(BorderGradient::new(3.0, Color32::GREEN, Color32::BLUE)),
+            active_border_gradient: Some(BorderGradient::new(4.0, Color32::YELLOW, Color32::BLUE)),
+            focus_border_gradient: Some(BorderGradient::new(2.5, Color32::WHITE, Color32::BLUE)),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn border_gradient_active_beats_hovered_and_focused() {
+        let style = style_with_all_border_gradients();
+        let resolved = style.resolve(
+            PseudoState {
+                hovered: true,
+                active: true,
+                focused: true,
+            },
+            &default_visuals(),
+        );
+        assert_eq!(
+            resolved.border_gradient,
+            Some(BorderGradient::new(4.0, Color32::YELLOW, Color32::BLUE))
+        );
+    }
+
+    #[test]
+    fn border_gradient_falls_back_to_base() {
+        let style = style_with_all_border_gradients();
+        let resolved = style.resolve(PseudoState::default(), &default_visuals());
+        assert_eq!(
+            resolved.border_gradient,
+            Some(BorderGradient::new(2.0, Color32::RED, Color32::BLUE))
+        );
+    }
+
+    #[test]
+    fn has_frame_styles_triggers_for_gradient_fields() {
+        for style in [
+            SharedStyle {
+                bg_gradient: Some(Gradient::Corners(BgGradient::vertical(
+                    Color32::RED,
+                    Color32::BLUE,
+                ))),
+                ..Default::default()
+            },
+            SharedStyle {
+                hover_bg_gradient: Some(Gradient::Corners(BgGradient::vertical(
+                    Color32::RED,
+                    Color32::BLUE,
+                ))),
+                ..Default::default()
+            },
+            SharedStyle {
+                inner_glow: Some(InnerGlow::new(4.0, Color32::RED)),
+                ..Default::default()
+            },
+            SharedStyle {
+                hover_inner_glow: Some(InnerGlow::new(4.0, Color32::RED)),
+                ..Default::default()
+            },
+            SharedStyle {
+                border_gradient: Some(BorderGradient::new(2.0, Color32::RED, Color32::BLUE)),
+                ..Default::default()
+            },
+            SharedStyle {
+                hover_border_gradient: Some(BorderGradient::new(2.0, Color32::RED, Color32::BLUE)),
+                ..Default::default()
+            },
+        ] {
+            assert!(style.has_frame_styles());
+        }
+    }
+
+    #[test]
+    fn apply_to_visuals_suppresses_fill_when_bg_gradient() {
+        use egui::Visuals;
+        let ctx = egui::Context::default();
+        let visuals = Visuals::default();
+        let style = SharedStyle {
+            bg_gradient: Some(Gradient::Corners(BgGradient::vertical(
+                Color32::RED,
+                Color32::BLUE,
+            ))),
+            ..Default::default()
+        };
+        let per = style.resolve_per_state(&visuals);
+        let mut vis = visuals.clone();
+        SharedStyle::apply_to_visuals(&per, &mut vis);
+        assert_eq!(vis.widgets.inactive.bg_fill, Color32::TRANSPARENT);
+        assert_eq!(vis.widgets.inactive.weak_bg_fill, Color32::TRANSPARENT);
+        let _ = ctx;
+    }
+
+    #[test]
+    fn apply_to_visuals_suppresses_stroke_when_border_gradient() {
+        use egui::Visuals;
+        let visuals = Visuals::default();
+        let style = SharedStyle {
+            border_gradient: Some(BorderGradient::new(2.0, Color32::RED, Color32::BLUE)),
+            ..Default::default()
+        };
+        let per = style.resolve_per_state(&visuals);
+        let mut vis = visuals.clone();
+        SharedStyle::apply_to_visuals(&per, &mut vis);
+        assert_eq!(vis.widgets.inactive.bg_stroke, Stroke::NONE);
+    }
+
+    #[test]
+    fn bg_gradient_constructors() {
+        let v = BgGradient::vertical(Color32::RED, Color32::BLUE);
+        assert_eq!(v.top_left, Color32::RED);
+        assert_eq!(v.top_right, Color32::RED);
+        assert_eq!(v.bottom_left, Color32::BLUE);
+        assert_eq!(v.bottom_right, Color32::BLUE);
+
+        let h = BgGradient::horizontal(Color32::RED, Color32::BLUE);
+        assert_eq!(h.top_left, Color32::RED);
+        assert_eq!(h.top_right, Color32::BLUE);
+        assert_eq!(h.bottom_left, Color32::RED);
+        assert_eq!(h.bottom_right, Color32::BLUE);
+    }
+
+    #[test]
+    fn gradient_texture_cached_by_colors() {
+        let ctx = egui::Context::default();
+        ctx.begin_pass(egui::RawInput::default());
+        let g = BgGradient::vertical(Color32::RED, Color32::BLUE);
+        let h1 = gradient_texture(&ctx, g);
+        let h2 = gradient_texture(&ctx, g);
+        assert_eq!(h1.id(), h2.id());
+
+        let g2 = BgGradient::vertical(Color32::GREEN, Color32::BLUE);
+        let h3 = gradient_texture(&ctx, g2);
+        assert_ne!(h1.id(), h3.id());
+    }
+
+    #[test]
+    fn bg_gradient_shape_uses_texel_center_uv() {
+        let ctx = egui::Context::default();
+        ctx.begin_pass(egui::RawInput::default());
+        let g = BgGradient::vertical(Color32::RED, Color32::BLUE);
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::splat(100.0));
+        let shape = bg_gradient_shape(&ctx, rect, CornerRadius::default(), g);
+        match shape {
+            Shape::Rect(rs) => {
+                let brush = rs.brush.expect("gradient shape must have a brush");
+                let expected = egui::Rect::from_min_max(pos2(0.25, 0.25), pos2(0.75, 0.75));
+                assert!((brush.uv.min.x - expected.min.x).abs() < 1e-5);
+                assert!((brush.uv.min.y - expected.min.y).abs() < 1e-5);
+                assert!((brush.uv.max.x - expected.max.x).abs() < 1e-5);
+                assert!((brush.uv.max.y - expected.max.y).abs() < 1e-5);
+            }
+            other => panic!("expected Shape::Rect, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn linear_gradient_sorts_and_samples_stops() {
+        // Pass stops out of order; they should be sorted.
+        let g = LinearGradient::new(
+            [(1.0, Color32::BLUE), (0.0, Color32::RED)],
+            GradientAxis::Vertical,
+        );
+        assert_eq!(g.stops[0].1, Color32::RED);
+        assert_eq!(g.stops[1].1, Color32::BLUE);
+        // Endpoints exact, midpoint between the two.
+        assert_eq!(g.sample(0.0), Color32::RED);
+        assert_eq!(g.sample(1.0), Color32::BLUE);
+        let mid = g.sample(0.5);
+        assert!(mid != Color32::RED && mid != Color32::BLUE);
+    }
+
+    #[test]
+    fn linear_gradient_clamps_outside_range() {
+        let g = LinearGradient::new(
+            [(0.25, Color32::RED), (0.75, Color32::BLUE)],
+            GradientAxis::Vertical,
+        );
+        assert_eq!(g.sample(0.0), Color32::RED); // below first stop
+        assert_eq!(g.sample(1.0), Color32::BLUE); // above last stop
+    }
+
+    #[test]
+    fn linear_gradient_evenly_spaced_positions() {
+        let g = LinearGradient::evenly_spaced(
+            [Color32::RED, Color32::GREEN, Color32::BLUE],
+            GradientAxis::Horizontal,
+        );
+        assert_eq!(g.stops.len(), 3);
+        assert!((g.stops[0].0 - 0.0).abs() < 1e-6);
+        assert!((g.stops[1].0 - 0.5).abs() < 1e-6);
+        assert!((g.stops[2].0 - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn linear_gradient_texture_cached_and_axis_sized() {
+        let ctx = egui::Context::default();
+        ctx.begin_pass(egui::RawInput::default());
+        let v = LinearGradient::new(
+            [(0.0, Color32::RED), (1.0, Color32::BLUE)],
+            GradientAxis::Vertical,
+        );
+        let h1 = linear_gradient_texture(&ctx, &v);
+        let h2 = linear_gradient_texture(&ctx, &v);
+        assert_eq!(h1.id(), h2.id());
+        // A horizontal gradient of the same stops is a different texture.
+        let h = LinearGradient::new(
+            [(0.0, Color32::RED), (1.0, Color32::BLUE)],
+            GradientAxis::Horizontal,
+        );
+        let h3 = linear_gradient_texture(&ctx, &h);
+        assert_ne!(h1.id(), h3.id());
+    }
+
+    #[test]
+    fn linear_gradient_shape_axis_uv() {
+        let ctx = egui::Context::default();
+        ctx.begin_pass(egui::RawInput::default());
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::splat(100.0));
+        let inset = 0.5 / LINEAR_RAMP_TEXELS as f32;
+
+        let v = LinearGradient::new(
+            [(0.0, Color32::RED), (1.0, Color32::BLUE)],
+            GradientAxis::Vertical,
+        );
+        if let Shape::Rect(rs) = linear_gradient_shape(&ctx, rect, CornerRadius::default(), &v) {
+            let uv = rs.brush.unwrap().uv;
+            // Vertical: x spans full 0..1, y inset by half a texel.
+            assert!((uv.min.x - 0.0).abs() < 1e-6 && (uv.max.x - 1.0).abs() < 1e-6);
+            assert!((uv.min.y - inset).abs() < 1e-6 && (uv.max.y - (1.0 - inset)).abs() < 1e-6);
+        } else {
+            panic!("expected Shape::Rect");
+        }
+    }
+
+    #[test]
+    fn inner_glow_per_side_emits_only_selected_bands() {
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::splat(100.0));
+        let glow = InnerGlow::with_sides(8.0, Color32::WHITE, Sides::Y);
+        let shape = inner_glow_shape(rect, CornerRadius::default(), glow).unwrap();
+        if let Shape::Mesh(mesh) = shape {
+            // Two bands (top + bottom), 4 verts each = 8 vertices, 12 indices.
+            assert_eq!(mesh.vertices.len(), 8);
+            assert_eq!(mesh.indices.len(), 12);
+            // Every vertex lies on the top or bottom band (y at 0, 8, 92, or 100).
+            for v in &mesh.vertices {
+                let y = v.pos.y;
+                let on_band = y < 1e-3
+                    || (y - 8.0).abs() < 1e-3
+                    || (y - 92.0).abs() < 1e-3
+                    || (y - 100.0).abs() < 1e-3;
+                assert!(on_band, "vertex y={y} not on a top/bottom band");
+            }
+        } else {
+            panic!("expected Shape::Mesh");
+        }
+    }
+
+    #[test]
+    fn inner_glow_no_sides_emits_nothing() {
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::splat(100.0));
+        let none = Sides {
+            top: false,
+            right: false,
+            bottom: false,
+            left: false,
+        };
+        let glow = InnerGlow::with_sides(8.0, Color32::WHITE, none);
+        assert!(inner_glow_shape(rect, CornerRadius::default(), glow).is_none());
+    }
+
+    #[test]
+    fn inner_glow_shape_full_at_edge_transparent_inward() {
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::splat(100.0));
+        let glow = InnerGlow::new(16.0, Color32::from_rgba_premultiplied(255, 255, 255, 200));
+        // Sharp corners (radius 0): 4 corner points → 4 outer + 4 inner = 8 vertices.
+        let shape = inner_glow_shape(rect, CornerRadius::default(), glow)
+            .expect("glow should emit a shape");
+        match shape {
+            Shape::Mesh(mesh) => {
+                assert!(mesh.vertices.len() >= 8);
+                assert_eq!(mesh.vertices.len() % 2, 0);
+                let half = mesh.vertices.len() / 2;
+                // Outer half carries the glow color; inner half is transparent.
+                for v in &mesh.vertices[0..half] {
+                    assert_eq!(v.color, glow.color);
+                }
+                for v in &mesh.vertices[half..] {
+                    assert_eq!(v.color, Color32::TRANSPARENT);
+                }
+            }
+            other => panic!("expected Shape::Mesh, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn inner_glow_rounded_corners_add_vertices() {
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::splat(100.0));
+        let glow = InnerGlow::new(8.0, Color32::WHITE);
+        let sharp = inner_glow_shape(rect, CornerRadius::default(), glow).unwrap();
+        let rounded = inner_glow_shape(rect, CornerRadius::same(20), glow).unwrap();
+        let (sharp_n, rounded_n) = match (sharp, rounded) {
+            (Shape::Mesh(a), Shape::Mesh(b)) => (a.vertices.len(), b.vertices.len()),
+            _ => panic!("expected meshes"),
+        };
+        // Rounded corners tessellate the arcs, producing strictly more vertices.
+        assert!(rounded_n > sharp_n);
+    }
+
+    #[test]
+    fn inner_glow_zero_width_emits_nothing() {
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::splat(100.0));
+        assert!(
+            inner_glow_shape(
+                rect,
+                CornerRadius::default(),
+                InnerGlow::new(0.0, Color32::RED)
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn inner_glow_transparent_color_emits_nothing() {
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::splat(100.0));
+        assert!(
+            inner_glow_shape(
+                rect,
+                CornerRadius::default(),
+                InnerGlow::new(8.0, Color32::TRANSPARENT)
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn inner_glow_width_clamped_to_half_rect() {
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(50.0, 30.0));
+        let glow = InnerGlow::new(1000.0, Color32::WHITE);
+        let shape = inner_glow_shape(rect, CornerRadius::default(), glow)
+            .expect("glow should emit a shape");
+        // Inner ring is clamped to half the min dimension (15px), so its vertices
+        // collapse toward the rect center but never invert past it.
+        if let Shape::Mesh(mesh) = shape {
+            for v in &mesh.vertices {
+                assert!(rect.contains(v.pos) || rect.distance_to_pos(v.pos) < 1e-3);
+            }
+        } else {
+            panic!("expected Shape::Mesh");
+        }
+    }
+
+    #[test]
+    fn border_gradient_mesh_geometry() {
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::splat(100.0));
+        let g = BorderGradient::new(10.0, Color32::RED, Color32::BLUE);
+        let mesh = border_gradient_mesh(rect, g);
+        assert_eq!(mesh.vertices.len(), 16);
+        assert_eq!(mesh.indices.len(), 24);
+        // Top-edge outer vertices should have RED color.
+        assert_eq!(mesh.vertices[0].color, Color32::RED);
+        assert_eq!(mesh.vertices[1].color, Color32::RED);
+        // Bottom-edge outer vertices should have BLUE color.
+        assert_eq!(mesh.vertices[4].color, Color32::BLUE);
+        assert_eq!(mesh.vertices[5].color, Color32::BLUE);
+    }
+
+    #[test]
+    fn border_gradient_mesh_width_clamped() {
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::splat(10.0));
+        let g = BorderGradient::new(1000.0, Color32::RED, Color32::BLUE);
+        let mesh = border_gradient_mesh(rect, g);
+        // Inner rect should not go negative — vertices stay inside rect.
+        for v in &mesh.vertices {
+            assert!(rect.contains(v.pos) || rect.distance_to_pos(v.pos) < 1e-3);
+        }
     }
 }

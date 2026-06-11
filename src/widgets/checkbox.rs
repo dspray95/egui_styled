@@ -3,7 +3,10 @@ use egui::{Checkbox, Id, Response, RichText, Shape, Ui, WidgetText};
 use crate::{
     impl_style_builders,
     state::PseudoState,
-    style::shared_style::{SharedStyle, paint_shadows, render_scoped},
+    style::shared_style::{
+        SharedStyle, paint_shadows, paint_widget_gradient_underlay, paint_widget_overlays,
+        render_scoped,
+    },
 };
 
 pub struct StyledCheckbox<'a> {
@@ -53,6 +56,7 @@ impl<'a> StyledCheckbox<'a> {
 
         let response = render_scoped(ui, visible, |ui| {
             let shadow_idx = ui.painter().add(Shape::Noop);
+            let gradient_idx = ui.painter().add(Shape::Noop);
             let response = ui
                 .scope(|ui| {
                     SharedStyle::apply_to_visuals(&per, ui.visuals_mut());
@@ -75,7 +79,15 @@ impl<'a> StyledCheckbox<'a> {
                 })
                 .inner;
 
-            SharedStyle::paint_widget_side_borders(ui, &response, &per);
+            let resolved = SharedStyle::for_response(&per, &response);
+            paint_widget_gradient_underlay(
+                ui,
+                gradient_idx,
+                response.rect,
+                per.corner_radius,
+                resolved,
+            );
+            paint_widget_overlays(ui, response.rect, resolved);
             paint_shadows(
                 ui,
                 shadow_idx,

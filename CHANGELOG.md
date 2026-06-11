@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-06-11
+
+### Added
+
+- **`bg_gradient` — bilinear background gradient** on every styled type. Renders using a cached 2×2 GPU texture (bilinear filtering), so `corner_radius` is fully respected. Three convenience builders:
+  - `bg_gradient(tl, tr, bl, br)` — four independent corner colors.
+  - `bg_gradient_v(top, bottom)` — vertical two-stop.
+  - `bg_gradient_h(left, right)` — horizontal two-stop.
+  All three have `hover_`, `active_`, and `focus_` state variants. The gradient paints over the solid `bg` fill, enabling translucent gradients atop a base color (like CSS `background-image` over `background-color`).
+
+- **N-stop / rainbow linear gradients** via `bg_gradient_stops([(pos, color), …])` (vertical) and `bg_gradient_stops_h(…)` (horizontal), on every styled type, with `hover_`/`active_`/`focus_` state variants for the vertical form. Stops are `(position, color)` pairs in `0.0..=1.0`, sorted on construction and clamped at the ends. Baked into a cached 256-texel ramp texture and sampled with bilinear filtering, so `corner_radius` is respected. The background gradient field is now a `Gradient` enum (`Corners(BgGradient)` or `Linear(LinearGradient)`); the existing corner builders are unchanged.
+
+- **`inner_glow(width, color)` — inward glow effect** on every styled type. Rendered as a vertex-colored ring mesh — full `color` at the rect edge fading to transparent `width` pixels inward — so the GPU interpolates the fade smoothly with no banding. The full-ring glow follows the widget's `corner_radius` (rounded outer and inner outlines). State variants: `hover_inner_glow`, `active_inner_glow`, `focus_inner_glow`.
+
+- **Per-side inner glow**: `inner_glow_top` / `inner_glow_bottom` / `inner_glow_left` / `inner_glow_right`, plus `inner_glow_x` (left+right), `inner_glow_y` (top+bottom), and the general `inner_glow_sides(sides, width, color)`. Partial selections draw straight glow bands from the chosen edges.
+
+- **`border_gradient(width, top, bottom)` — vertically-interpolated gradient border** on every styled type. Wins over uniform `border` and per-side border overrides for the same state. Rendered as four mitered trapezoid mesh quads (no corner rounding — same accepted limitation as per-side borders). State variants: `hover_border_gradient`, `active_border_gradient`, `focus_border_gradient`.
+
+- New public types exported from `egui_styled` and `egui_styled::prelude`: `BgGradient`, `Gradient`, `LinearGradient`, `GradientAxis`, `InnerGlow`, `Sides`, `BorderGradient`.
+
+- New example: `examples/gradients.rs` — a fantasy "NEW GAME" button (gradient bg + gold inner glow + gradient border), 4-corner / horizontal / vertical gradients, a seven-stop rainbow, translucent gradient over solid bg, per-side glow (top+bottom and left-only), per-state hover demo, and a gradient border on a label.
+
+### Documented limitations
+
+- `bg_gradient` / `bg_gradient_stops` with per-frame animated colors allocate one GPU texture per unique gradient (no eviction). Use a fixed palette.
+- `border_gradient` has straight mitered edges (no corner rounding) — same precedent as per-side line-segment borders. (`inner_glow`'s full ring **does** follow the corner radius; per-side glow bands are straight.)
+- `inner_glow` and `bg_gradient` on `StyledCheckbox` / `StyledSlider` cover the full `response.rect` (the whole widget row), not just the check square or rail, since those widgets use `apply_to_visuals` rather than a manual bg rect.
+- `StyledComboBox` effects apply to the closed button rect only; the popup dropdown is unstyled.
+- `StyledFrame` and `StyledLabel` resolve base-state style only (no hover/active/focus) — consistent with their existing non-interactive behavior.
+
 ## [0.6.0] - 2026-06-10
 
 ### Added

@@ -4,8 +4,9 @@ use crate::{
     impl_style_builders,
     state::PseudoState,
     style::shared_style::{
-        SharedStyle, background_image_shape, bgimg_fade_alpha, justify_body_vertically,
-        paint_shadows, paint_side_borders,
+        SharedStyle, background_image_shape, bgimg_fade_alpha, border_gradient_mesh,
+        gradient_shape, inner_glow_shape, justify_body_vertically, paint_shadows,
+        paint_side_borders,
     },
 };
 
@@ -86,16 +87,16 @@ impl StyledFrame {
         };
 
         let has_bg_image = self.style.background_image.is_some();
+        let has_bg_gradient = self.style.bg_gradient.is_some();
         let fade_id = has_bg_image.then(|| {
             ui.make_persistent_id(ui.next_auto_id())
                 .with("__bgimg_fade_start")
         });
 
         let mut frame = egui::Frame::default();
-        // When a background image is set we paint fill + texture + border ourselves
-        // so the texture sits between the fill and the border. When there is no
-        // background image, all three delegate to egui::Frame as before.
-        if has_bg_image {
+        // When a background image or bg_gradient is set we paint fill + layers + border
+        // ourselves so everything sits in the correct order. Without those, delegate to egui.
+        if has_bg_image || has_bg_gradient {
             if let Some(r) = self.style.corner_radius {
                 frame = frame.corner_radius(r);
             }
@@ -165,10 +166,10 @@ impl StyledFrame {
             None
         };
 
-        // Reserve a slot for the background image before children so it paints
+        // Reserve a slot for the background / gradient before children so it paints
         // behind them on the same layer. `bgimg_slot` is `None` when there is
-        // no background image and the slot is never set.
-        let bgimg_slot = has_bg_image.then(|| ui.painter().add(Shape::Noop));
+        // neither a background image nor a gradient.
+        let bgimg_slot = (has_bg_image || has_bg_gradient).then(|| ui.painter().add(Shape::Noop));
 
         let response = frame.show(ui, |ui| {
             // Fade the body in lockstep with the background image when a content
@@ -282,39 +283,104 @@ impl StyledFrame {
             }
         });
 
-        // Paint the background image into the slot now that we know the rect.
-        if let (Some(slot), Some(image)) = (bgimg_slot, self.style.background_image) {
-            let rect = response.response.rect;
-            let tint = self.style.background_image_tint.unwrap_or(Color32::WHITE);
-            let fit = self.style.background_image_fit;
-            let fade = self
-                .style
-                .background_image_fade_in
-                .zip(fade_id)
-                .map(|(d, id)| (id, d));
-            // For Cover we need intrinsic size; load_for_size is called inside
-            // background_image_shape and covers the Pending (not-yet-loaded) case.
-            if let Some(shape) = background_image_shape(
-                ui,
-                rect,
-                corner_radius,
-                &image,
-                fit,
-                tint,
-                self.style.bg,
-                self.style.border,
-                border_sides,
-                fade,
-            ) {
-                ui.painter().set(slot, shape);
+        let rect = response.response.rect;
+
+        // Paint background layers into the slot now that we know the rect.
+        if let Some(slot) = bgimg_slot {
+            let mut parts: Vec<Shape> = Vec::new();
+
+            // Layer 1: solid bg fill.
+            if let Some(bg) = self.style.bg {
+                parts.push(Shape::rect_filled(rect, corner_radius, bg));
             }
-            // If None (still loading) the Shape::Noop stays, image appears next frame.
+
+            // Layer 2: gradient (on top of solid bg, under the image).
+            if let Some(g) = &self.style.bg_gradient {
+                parts.push(gradient_shape(ui.ctx(), rect, corner_radius, g));
+            }
+
+            // Layer 3: background image (on top of gradient).
+            if let Some(ref image) = self.style.background_image {
+                let tint = self.style.background_image_tint.unwrap_or(Color32::WHITE);
+                let fit = self.style.background_image_fit;
+                let fade = self
+                    .style
+                    .background_image_fade_in
+                    .zip(fade_id)
+                    .map(|(d, id)| (id, d));
+                // Temporarily build the bg-image shape; reuse the existing helper
+                // but without solid bg (we already emitted that above).
+                if let Some(img_shape) = background_image_shape(
+                    ui,
+                    rect,
+                    corner_radius,
+                    image,
+                    fit,
+                    tint,
+                    None, // bg already emitted above
+                    if self.style.border_gradient.is_none() {
+                        self.style.border
+                    } else {
+                        None
+                    },
+                    if self.style.border_gradient.is_none() {
+                        border_sides
+                    } else {
+                        None
+                    },
+                    fade,
+                ) {
+                    match img_shape {
+                        Shape::Vec(v) => parts.extend(v),
+                        other => parts.push(other),
+                    }
+                }
+            } else if self.style.border_gradient.is_none() {
+                // No image path: add border shapes into the slot.
+                if let Some(sides) = border_sides {
+                    let mut push = |a, b, stroke: egui::Stroke| {
+                        if stroke.width > 0.0 {
+                            parts.push(Shape::line_segment([a, b], stroke));
+                        }
+                    };
+                    push(rect.left_top(), rect.right_top(), sides.top);
+                    push(rect.right_top(), rect.right_bottom(), sides.right);
+                    push(rect.left_bottom(), rect.right_bottom(), sides.bottom);
+                    push(rect.left_top(), rect.left_bottom(), sides.left);
+                } else if let Some(b) = self.style.border {
+                    parts.push(Shape::rect_stroke(
+                        rect,
+                        corner_radius,
+                        b,
+                        egui::StrokeKind::Outside,
+                    ));
+                }
+            }
+
+            if !parts.is_empty() {
+                ui.painter().set(slot, Shape::Vec(parts));
+            }
         }
 
-        // Per-side borders for the non-bg-image path (the bg-image path paints
-        // them inside `background_image_shape`). Drawn on top of the frame.
-        if !has_bg_image && let Some(sides) = border_sides {
-            paint_side_borders(ui.painter(), response.response.rect, sides);
+        // Per-side borders for the non-bg-image / non-gradient path.
+        if !has_bg_image
+            && !has_bg_gradient
+            && let Some(sides) = border_sides
+        {
+            paint_side_borders(ui.painter(), rect, sides);
+        }
+
+        // Border gradient (wins over per-side and uniform border).
+        if let Some(bg) = self.style.border_gradient {
+            ui.painter()
+                .add(Shape::Mesh(border_gradient_mesh(rect, bg).into()));
+        }
+
+        // Inner glow (paints last, on top of everything).
+        if let Some(glow) = self.style.inner_glow
+            && let Some(shape) = inner_glow_shape(rect, corner_radius, glow)
+        {
+            ui.painter().add(shape);
         }
 
         paint_shadows(
@@ -840,7 +906,10 @@ mod tests {
             ..Default::default()
         };
         let output = ctx.run_ui(raw, |ui| {
-            StyledFrame::new().bg(Color32::RED).width_pct(50.0).show(ui, |_ui| {});
+            StyledFrame::new()
+                .bg(Color32::RED)
+                .width_pct(50.0)
+                .show(ui, |_ui| {});
         });
         let shapes: Vec<Shape> = output.shapes.into_iter().map(|cs| cs.shape).collect();
         let rect = first_solid_rect(&shapes).expect("bg fill rect present");
@@ -888,7 +957,10 @@ mod tests {
             ..Default::default()
         };
         let output = ctx.run_ui(raw, |ui| {
-            StyledFrame::new().bg(Color32::RED).height_pct(50.0).show(ui, |_ui| {});
+            StyledFrame::new()
+                .bg(Color32::RED)
+                .height_pct(50.0)
+                .show(ui, |_ui| {});
         });
         let shapes: Vec<Shape> = output.shapes.into_iter().map(|cs| cs.shape).collect();
         let rect = first_solid_rect(&shapes).expect("bg fill rect present");

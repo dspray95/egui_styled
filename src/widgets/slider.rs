@@ -5,7 +5,10 @@ use egui::{Id, Response, Shape, Slider, Ui, emath::Numeric};
 use crate::{
     impl_style_builders,
     state::PseudoState,
-    style::shared_style::{SharedStyle, paint_shadows, render_scoped},
+    style::shared_style::{
+        SharedStyle, paint_shadows, paint_widget_gradient_underlay, paint_widget_overlays,
+        render_scoped,
+    },
 };
 
 pub struct StyledSlider<'a, T: Numeric> {
@@ -58,6 +61,7 @@ impl<'a, T: Numeric> StyledSlider<'a, T> {
 
         let response = render_scoped(ui, visible, |ui| {
             let shadow_idx = ui.painter().add(Shape::Noop);
+            let gradient_idx = ui.painter().add(Shape::Noop);
             let response = ui
                 .scope(|ui| {
                     // selection.bg_fill drives the slider trailing fill.
@@ -89,7 +93,15 @@ impl<'a, T: Numeric> StyledSlider<'a, T> {
                 })
                 .inner;
 
-            SharedStyle::paint_widget_side_borders(ui, &response, &per);
+            let resolved = SharedStyle::for_response(&per, &response);
+            paint_widget_gradient_underlay(
+                ui,
+                gradient_idx,
+                response.rect,
+                per.corner_radius,
+                resolved,
+            );
+            paint_widget_overlays(ui, response.rect, resolved);
             paint_shadows(
                 ui,
                 shadow_idx,

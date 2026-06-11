@@ -67,10 +67,8 @@ impl<'a> WrappingRow<'a> {
                     ui.vertical(|ui| {
                         ui.spacing_mut().item_spacing.y = gap;
                         for line in lines {
-                            let initial = egui::vec2(
-                                ui.available_width(),
-                                ui.spacing().interact_size.y,
-                            );
+                            let initial =
+                                egui::vec2(ui.available_width(), ui.spacing().interact_size.y);
                             ui.allocate_ui_with_layout(
                                 initial,
                                 Layout::left_to_right(cross),
@@ -177,7 +175,10 @@ mod tests {
 
     fn screen(w: f32, h: f32) -> egui::RawInput {
         egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w, h))),
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(w, h),
+            )),
             ..Default::default()
         }
     }
@@ -193,8 +194,19 @@ mod tests {
         let ctx = egui::Context::default();
         let vw = 360.0f32;
         let tags = [
-            "egui", "rust", "ui", "layout", "flex", "wrap", "responsive", "widgets", "buttons",
-            "labels", "frames", "rows", "columns",
+            "egui",
+            "rust",
+            "ui",
+            "layout",
+            "flex",
+            "wrap",
+            "responsive",
+            "widgets",
+            "buttons",
+            "labels",
+            "frames",
+            "rows",
+            "columns",
         ];
 
         let run = |ctx: &egui::Context| -> (f32, f32) {
@@ -214,7 +226,8 @@ mod tests {
                                 let t = Rc::clone(&t);
                                 let r = Rc::clone(&r);
                                 row = row.item(move |ui| {
-                                    let rect = Styled::button(tag).corner_radius(12.0).show(ui).rect;
+                                    let rect =
+                                        Styled::button(tag).corner_radius(12.0).show(ui).rect;
                                     {
                                         let mut bb = b.borrow_mut();
                                         *bb = bb.max(rect.bottom());

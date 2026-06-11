@@ -3,7 +3,10 @@ use egui::{ComboBox, Id, InnerResponse, RichText, Shape, Ui, WidgetText};
 use crate::{
     impl_style_builders,
     state::PseudoState,
-    style::shared_style::{SharedStyle, paint_shadows, render_scoped},
+    style::shared_style::{
+        SharedStyle, paint_shadows, paint_widget_gradient_underlay, paint_widget_overlays,
+        render_scoped,
+    },
 };
 
 pub struct StyledComboBox {
@@ -53,6 +56,7 @@ impl StyledComboBox {
 
         let result = render_scoped(ui, visible, |ui| {
             let shadow_idx = ui.painter().add(Shape::Noop);
+            let gradient_idx = ui.painter().add(Shape::Noop);
             let result = ui
                 .scope(|ui| {
                     SharedStyle::apply_to_visuals(&per, ui.visuals_mut());
@@ -72,7 +76,9 @@ impl StyledComboBox {
                         ComboBox::from_id_salt(self.id_source).selected_text(selected_text);
                     // Resolve width via the centralized resolver; explicit .width()
                     // takes precedence over style-based sizing.
-                    let sz = self.style.resolve_size(ui.available_width(), ui.available_height());
+                    let sz = self
+                        .style
+                        .resolve_size(ui.available_width(), ui.available_height());
                     if let Some(w) = self.width {
                         cb = cb.width(w);
                     } else if let Some(w) = sz.definite_w.or(sz.min_w) {
@@ -93,7 +99,15 @@ impl StyledComboBox {
                 })
                 .inner;
 
-            SharedStyle::paint_widget_side_borders(ui, &result.response, &per);
+            let resolved = SharedStyle::for_response(&per, &result.response);
+            paint_widget_gradient_underlay(
+                ui,
+                gradient_idx,
+                result.response.rect,
+                per.corner_radius,
+                resolved,
+            );
+            paint_widget_overlays(ui, result.response.rect, resolved);
             // Use the outer response rect for shadows.
             paint_shadows(
                 ui,

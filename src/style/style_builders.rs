@@ -423,6 +423,341 @@ macro_rules! __impl_style_builders_body {
                 });
                 self
             }
+
+            // ── Background gradient ────────────────────────────────────────
+
+            /// Four-corner bilinear gradient painted over the solid `bg` fill.
+            /// Colors are interpolated across the rect using a cached 2×2 GPU texture,
+            /// so `corner_radius` is respected. See also `bg_gradient_v` / `bg_gradient_h`
+            /// for two-stop shortcuts and `bg_gradient_stops` for N-stop ramps.
+            pub fn bg_gradient(
+                mut self,
+                top_left: egui::Color32,
+                top_right: egui::Color32,
+                bottom_left: egui::Color32,
+                bottom_right: egui::Color32,
+            ) -> Self {
+                self.style.bg_gradient = Some($crate::style::shared_style::Gradient::Corners(
+                    $crate::style::shared_style::BgGradient::corners(
+                        top_left, top_right, bottom_left, bottom_right,
+                    ),
+                ));
+                self
+            }
+
+            /// Vertical two-stop gradient (top → bottom). Shorthand for `bg_gradient`.
+            pub fn bg_gradient_v(mut self, top: egui::Color32, bottom: egui::Color32) -> Self {
+                self.style.bg_gradient = Some($crate::style::shared_style::Gradient::Corners(
+                    $crate::style::shared_style::BgGradient::vertical(top, bottom),
+                ));
+                self
+            }
+
+            /// Horizontal two-stop gradient (left → right). Shorthand for `bg_gradient`.
+            pub fn bg_gradient_h(mut self, left: egui::Color32, right: egui::Color32) -> Self {
+                self.style.bg_gradient = Some($crate::style::shared_style::Gradient::Corners(
+                    $crate::style::shared_style::BgGradient::horizontal(left, right),
+                ));
+                self
+            }
+
+            /// `bg_gradient` applied when hovered.
+            pub fn hover_bg_gradient(
+                mut self,
+                top_left: egui::Color32,
+                top_right: egui::Color32,
+                bottom_left: egui::Color32,
+                bottom_right: egui::Color32,
+            ) -> Self {
+                self.style.hover_bg_gradient = Some($crate::style::shared_style::Gradient::Corners(
+                    $crate::style::shared_style::BgGradient::corners(
+                        top_left, top_right, bottom_left, bottom_right,
+                    ),
+                ));
+                self
+            }
+
+            /// Vertical two-stop `hover_bg_gradient`.
+            pub fn hover_bg_gradient_v(mut self, top: egui::Color32, bottom: egui::Color32) -> Self {
+                self.style.hover_bg_gradient = Some($crate::style::shared_style::Gradient::Corners(
+                    $crate::style::shared_style::BgGradient::vertical(top, bottom),
+                ));
+                self
+            }
+
+            /// Horizontal two-stop `hover_bg_gradient`.
+            pub fn hover_bg_gradient_h(mut self, left: egui::Color32, right: egui::Color32) -> Self {
+                self.style.hover_bg_gradient = Some($crate::style::shared_style::Gradient::Corners(
+                    $crate::style::shared_style::BgGradient::horizontal(left, right),
+                ));
+                self
+            }
+
+            /// `bg_gradient` applied when active (pointer pressed).
+            pub fn active_bg_gradient(
+                mut self,
+                top_left: egui::Color32,
+                top_right: egui::Color32,
+                bottom_left: egui::Color32,
+                bottom_right: egui::Color32,
+            ) -> Self {
+                self.style.active_bg_gradient = Some($crate::style::shared_style::Gradient::Corners(
+                    $crate::style::shared_style::BgGradient::corners(
+                        top_left, top_right, bottom_left, bottom_right,
+                    ),
+                ));
+                self
+            }
+
+            /// Vertical two-stop `active_bg_gradient`.
+            pub fn active_bg_gradient_v(mut self, top: egui::Color32, bottom: egui::Color32) -> Self {
+                self.style.active_bg_gradient = Some($crate::style::shared_style::Gradient::Corners(
+                    $crate::style::shared_style::BgGradient::vertical(top, bottom),
+                ));
+                self
+            }
+
+            /// Horizontal two-stop `active_bg_gradient`.
+            pub fn active_bg_gradient_h(mut self, left: egui::Color32, right: egui::Color32) -> Self {
+                self.style.active_bg_gradient = Some($crate::style::shared_style::Gradient::Corners(
+                    $crate::style::shared_style::BgGradient::horizontal(left, right),
+                ));
+                self
+            }
+
+            /// `bg_gradient` applied when focused.
+            pub fn focus_bg_gradient(
+                mut self,
+                top_left: egui::Color32,
+                top_right: egui::Color32,
+                bottom_left: egui::Color32,
+                bottom_right: egui::Color32,
+            ) -> Self {
+                self.style.focus_bg_gradient = Some($crate::style::shared_style::Gradient::Corners(
+                    $crate::style::shared_style::BgGradient::corners(
+                        top_left, top_right, bottom_left, bottom_right,
+                    ),
+                ));
+                self
+            }
+
+            /// Vertical two-stop `focus_bg_gradient`.
+            pub fn focus_bg_gradient_v(mut self, top: egui::Color32, bottom: egui::Color32) -> Self {
+                self.style.focus_bg_gradient = Some($crate::style::shared_style::Gradient::Corners(
+                    $crate::style::shared_style::BgGradient::vertical(top, bottom),
+                ));
+                self
+            }
+
+            /// Horizontal two-stop `focus_bg_gradient`.
+            pub fn focus_bg_gradient_h(mut self, left: egui::Color32, right: egui::Color32) -> Self {
+                self.style.focus_bg_gradient = Some($crate::style::shared_style::Gradient::Corners(
+                    $crate::style::shared_style::BgGradient::horizontal(left, right),
+                ));
+                self
+            }
+
+            // ── Multi-stop linear gradient (e.g. rainbow) ─────────────────
+
+            /// Vertical N-stop linear gradient over the solid `bg` fill. `stops` are
+            /// `(position, color)` pairs with position in `0.0..=1.0` (sorted for you).
+            /// Respects `corner_radius`. Use `bg_gradient_stops_h` for horizontal.
+            pub fn bg_gradient_stops(
+                mut self,
+                stops: impl IntoIterator<Item = (f32, egui::Color32)>,
+            ) -> Self {
+                self.style.bg_gradient = Some($crate::style::shared_style::Gradient::Linear(
+                    $crate::style::shared_style::LinearGradient::new(
+                        stops,
+                        $crate::style::shared_style::GradientAxis::Vertical,
+                    ),
+                ));
+                self
+            }
+
+            /// Horizontal N-stop linear gradient. See [`bg_gradient_stops`](Self::bg_gradient_stops).
+            pub fn bg_gradient_stops_h(
+                mut self,
+                stops: impl IntoIterator<Item = (f32, egui::Color32)>,
+            ) -> Self {
+                self.style.bg_gradient = Some($crate::style::shared_style::Gradient::Linear(
+                    $crate::style::shared_style::LinearGradient::new(
+                        stops,
+                        $crate::style::shared_style::GradientAxis::Horizontal,
+                    ),
+                ));
+                self
+            }
+
+            /// `bg_gradient_stops` applied when hovered.
+            pub fn hover_bg_gradient_stops(
+                mut self,
+                stops: impl IntoIterator<Item = (f32, egui::Color32)>,
+            ) -> Self {
+                self.style.hover_bg_gradient = Some($crate::style::shared_style::Gradient::Linear(
+                    $crate::style::shared_style::LinearGradient::new(
+                        stops,
+                        $crate::style::shared_style::GradientAxis::Vertical,
+                    ),
+                ));
+                self
+            }
+
+            /// `bg_gradient_stops` applied when active (pointer pressed).
+            pub fn active_bg_gradient_stops(
+                mut self,
+                stops: impl IntoIterator<Item = (f32, egui::Color32)>,
+            ) -> Self {
+                self.style.active_bg_gradient = Some($crate::style::shared_style::Gradient::Linear(
+                    $crate::style::shared_style::LinearGradient::new(
+                        stops,
+                        $crate::style::shared_style::GradientAxis::Vertical,
+                    ),
+                ));
+                self
+            }
+
+            /// `bg_gradient_stops` applied when focused.
+            pub fn focus_bg_gradient_stops(
+                mut self,
+                stops: impl IntoIterator<Item = (f32, egui::Color32)>,
+            ) -> Self {
+                self.style.focus_bg_gradient = Some($crate::style::shared_style::Gradient::Linear(
+                    $crate::style::shared_style::LinearGradient::new(
+                        stops,
+                        $crate::style::shared_style::GradientAxis::Vertical,
+                    ),
+                ));
+                self
+            }
+
+            // ── Inner glow ────────────────────────────────────────────────
+
+            /// Inward glow: `width` logical pixels deep, fading from `color` at the
+            /// edge to transparent toward the center. Drawn as a smooth vertex-colored
+            /// ring that follows `corner_radius`.
+            pub fn inner_glow(mut self, width: f32, color: egui::Color32) -> Self {
+                self.style.inner_glow =
+                    Some($crate::style::shared_style::InnerGlow::new(width, color));
+                self
+            }
+
+            /// Inner glow drawn only from the given `sides`.
+            /// See [`inner_glow`](Self::inner_glow); partial selections draw straight
+            /// bands (corners are not rounded).
+            pub fn inner_glow_sides(
+                mut self,
+                sides: $crate::style::shared_style::Sides,
+                width: f32,
+                color: egui::Color32,
+            ) -> Self {
+                self.style.inner_glow =
+                    Some($crate::style::shared_style::InnerGlow::with_sides(width, color, sides));
+                self
+            }
+
+            /// Inner glow from the top edge only.
+            pub fn inner_glow_top(self, width: f32, color: egui::Color32) -> Self {
+                self.inner_glow_sides($crate::style::shared_style::Sides::TOP, width, color)
+            }
+
+            /// Inner glow from the bottom edge only.
+            pub fn inner_glow_bottom(self, width: f32, color: egui::Color32) -> Self {
+                self.inner_glow_sides($crate::style::shared_style::Sides::BOTTOM, width, color)
+            }
+
+            /// Inner glow from the left edge only.
+            pub fn inner_glow_left(self, width: f32, color: egui::Color32) -> Self {
+                self.inner_glow_sides($crate::style::shared_style::Sides::LEFT, width, color)
+            }
+
+            /// Inner glow from the right edge only.
+            pub fn inner_glow_right(self, width: f32, color: egui::Color32) -> Self {
+                self.inner_glow_sides($crate::style::shared_style::Sides::RIGHT, width, color)
+            }
+
+            /// Inner glow from the left and right edges.
+            pub fn inner_glow_x(self, width: f32, color: egui::Color32) -> Self {
+                self.inner_glow_sides($crate::style::shared_style::Sides::X, width, color)
+            }
+
+            /// Inner glow from the top and bottom edges.
+            pub fn inner_glow_y(self, width: f32, color: egui::Color32) -> Self {
+                self.inner_glow_sides($crate::style::shared_style::Sides::Y, width, color)
+            }
+
+            /// `inner_glow` applied when hovered.
+            pub fn hover_inner_glow(mut self, width: f32, color: egui::Color32) -> Self {
+                self.style.hover_inner_glow =
+                    Some($crate::style::shared_style::InnerGlow::new(width, color));
+                self
+            }
+
+            /// `inner_glow` applied when active (pointer pressed).
+            pub fn active_inner_glow(mut self, width: f32, color: egui::Color32) -> Self {
+                self.style.active_inner_glow =
+                    Some($crate::style::shared_style::InnerGlow::new(width, color));
+                self
+            }
+
+            /// `inner_glow` applied when focused.
+            pub fn focus_inner_glow(mut self, width: f32, color: egui::Color32) -> Self {
+                self.style.focus_inner_glow =
+                    Some($crate::style::shared_style::InnerGlow::new(width, color));
+                self
+            }
+
+            // ── Border gradient ───────────────────────────────────────────
+
+            /// Vertically-interpolated border: `top` color at the top edge, `bottom`
+            /// at the bottom, linearly interpolated down. Wins over uniform `border` and
+            /// per-side overrides. Corner radius is not rounded (straight mitered edges).
+            pub fn border_gradient(
+                mut self,
+                width: f32,
+                top: egui::Color32,
+                bottom: egui::Color32,
+            ) -> Self {
+                self.style.border_gradient =
+                    Some($crate::style::shared_style::BorderGradient::new(width, top, bottom));
+                self
+            }
+
+            /// `border_gradient` applied when hovered.
+            pub fn hover_border_gradient(
+                mut self,
+                width: f32,
+                top: egui::Color32,
+                bottom: egui::Color32,
+            ) -> Self {
+                self.style.hover_border_gradient =
+                    Some($crate::style::shared_style::BorderGradient::new(width, top, bottom));
+                self
+            }
+
+            /// `border_gradient` applied when active (pointer pressed).
+            pub fn active_border_gradient(
+                mut self,
+                width: f32,
+                top: egui::Color32,
+                bottom: egui::Color32,
+            ) -> Self {
+                self.style.active_border_gradient =
+                    Some($crate::style::shared_style::BorderGradient::new(width, top, bottom));
+                self
+            }
+
+            /// `border_gradient` applied when focused.
+            pub fn focus_border_gradient(
+                mut self,
+                width: f32,
+                top: egui::Color32,
+                bottom: egui::Color32,
+            ) -> Self {
+                self.style.focus_border_gradient =
+                    Some($crate::style::shared_style::BorderGradient::new(width, top, bottom));
+                self
+            }
         }
 
         impl $($gen)* $crate::apply::Apply for $ty {}
@@ -472,7 +807,59 @@ mod tests {
             .cursor(egui::CursorIcon::Default)
             .visible(true)
             .shadow(egui::Vec2::ZERO, 1.0, egui::Color32::BLACK)
-            .shadow_filled(egui::Vec2::ZERO, egui::Color32::BLACK);
+            .shadow_filled(egui::Vec2::ZERO, egui::Color32::BLACK)
+            .bg_gradient(
+                egui::Color32::RED,
+                egui::Color32::RED,
+                egui::Color32::RED,
+                egui::Color32::RED,
+            )
+            .bg_gradient_v(egui::Color32::RED, egui::Color32::BLUE)
+            .bg_gradient_h(egui::Color32::RED, egui::Color32::BLUE)
+            .hover_bg_gradient(
+                egui::Color32::RED,
+                egui::Color32::RED,
+                egui::Color32::RED,
+                egui::Color32::RED,
+            )
+            .hover_bg_gradient_v(egui::Color32::RED, egui::Color32::BLUE)
+            .hover_bg_gradient_h(egui::Color32::RED, egui::Color32::BLUE)
+            .active_bg_gradient(
+                egui::Color32::RED,
+                egui::Color32::RED,
+                egui::Color32::RED,
+                egui::Color32::RED,
+            )
+            .active_bg_gradient_v(egui::Color32::RED, egui::Color32::BLUE)
+            .active_bg_gradient_h(egui::Color32::RED, egui::Color32::BLUE)
+            .focus_bg_gradient(
+                egui::Color32::RED,
+                egui::Color32::RED,
+                egui::Color32::RED,
+                egui::Color32::RED,
+            )
+            .focus_bg_gradient_v(egui::Color32::RED, egui::Color32::BLUE)
+            .focus_bg_gradient_h(egui::Color32::RED, egui::Color32::BLUE)
+            .bg_gradient_stops([(0.0, egui::Color32::RED), (1.0, egui::Color32::BLUE)])
+            .bg_gradient_stops_h([(0.0, egui::Color32::RED), (1.0, egui::Color32::BLUE)])
+            .hover_bg_gradient_stops([(0.0, egui::Color32::RED), (1.0, egui::Color32::BLUE)])
+            .active_bg_gradient_stops([(0.0, egui::Color32::RED), (1.0, egui::Color32::BLUE)])
+            .focus_bg_gradient_stops([(0.0, egui::Color32::RED), (1.0, egui::Color32::BLUE)])
+            .inner_glow(8.0, egui::Color32::RED)
+            .inner_glow_sides(crate::Sides::ALL, 8.0, egui::Color32::RED)
+            .inner_glow_top(8.0, egui::Color32::RED)
+            .inner_glow_bottom(8.0, egui::Color32::RED)
+            .inner_glow_left(8.0, egui::Color32::RED)
+            .inner_glow_right(8.0, egui::Color32::RED)
+            .inner_glow_x(8.0, egui::Color32::RED)
+            .inner_glow_y(8.0, egui::Color32::RED)
+            .hover_inner_glow(8.0, egui::Color32::RED)
+            .active_inner_glow(8.0, egui::Color32::RED)
+            .focus_inner_glow(8.0, egui::Color32::RED)
+            .border_gradient(2.0, egui::Color32::RED, egui::Color32::BLUE)
+            .hover_border_gradient(2.0, egui::Color32::RED, egui::Color32::BLUE)
+            .active_border_gradient(2.0, egui::Color32::RED, egui::Color32::BLUE)
+            .focus_border_gradient(2.0, egui::Color32::RED, egui::Color32::BLUE);
         // font_id: set via widget-specific .font() builder — intentional omission.
         // background_image_fade_content: set via .reveal_with_background_image() — intentional alias.
     }
