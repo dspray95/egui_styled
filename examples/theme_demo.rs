@@ -163,7 +163,7 @@ fn main() -> eframe::Result<()> {
                 ctx.set_design_data(midnight_palette());
                 initialized = true;
             }
-            CentralPanel::default().show_inside(ctx, |ui| theme_demo(ui, &mut state));
+            CentralPanel::default().show(ctx, |ui| theme_demo(ui, &mut state));
         },
     )
 }

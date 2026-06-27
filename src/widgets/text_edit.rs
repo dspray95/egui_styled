@@ -40,7 +40,7 @@ impl<'a> StyledTextEdit<'a> {
 
     /// Override the auto-generated widget id. Pins pseudo-state across
     /// conditional rendering - see [`crate::StyledButton::id`] for the rationale.
-    pub fn id(mut self, id: impl std::hash::Hash) -> Self {
+    pub fn id(mut self, id: impl std::hash::Hash + std::fmt::Debug) -> Self {
         self.id_override = Some(Id::new(id));
         self
     }

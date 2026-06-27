@@ -18,7 +18,7 @@ pub struct StyledComboBox {
 }
 
 impl StyledComboBox {
-    pub fn new(id_source: impl std::hash::Hash, selected_text: impl Into<WidgetText>) -> Self {
+    pub fn new(id_source: impl std::hash::Hash + std::fmt::Debug, selected_text: impl Into<WidgetText>) -> Self {
         Self {
             id_source: Id::new(id_source),
             selected_text: selected_text.into(),
@@ -35,7 +35,7 @@ impl StyledComboBox {
 
     /// Override the auto-generated widget id. Pins pseudo-state across
     /// conditional rendering - see [`crate::StyledButton::id`] for the rationale.
-    pub fn id(mut self, id: impl std::hash::Hash) -> Self {
+    pub fn id(mut self, id: impl std::hash::Hash + std::fmt::Debug) -> Self {
         self.id_override = Some(Id::new(id));
         self
     }

@@ -55,7 +55,7 @@ impl StyledButton {
     /// (hover / active / focus) across conditional rendering - without an
     /// explicit id, `ui.next_auto_id()` shifts when a sibling appears or
     /// disappears, misattributing one frame of state.
-    pub fn id(mut self, id: impl std::hash::Hash) -> Self {
+    pub fn id(mut self, id: impl std::hash::Hash + std::fmt::Debug) -> Self {
         self.id_override = Some(Id::new(id));
         self
     }

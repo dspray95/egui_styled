@@ -147,7 +147,7 @@ fn main() -> eframe::Result<()> {
                 initialized = true;
             }
             CentralPanel::default()
-                .show_inside(ctx, |ui| composable_styles_example(ui, &mut state));
+                .show(ctx, |ui| composable_styles_example(ui, &mut state));
         },
     )
 }

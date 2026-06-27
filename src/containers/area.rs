@@ -67,7 +67,7 @@ impl StyledArea {
 
     /// Stable id for this area. Defaults to one derived from call-site
     /// auto-id; set explicitly if you have multiple areas of the same shape.
-    pub fn id(mut self, id: impl std::hash::Hash) -> Self {
+    pub fn id(mut self, id: impl std::hash::Hash + std::fmt::Debug) -> Self {
         self.id = Some(egui::Id::new(id));
         self
     }
@@ -224,7 +224,7 @@ mod tests {
 
         let mut measured = Vec2::ZERO;
         let mut expected = Vec2::ZERO;
-        let _ = ctx.run(input, |ctx| {
+        let _ = ctx.run_ui(input, |ctx| {
             let resp = StyledArea::new().fill_screen().show(ctx, |ui| {
                 ui.label("x");
             });
@@ -253,7 +253,7 @@ mod tests {
             let mut content_visible = true;
             let mut widget_center_y = 0.0f32;
             let mut screen_center_y = 0.0f32;
-            let _ = ctx.run(raw, |ctx| {
+            let _ = ctx.run_ui(raw, |ctx| {
                 screen_center_y = ctx.content_rect().center().y;
                 StyledArea::new()
                     .id("vcenter_test")
@@ -298,7 +298,7 @@ mod tests {
             };
             let mut center = (0.0f32, 0.0f32);
             let mut screen_center = (0.0f32, 0.0f32);
-            let _ = ctx.run(raw, |ctx| {
+            let _ = ctx.run_ui(raw, |ctx| {
                 let sc = ctx.content_rect().center();
                 screen_center = (sc.x, sc.y);
                 StyledArea::new()
@@ -359,7 +359,7 @@ mod tests {
                 screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))),
                 ..Default::default()
             };
-            let _ = ctx.run(raw, |ctx| {
+            let _ = ctx.run_ui(raw, |ctx| {
                 StyledArea::new().id("balloon_test").show(ctx, |ui| {
                     let resp = Styled::button("test").full_width().show(ui);
                     widths.push(resp.rect.width());

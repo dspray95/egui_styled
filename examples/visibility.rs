@@ -78,7 +78,7 @@ fn main() -> eframe::Result<()> {
         "egui_styled visibility",
         eframe::NativeOptions::default(),
         move |ctx, _| {
-            CentralPanel::default().show_inside(ctx, |ui| draw(&mut app, ui));
+            CentralPanel::default().show(ctx, |ui| draw(&mut app, ui));
         },
     )
 }

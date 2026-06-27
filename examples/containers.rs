@@ -88,7 +88,7 @@ fn main() -> eframe::Result<()> {
         "egui_styled containers",
         eframe::NativeOptions::default(),
         |ctx, _| {
-            CentralPanel::default().show_inside(ctx, containers_example);
+            CentralPanel::default().show(ctx, containers_example);
         },
     )
 }

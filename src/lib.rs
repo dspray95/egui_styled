@@ -144,7 +144,7 @@ impl Styled {
 
     /// Start a styled combo box. `id_source` must be unique within the parent ui.
     pub fn combo_box(
-        id_source: impl std::hash::Hash,
+        id_source: impl std::hash::Hash + std::fmt::Debug,
         selected_text: impl Into<WidgetText>,
     ) -> StyledComboBox {
         StyledComboBox::new(id_source, selected_text)

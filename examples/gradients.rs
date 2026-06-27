@@ -219,7 +219,7 @@ fn main() -> eframe::Result<()> {
         "egui_styled gradients",
         eframe::NativeOptions::default(),
         |ctx, _| {
-            CentralPanel::default().show_inside(ctx, |ui| {
+            CentralPanel::default().show(ctx, |ui| {
                 egui::ScrollArea::vertical().show(ui, gradients_example);
             });
         },

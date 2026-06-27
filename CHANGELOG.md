@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-06-27
+
+### Changed
+
+- **egui bumped to 0.35.0.** `eframe` and `egui_kittest` dev-dependencies updated to match.
+- The `id()` builders (and `combo_box` / `StyledComboBox::new`) now require `impl Hash + Debug` instead of `impl Hash`, to satisfy egui 0.35's new `AsId` bound on `Id::new`. Standard id sources (`&str`, integers, tuples thereof) already implement `Debug`, so most call sites are unaffected.
+
 ## [0.7.0] - 2026-06-11
 
 ### Added

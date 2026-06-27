@@ -62,7 +62,7 @@ fn main() -> eframe::Result<()> {
         "egui_styled shadows",
         eframe::NativeOptions::default(),
         |ctx, _| {
-            CentralPanel::default().show_inside(ctx, shadows_example);
+            CentralPanel::default().show(ctx, shadows_example);
         },
     )
 }

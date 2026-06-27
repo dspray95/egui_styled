@@ -215,20 +215,21 @@ ui.scope(|ui| {
 
 ```toml
 [dependencies]
-egui_styled = "0.6"
-egui = "0.34"
+egui_styled = "0.7"
+egui = "0.35"
 ```
 
 ### Version compatibility
 
 | egui_styled | egui | Rust (MSRV) |
 |-------------|------|-------------|
+| 0.7         | 0.35 | 1.92        |
 | 0.6         | 0.34 | 1.92        |
 | 0.5.x       | 0.34 | 1.92        |
 
 Tested with `eframe` on Linux, macOS, and Windows.
 
-Web (wasm) is supported — a live demo runs at [david-spray.me](https://david-spray.me).
+Web (wasm) is supported - a live demo runs at [david-spray.me](https://david-spray.me).
 
 No feature flags currently.
 
@@ -302,7 +303,7 @@ Available today: `StyledButton`, `StyledLabel`, `StyledTextEdit`,
 
 `egui_styled` separates geometry/typography tokens from colors.
 
-**`StyledTheme`** holds reusable geometry and type-scale values — spacing,
+**`StyledTheme`** holds reusable geometry and type-scale values - spacing,
 radii, font sizes, font families, and text-effect scales:
 
 ```rust
@@ -377,7 +378,7 @@ Styled::button("Save").apply(primary_button(&t, &p)).show(ui);
 Styled::button("Delete").apply(primary_button(&t, &p)).bg(p.error).show(ui);
 ```
 
-The crate intentionally does not ship helpers like `primary_button` — what
+The crate intentionally does not ship helpers like `primary_button` - what
 counts as "primary" is a product decision, so you define that in
 app code.
 
@@ -430,7 +431,7 @@ Styled::stack()
 
 `egui_styled` adds CSS-inspired layout utilities on top of egui's flow system.
 
-**Spacer** — pushes following siblings to the far edge:
+**Spacer** - pushes following siblings to the far edge:
 
 ```rust
 Styled::row().full_width().show(ui, |ui| {
@@ -440,7 +441,7 @@ Styled::row().full_width().show(ui, |ui| {
 });
 ```
 
-**Percentage sizing** — `width_pct` / `height_pct` on any styled type.
+**Percentage sizing** - `width_pct` / `height_pct` on any styled type.
 Resolves at render time, supersedes `full_width`/`full_height`, composes with
 `min_*`/`max_*` as clamps:
 
@@ -449,7 +450,7 @@ Styled::frame().width_pct(50.0).show(ui, |ui| { /* half the available width */ }
 Styled::frame().width_pct(50.0).max_width(200.0).show(ui, |ui| { /* capped */ });
 ```
 
-**Aspect ratio** — derives height from width (`width ÷ height`, CSS
+**Aspect ratio** - derives height from width (`width ÷ height`, CSS
 convention). Requires a definite width (`width_pct` or `full_width`); no-op
 without one. Overridden by an explicit `height_pct` or `full_height`:
 
@@ -462,7 +463,7 @@ Styled::frame()
     .show(ui, |_| {});
 ```
 
-**Distribution** — three CSS style `justify-content` modes on `StyledRow`. Each
+**Distribution** - three CSS style `justify-content` modes on `StyledRow`. Each
 measures item widths with an invisible first pass, then distributes slack:
 
 ```rust
@@ -477,7 +478,7 @@ Styled::row().full_width().bg(nav_bg).padding(10.0).space_between()
 // space_evenly: equal space everywhere (before, between, after)
 ```
 
-**Wrapping rows** — children flow onto new lines as the container narrows.
+**Wrapping rows** - children flow onto new lines as the container narrows.
 Uses a cross-frame measurement pass so styled widgets (which egui's native
 `with_main_wrap` can't wrap) participate correctly:
 
@@ -507,7 +508,7 @@ Styled::label("SCORE")
     .text_color(Color32::WHITE)
     .show(ui);
 
-// Chromatic aberration — two opposite shadows, one label
+// Chromatic aberration - two opposite shadows, one label
 Styled::label("[ENTER]")
     .text_shadow(vec2(-2.0, 0.0), cyan)
     .text_shadow(vec2( 2.0, 0.0), magenta)
@@ -521,7 +522,7 @@ Styled::label("GAME OVER")
     .text_color(Color32::WHITE)
     .show(ui);
 
-// Soft glow — intensity from 0.0 to 1.0
+// Soft glow - intensity from 0.0 to 1.0
 Styled::label("000123456")
     .glow(Color32::from_rgb(0, 220, 255), theme.glow_md, intensity)
     .text_color(Color32::WHITE)
@@ -531,7 +532,7 @@ Styled::label("000123456")
 Effects compose: a single label can carry glow, outline, multiple shadows, and
 scale simultaneously.
 
-Glow is the most expensive text primitive — egui has no blur pass, so it's
+Glow is the most expensive text primitive - egui has no blur pass, so it's
 approximated by stamping the text many times on a Vogel disk. The
 default quality suits typical UI usage; tune with `.glow_quality(n)` if needed.
 
@@ -543,7 +544,7 @@ Gradients paint over the solid `bg` (like CSS `background-image` over
 `background-color`) and respect `corner_radius`.
 
 ```rust
-// Background gradients — 2-stop, 4-corner, or N-stop
+// Background gradients - 2-stop, 4-corner, or N-stop
 Styled::frame().bg_gradient_v(top, bottom).show(ui, body);           // vertical
 Styled::frame().bg_gradient_h(left, right).show(ui, body);           // horizontal
 Styled::frame().bg_gradient(tl, tr, bl, br).show(ui, body);          // 4 corners
@@ -551,7 +552,7 @@ Styled::frame()
     .bg_gradient_stops_h([(0.0, red), (0.5, green), (1.0, blue)])     // N-stop / rainbow
     .show(ui, body);
 
-// Inner glow — bright at the edge, fading inward (follows the corner radius)
+// Inner glow - bright at the edge, fading inward (follows the corner radius)
 Styled::button("NEW GAME")
     .bg(dark)
     .inner_glow(10.0, gold)
@@ -559,7 +560,7 @@ Styled::button("NEW GAME")
     .border_gradient(2.0, gold_bright, gold_dim)   // vertically-interpolated border
     .show(ui);
 
-// Per-side glow — top/bottom/left/right, or x / y / sides
+// Per-side glow - top/bottom/left/right, or x / y / sides
 Styled::frame().inner_glow_y(12.0, accent).show(ui, body);   // top + bottom only
 Styled::frame().inner_glow_left(14.0, accent).show(ui, body);
 ```
@@ -576,7 +577,7 @@ use `ctx.load_texture`, install URI loaders with
 compile-time bytes.
 
 ```rust
-// Inline widget — icons, portraits, thumbnails
+// Inline widget - icons, portraits, thumbnails
 Styled::image(egui::include_image!("assets/icon.png"))
     .size(Vec2::splat(64.0))
     .corner_radius(8.0)
@@ -585,7 +586,7 @@ Styled::image(egui::include_image!("assets/icon.png"))
     .shadow_filled(vec2(2.0, 2.0), Color32::from_black_alpha(100))
     .show(ui);
 
-// Background texture behind children — same rounded-corner clipping as `bg`
+// Background texture behind children - same rounded-corner clipping as `bg`
 Styled::area()
     .fill_screen()
     .background_image(egui::include_image!("assets/bg.jpg"))
@@ -607,8 +608,8 @@ correctly.
 | `StyledLabel` | ✅ Font, color, effects, min-height, visibility |
 | `StyledTextEdit` | ✅ Hint, multiline, password, focus styling, padding, border |
 | `StyledCheckbox` | ✅ Full pseudo-state |
-| `StyledSlider` | 🚧 Partial — track/handle styling is shallow |
-| `StyledComboBox` | 🚧 Partial — trigger styled, popup items inherit |
+| `StyledSlider` | 🚧 Partial - track/handle styling is shallow |
+| `StyledComboBox` | 🚧 Partial - trigger styled, popup items inherit |
 | `StyledFrame` | ✅ Full box model, background image, vertical justify, aspect ratio |
 | `StyledRow` / `StyledColumn` | ✅ Gap, alignment, box styling, distribution, wrapping |
 | `StyledStack` | ✅ Overlay layers, offsets, alignment, fixed-size layers |
@@ -624,7 +625,7 @@ correctly.
 Things that are intentionally out of scope or not yet solved:
 
 - **Immediate-mode constraints still apply.** Features that need multi-pass
-  measurement — distribution, wrapping, vertical justify — use an invisible
+  measurement - distribution, wrapping, vertical justify - use an invisible
   measurement frame and settle on the next repaint.
 - **Pseudo-state tracking has a 1-frame lag.** State is written to
   `egui::Memory` at the end of each frame and read at the start of the next.
@@ -657,7 +658,7 @@ Things that are intentionally out of scope or not yet solved:
 For ordinary tool UIs this is usually fine. Profile if you render very large
 numbers of styled widgets per frame.
 
-**Text glow is the most expensive primitive** — it stamps the glyph run many
+**Text glow is the most expensive primitive** - it stamps the glyph run many
 times. Lower `.glow_quality(n)` if you render lots of glowing labels
 simultaneously.
 
@@ -703,7 +704,7 @@ Pre-1.0. The API is functional and covered by examples and tests, but not yet
 tested in large production apps. Expect breaking changes between minor
 versions until 1.0.
 
-Feedback and bug reports are welcome — [open an issue](https://github.com/dspray95/egui_styled/issues).
+Feedback and bug reports are welcome - [open an issue](https://github.com/dspray95/egui_styled/issues).
 
 ---
 

@@ -381,7 +381,7 @@ fn main() -> eframe::Result<()> {
             ..Default::default()
         },
         |ctx, _| {
-            CentralPanel::default().show_inside(ctx, |ui| {
+            CentralPanel::default().show(ctx, |ui| {
                 egui::ScrollArea::vertical().show(ui, layout_demo);
             });
         },

@@ -205,7 +205,7 @@ fn main() -> eframe::Result<()> {
                 initialized = true;
             }
             let theme = ctx.styled_theme();
-            CentralPanel::default().show_inside(ctx, |ui| {
+            CentralPanel::default().show(ctx, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     text_effects_ui(ui, &theme);
                 });

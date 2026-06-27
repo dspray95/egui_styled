@@ -52,7 +52,7 @@ fn main() -> eframe::Result<()> {
         "egui_styled basic",
         eframe::NativeOptions::default(),
         |ctx, _| {
-            CentralPanel::default().show_inside(ctx, basic_example);
+            CentralPanel::default().show(ctx, basic_example);
         },
     )
 }

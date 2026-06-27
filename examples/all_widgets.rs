@@ -184,7 +184,7 @@ fn main() -> eframe::Result<()> {
                 ctx.set_design_data(warm_terminal_palette());
                 initialized = true;
             }
-            CentralPanel::default().show_inside(ctx, |ui| all_widgets(ui, &mut state));
+            CentralPanel::default().show(ctx, |ui| all_widgets(ui, &mut state));
         },
     )
 }
