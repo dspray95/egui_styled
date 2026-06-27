@@ -146,8 +146,7 @@ fn main() -> eframe::Result<()> {
                 ctx.set_design_data(slate_pink_palette());
                 initialized = true;
             }
-            CentralPanel::default()
-                .show(ctx, |ui| composable_styles_example(ui, &mut state));
+            CentralPanel::default().show(ctx, |ui| composable_styles_example(ui, &mut state));
         },
     )
 }
