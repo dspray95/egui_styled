@@ -1106,6 +1106,45 @@ pub fn render_scoped<R>(ui: &mut egui::Ui, visible: bool, f: impl FnOnce(&mut eg
 ///
 /// You rarely construct this directly; the `impl_style_builders!` macro
 /// generates `.bg()`, `.hover_bg()`, etc. on each styled type.
+///
+/// # Precedence rules
+///
+/// Three independent groups of fields resolve in a fixed order when more than
+/// one is set at once. This is the single place that lists all three; each
+/// implementing site links back here rather than restating it.
+///
+/// **Pseudo-state colors** (`bg`, `border`, `text_color`, `accent`, and their
+/// gradient / glow counterparts) - resolved in [`resolve`](Self::resolve),
+/// per-field, against whichever of `hovered` / `active` / `focused` the
+/// current [`PseudoState`] has set:
+/// - `bg` and the gradient/glow fields: `active` > `hover` > `focus` > base.
+/// - `border` (and per-side border overrides, which each fall back to the
+///   resolved uniform `border` when unset for that state): `focus` > `hover` > base.
+///   There is no `active_border` - a widget's border doesn't change on press,
+///   only on hover/focus.
+/// - `text_color`: `hover` > base only. There is no `active_text_color` or
+///   `focus_text_color` yet.
+/// - A pseudo-state's own field always wins over falling through to the base
+///   field, which itself falls through to egui's active `Visuals` when unset.
+///
+/// **Border decorations** (`border`, the per-side `border_sides` overrides,
+/// and `border_gradient`), for a single resolved state - see
+/// [`StyledFrame::show`](crate::StyledFrame) for the paint-order
+/// implementation: `border_gradient` > per-side overrides > uniform `border`.
+/// Only one of the three ever paints; they are not layered. Per-side and
+/// gradient borders both draw straight edges and do not follow
+/// `corner_radius` - only the uniform `border` path does (delegated to
+/// egui's own rounded stroke).
+///
+/// **Sizing** (`width_pct` / `height_pct`, `aspect_ratio`, `full_width` /
+/// `full_height`, `min_width` / `max_width` / `min_height` / `max_height`,
+/// and `fill_size` on frame-backed containers) - see
+/// [`resolve_size`](Self::resolve_size) for the exact width/height chains
+/// and the non-finite-`avail` degradation. Short version: an explicit
+/// percentage or `fill_size` wins outright; `aspect_ratio` only kicks in once
+/// a definite width exists; `full_width`/`full_height` is the fallback that
+/// stretches to available space; `min_*`/`max_*` clamp whichever of the above
+/// was chosen, with `min_*` applied last so an explicit minimum always wins.
 #[derive(Clone, Default, Debug)]
 pub struct SharedStyle {
     // Background
@@ -1350,8 +1389,10 @@ impl SharedStyle {
         })
     }
 
-    /// Centralized size resolver. Encodes the full sizing precedence for all
-    /// styled widgets:
+    /// Centralized size resolver. See the "Precedence rules" section on
+    /// [`SharedStyle`] for how this fits with the other two precedence
+    /// chains (colors, border decorations). Encodes the full sizing
+    /// precedence for all styled widgets:
     /// - Width: `width_pct` > `full_width` (capped by `max_width`) > pass-through `min/max_width`
     /// - Height: `height_pct` > `aspect_ratio` (from definite width) > `full_height` > pass-through
     ///
@@ -1408,7 +1449,9 @@ impl SharedStyle {
         }
     }
 
-    /// Resolve against current pseudo-state and egui's active visuals.
+    /// Resolve against current pseudo-state and egui's active visuals. See
+    /// the "Precedence rules" section on [`SharedStyle`] for the per-field
+    /// state precedence this implements.
     /// Kept for back-compat; prefer `resolve_per_state` for new widget code.
     pub fn resolve(&self, state: PseudoState, default: &WidgetVisuals) -> ResolvedStyle {
         let bg = match state {

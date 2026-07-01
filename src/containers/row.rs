@@ -54,15 +54,24 @@ impl StyledRow {
     }
 
     /// Wrap children onto a new line when they run out of horizontal room
-    /// (CSS `flex-wrap: wrap`). Transitions to [`WrappingRow`] — add children
-    /// with `.item()` and render with `.show(ui)`.
+    /// (CSS `flex-wrap: wrap`). Transitions to [`WrappingRow`], which is
+    /// **item-based rather than a `show(ui, body)` closure**: it needs every
+    /// child up front to measure natural widths before it can decide where to
+    /// break lines (a plain body closure paints inline as it runs, so it can't
+    /// be "replayed" once for measurement and again for layout). Add children
+    /// with `.item()`, then render with `.show(ui)`:
     ///
-    /// This is item-based (rather than a `show(ui, body)` closure) because it
-    /// measures each child's natural width to place it, which is what lets
-    /// scope-isolated styled widgets wrap — see [`WrappingRow`]. `gap` applies
-    /// to both axes, so the vertical spacing between wrapped lines matches the
-    /// horizontal gap. Requires a bounded width (`full_width` or a sized parent)
-    /// to know where to break.
+    /// ```ignore
+    /// Styled::row().full_width().gap(6.0)
+    ///     .wrap()
+    ///     .item(|ui| { Styled::button("egui").show(ui); })
+    ///     .item(|ui| { Styled::button("rust").show(ui); })
+    ///     .show(ui);
+    /// ```
+    ///
+    /// `gap` applies to both axes, so the vertical spacing between wrapped
+    /// lines matches the horizontal gap. Requires a bounded width
+    /// (`full_width` or a sized parent) to know where to break.
     pub fn wrap<'a>(self) -> WrappingRow<'a> {
         WrappingRow {
             gap: self.gap.unwrap_or(0.0),
@@ -72,41 +81,49 @@ impl StyledRow {
         }
     }
 
-    /// Distribute children evenly with no leading/trailing space and equal gaps
-    /// between items (CSS `justify-content: space-between`). Transitions to
-    /// [`DistributedRow`] — call `.item()` to add children, then `.show(ui)`.
-    pub fn space_between<'a>(self) -> DistributedRow<'a> {
+    fn distribute<'a>(self, mode: Distribution) -> DistributedRow<'a> {
         DistributedRow {
-            mode: Distribution::SpaceBetween,
+            mode,
             min_gap: self.gap.unwrap_or(0.0),
             align: self.align,
             style: self.style,
             items: Vec::new(),
         }
+    }
+
+    /// Distribute children evenly with no leading/trailing space and equal gaps
+    /// between items (CSS `justify-content: space-between`). Transitions to
+    /// [`DistributedRow`], which — like [`WrappingRow`] — is **item-based
+    /// rather than a `show(ui, body)` closure**, since it also needs every
+    /// child up front for a measure-then-layout pass. Call `.item()` to add
+    /// children, then `.show(ui)`:
+    ///
+    /// ```ignore
+    /// Styled::row().full_width()
+    ///     .space_between()
+    ///     .item(|ui| { Styled::label("A").show(ui); })
+    ///     .item(|ui| { Styled::label("B").show(ui); })
+    ///     .show(ui);
+    /// ```
+    pub fn space_between<'a>(self) -> DistributedRow<'a> {
+        self.distribute(Distribution::SpaceBetween)
     }
 
     /// Distribute children with equal space around each item (CSS
-    /// `justify-content: space-around`). Transitions to [`DistributedRow`].
+    /// `justify-content: space-around`). Transitions to [`DistributedRow`] —
+    /// same item-based `.item(...).item(...).show(ui)` pattern as
+    /// [`space_between`](Self::space_between); see its docs for a full example.
     pub fn space_around<'a>(self) -> DistributedRow<'a> {
-        DistributedRow {
-            mode: Distribution::SpaceAround,
-            min_gap: self.gap.unwrap_or(0.0),
-            align: self.align,
-            style: self.style,
-            items: Vec::new(),
-        }
+        self.distribute(Distribution::SpaceAround)
     }
 
     /// Distribute children with equal space between, before, and after every
-    /// item (CSS `justify-content: space-evenly`). Transitions to [`DistributedRow`].
+    /// item (CSS `justify-content: space-evenly`). Transitions to
+    /// [`DistributedRow`] — same item-based `.item(...).item(...).show(ui)`
+    /// pattern as [`space_between`](Self::space_between); see its docs for a
+    /// full example.
     pub fn space_evenly<'a>(self) -> DistributedRow<'a> {
-        DistributedRow {
-            mode: Distribution::SpaceEvenly,
-            min_gap: self.gap.unwrap_or(0.0),
-            align: self.align,
-            style: self.style,
-            items: Vec::new(),
-        }
+        self.distribute(Distribution::SpaceEvenly)
     }
 
     pub fn show<R>(self, ui: &mut Ui, body: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {

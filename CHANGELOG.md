@@ -21,6 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`StyledSpacer::show` now returns `Response`** instead of `()`. It was the only styled type whose `show` discarded its result, which made it impossible to inspect its rect or compose it like every other widget.
 - **`StyledStack::show` now returns `Response`** instead of the redundant `InnerResponse<Response>` - the `inner` and `response` fields were always identical, so the wrapper carried no extra information and stood out among the other item-based containers (`DistributedRow`, `WrappingRow`), which already returned a plain `Response`.
 
+### Changed
+
+- **`StyledRow::space_between` / `space_around` / `space_evenly` doc comments now show the full `.item(...).item(...).show(ui)` pattern inline**, and `.wrap()` explains *why* `WrappingRow` / `DistributedRow` are item-based instead of a `show(ui, body)` closure (they need every child up front for a measure-then-layout pass; a body closure paints inline as it runs and can't be replayed). Aimed at the moment of confusion where `.space_between()` / `.wrap()` silently swaps the row for a different builder type with a different `.show()` shape.
+- **`space_between` / `space_around` / `space_evenly` deduplicated** through a private `StyledRow::distribute(mode)` helper - the three public methods now differ only in which `Distribution` variant they pass in, instead of each repeating the same `DistributedRow` struct literal. No change to any call site.
+
+### Documentation
+
+- **Centralized the three precedence chains that were previously only discoverable by reading resolver internals**, in a new "Precedence rules" section on `SharedStyle`'s doc comment: pseudo-state colors (`active` > `hover` > `focus` > base for `bg`/gradients/glow; `focus` > `hover` > base for borders, no `active_border`; `hover` > base only for `text_color`, no `active`/`focus` variant), border decorations (`border_gradient` > per-side overrides > uniform `border`, only one ever paints), and sizing (percentage/`fill_size` > `aspect_ratio` (needs a definite width) > `full_width`/`full_height` > pass-through clamps, `min_*` applied last so it always wins). The existing accurate `resolve_size` doc comment and the border-paint-order comment in `StyledFrame::show` now link back to this section instead of each being a separate, easy-to-miss source of truth.
+
 ## [0.7.1] - 2026-06-27
 
 ### Changed

@@ -370,7 +370,8 @@ impl StyledFrame {
             paint_side_borders(ui.painter(), rect, sides);
         }
 
-        // Border gradient (wins over per-side and uniform border).
+        // Border gradient (wins over per-side and uniform border) - see the
+        // "Precedence rules" section on `SharedStyle` for the full chain.
         if let Some(bg) = self.style.border_gradient {
             ui.painter()
                 .add(Shape::Mesh(border_gradient_mesh(rect, bg).into()));
