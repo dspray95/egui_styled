@@ -71,6 +71,14 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
+            /// Text/foreground colour while the widget has keyboard focus.
+            /// Falls back to [`hover_text_color`](Self::hover_text_color) /
+            /// [`text_color`](Self::text_color) when unset.
+            pub fn focus_text_color(mut self, color: egui::Color32) -> Self {
+                self.style.focus_text_color = Some(color);
+                self
+            }
+
             /// Set the label font size in points. On widgets with a dedicated
             /// `font` builder, an explicit `font` takes precedence.
             pub fn font_size(mut self, size: f32) -> Self {
@@ -781,6 +789,7 @@ mod tests {
             .hover_accent(egui::Color32::RED)
             .text_color(egui::Color32::RED)
             .hover_text_color(egui::Color32::RED)
+            .focus_text_color(egui::Color32::RED)
             .font_size(14.0)
             .border(1.0, egui::Color32::RED)
             .hover_border(1.0, egui::Color32::RED)

@@ -1120,13 +1120,15 @@ pub(crate) fn render_scoped<R>(ui: &mut egui::Ui, visible: bool, f: impl FnOnce(
 ///   resolved uniform `border` when unset for that state): `focus` > `hover` > base.
 ///   There is no `active_border` - a widget's border doesn't change on press,
 ///   only on hover/focus.
-/// - `text_color` and `accent`: `hover` > base only. There is no
-///   `active_text_color`/`focus_text_color` or `active_accent`/`focus_accent`
-///   yet. `accent` maps to egui's `Visuals.selection.bg_fill`, which (unlike
-///   `bg`/`text_color`/`border`) has no per-widget-state slot to switch on
-///   during rendering - it's resolved against last frame's cached pseudo-state
-///   instead of the current response, the one field in this crate with that
-///   one-frame-lag tradeoff.
+/// - `text_color`: `focus` > `hover` > base, matching `border`'s pattern.
+///   There is no `active_text_color` - a widget's text doesn't change on
+///   press, only on hover/focus.
+/// - `accent`: `hover` > base only. There is no `active_accent`/`focus_accent`
+///   yet. Unlike `bg`/`text_color`/`border`, `accent` maps to egui's
+///   `Visuals.selection.bg_fill`, which has no per-widget-state slot to
+///   switch on during rendering - it's resolved against last frame's cached
+///   pseudo-state instead of the current response, the one field in this
+///   crate with that one-frame-lag tradeoff.
 /// - A pseudo-state's own field always wins over falling through to the base
 ///   field, which itself falls through to egui's active `Visuals` when unset.
 ///
@@ -1164,6 +1166,7 @@ pub struct SharedStyle {
     // Text
     pub text_color: Option<Color32>,
     pub hover_text_color: Option<Color32>,
+    pub focus_text_color: Option<Color32>,
     pub font_size: Option<f32>,
     pub font_id: Option<FontId>,
 
@@ -1484,6 +1487,7 @@ impl SharedStyle {
         };
 
         let text_color = match state {
+            _ if state.focused && self.focus_text_color.is_some() => self.focus_text_color.unwrap(),
             _ if state.hovered && self.hover_text_color.is_some() => self.hover_text_color.unwrap(),
             _ => self.text_color.unwrap_or(default.text_color()),
         };
@@ -1813,6 +1817,34 @@ mod tests {
             focused: false,
         };
         assert_eq!(style.resolve(hovered, &visuals).text_color, Color32::GREEN);
+    }
+
+    #[test]
+    fn focus_text_color_beats_hover_text_color() {
+        let style = SharedStyle {
+            text_color: Some(Color32::RED),
+            hover_text_color: Some(Color32::GREEN),
+            focus_text_color: Some(Color32::YELLOW),
+            ..Default::default()
+        };
+        let visuals = default_visuals();
+
+        let state = PseudoState {
+            hovered: true,
+            active: false,
+            focused: true,
+        };
+        assert_eq!(style.resolve(state, &visuals).text_color, Color32::YELLOW);
+
+        let hovered_only = PseudoState {
+            hovered: true,
+            active: false,
+            focused: false,
+        };
+        assert_eq!(
+            style.resolve(hovered_only, &visuals).text_color,
+            Color32::GREEN
+        );
     }
 
     #[test]

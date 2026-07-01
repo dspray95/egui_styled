@@ -168,7 +168,14 @@ impl<'a> StyledTextEdit<'a> {
                         .stroke(frame_stroke)
                         .corner_radius(per.corner_radius)
                         .inner_margin(padding);
-                    text_edit = text_edit.frame(custom_frame).margin(padding);
+                    // egui's `TextEdit` reads text colour from the inactive
+                    // slot regardless of hover/focus, so `hover_text_color`/
+                    // `focus_text_color` need an explicit override here to
+                    // have any effect.
+                    text_edit = text_edit
+                        .frame(custom_frame)
+                        .margin(padding)
+                        .text_color(resolved.text_color);
 
                     let mut wrapper = egui::Frame::new();
                     if per.margin != egui::Margin::ZERO {
