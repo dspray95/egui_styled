@@ -18,14 +18,20 @@ fn slot_id() -> Id {
 /// If you need two slots of the same type (e.g., two `Vec<Color32>`
 /// palettes), newtype them: `struct UiColors(Vec<Color32>)` vs
 /// `struct DebugColors(Vec<Color32>)`.
+/// Marker for types storable in a [`DesignSlots`] slot - anything egui's
+/// `IdTypeMap` can hold. Blanket-implemented for every type that satisfies
+/// the bound, so this never needs to be implemented by hand.
+pub trait DesignValue: 'static + Clone + Send + Sync {}
+impl<T: 'static + Clone + Send + Sync> DesignValue for T {}
+
 pub trait DesignSlots {
     /// Replace the stored value of type `T`. Subsequent `design_data::<T>()`
     /// calls return this value until overwritten.
-    fn set_design_data<T: 'static + Clone + Send + Sync>(&self, value: T);
+    fn set_design_data<T: DesignValue>(&self, value: T);
 
     /// Read the stored value of type `T`. Returns `T::default()` if nothing
     /// has been stored under this type.
-    fn design_data<T: 'static + Clone + Send + Sync + Default>(&self) -> T;
+    fn design_data<T: DesignValue + Default>(&self) -> T;
 
     /// Fetch the styled theme and an arbitrary additional design type in a
     /// single call. Removes the two-line ceremony at the top of every panel
@@ -34,20 +40,20 @@ pub trait DesignSlots {
     /// ```ignore
     /// let (theme, colors) = ui.ctx().design::<MyColors>();
     /// ```
-    fn design<T: 'static + Clone + Send + Sync + Default>(&self) -> (StyledTheme, T) {
+    fn design<T: DesignValue + Default>(&self) -> (StyledTheme, T) {
         (self.design_data::<StyledTheme>(), self.design_data::<T>())
     }
 }
 
 impl DesignSlots for Context {
-    fn set_design_data<T: 'static + Clone + Send + Sync>(&self, value: T) {
+    fn set_design_data<T: DesignValue>(&self, value: T) {
         // egui's IdTypeMap keys by (Id, TypeId), so the same `slot_id`
         // can hold every distinct `T` without collision.
         let _ = TypeId::of::<T>(); // doc that we rely on TypeId
         self.memory_mut(|mem| mem.data.insert_temp(slot_id(), value));
     }
 
-    fn design_data<T: 'static + Clone + Send + Sync + Default>(&self) -> T {
+    fn design_data<T: DesignValue + Default>(&self) -> T {
         self.memory_mut(|mem| mem.data.get_temp::<T>(slot_id()).unwrap_or_default())
     }
 }
