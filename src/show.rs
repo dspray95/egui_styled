@@ -4,7 +4,7 @@ use egui::{InnerResponse, Response, Ui};
 /// a plain [`Response`].
 ///
 /// Every leaf widget (`StyledButton`, `StyledLabel`, ...) and every
-/// pre-populated container (`StyledSpacer`, `DistributedRow`, `WrappingRow`,
+/// pre-populated container (`StyledSpacer`, `StyledDistributedRow`, `StyledWrappingRow`,
 /// `StyledStack`) implements this the same way, so generic helpers can accept
 /// "any styled thing that just needs a `Ui`":
 ///
@@ -96,9 +96,9 @@ mod tests {
     //! than silently reintroducing the five-shapes-for-`.show()` problem this
     //! module was written to close.
     use crate::{
-        DistributedRow, StyledButton, StyledCheckbox, StyledColumn, StyledContainer, StyledFrame,
-        StyledImage, StyledLabel, StyledRow, StyledSlider, StyledSpacer, StyledStack,
-        StyledTextEdit, StyledWidget, WrappingRow,
+        StyledButton, StyledCheckbox, StyledColumn, StyledContainer, StyledDistributedRow,
+        StyledFrame, StyledImage, StyledLabel, StyledRow, StyledSlider, StyledSpacer, StyledStack,
+        StyledTextEdit, StyledWidget, StyledWrappingRow,
     };
 
     fn assert_widget<T: StyledWidget>() {}
@@ -114,8 +114,8 @@ mod tests {
         assert_widget::<StyledTextEdit<'_>>();
         assert_widget::<StyledImage>();
         assert_widget::<StyledSpacer>();
-        assert_widget::<DistributedRow<'_>>();
-        assert_widget::<WrappingRow<'_>>();
+        assert_widget::<StyledDistributedRow<'_>>();
+        assert_widget::<StyledWrappingRow<'_>>();
         assert_widget::<StyledStack<'_>>();
 
         // `StyledContainer`: body closure in, `InnerResponse<R>` out.

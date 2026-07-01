@@ -1,9 +1,9 @@
 use egui::{Align, InnerResponse, Layout, Ui};
 
 use crate::{
-    containers::distribute::DistributedRow,
+    containers::distribute::StyledDistributedRow,
     containers::frame::StyledFrame,
-    containers::wrap::WrappingRow,
+    containers::wrap::StyledWrappingRow,
     impl_style_builders,
     style::shared_style::{Distribution, SharedStyle},
 };
@@ -54,7 +54,7 @@ impl StyledRow {
     }
 
     /// Wrap children onto a new line when they run out of horizontal room
-    /// (CSS `flex-wrap: wrap`). Transitions to [`WrappingRow`], which is
+    /// (CSS `flex-wrap: wrap`). Transitions to [`StyledWrappingRow`], which is
     /// **item-based rather than a `show(ui, body)` closure**: it needs every
     /// child up front to measure natural widths before it can decide where to
     /// break lines (a plain body closure paints inline as it runs, so it can't
@@ -72,8 +72,8 @@ impl StyledRow {
     /// `gap` applies to both axes, so the vertical spacing between wrapped
     /// lines matches the horizontal gap. Requires a bounded width
     /// (`full_width` or a sized parent) to know where to break.
-    pub fn wrap<'a>(self) -> WrappingRow<'a> {
-        WrappingRow {
+    pub fn wrap<'a>(self) -> StyledWrappingRow<'a> {
+        StyledWrappingRow {
             gap: self.gap.unwrap_or(0.0),
             align: self.align,
             style: self.style,
@@ -81,8 +81,8 @@ impl StyledRow {
         }
     }
 
-    fn distribute<'a>(self, mode: Distribution) -> DistributedRow<'a> {
-        DistributedRow {
+    fn distribute<'a>(self, mode: Distribution) -> StyledDistributedRow<'a> {
+        StyledDistributedRow {
             mode,
             min_gap: self.gap.unwrap_or(0.0),
             align: self.align,
@@ -93,7 +93,7 @@ impl StyledRow {
 
     /// Distribute children evenly with no leading/trailing space and equal gaps
     /// between items (CSS `justify-content: space-between`). Transitions to
-    /// [`DistributedRow`], which — like [`WrappingRow`] — is **item-based
+    /// [`StyledDistributedRow`], which — like [`StyledWrappingRow`] — is **item-based
     /// rather than a `show(ui, body)` closure**, since it also needs every
     /// child up front for a measure-then-layout pass. Call `.item()` to add
     /// children, then `.show(ui)`:
@@ -105,24 +105,24 @@ impl StyledRow {
     ///     .item(|ui| { Styled::label("B").show(ui); })
     ///     .show(ui);
     /// ```
-    pub fn space_between<'a>(self) -> DistributedRow<'a> {
+    pub fn space_between<'a>(self) -> StyledDistributedRow<'a> {
         self.distribute(Distribution::SpaceBetween)
     }
 
     /// Distribute children with equal space around each item (CSS
-    /// `justify-content: space-around`). Transitions to [`DistributedRow`] —
+    /// `justify-content: space-around`). Transitions to [`StyledDistributedRow`] —
     /// same item-based `.item(...).item(...).show(ui)` pattern as
     /// [`space_between`](Self::space_between); see its docs for a full example.
-    pub fn space_around<'a>(self) -> DistributedRow<'a> {
+    pub fn space_around<'a>(self) -> StyledDistributedRow<'a> {
         self.distribute(Distribution::SpaceAround)
     }
 
     /// Distribute children with equal space between, before, and after every
     /// item (CSS `justify-content: space-evenly`). Transitions to
-    /// [`DistributedRow`] — same item-based `.item(...).item(...).show(ui)`
+    /// [`StyledDistributedRow`] — same item-based `.item(...).item(...).show(ui)`
     /// pattern as [`space_between`](Self::space_between); see its docs for a
     /// full example.
-    pub fn space_evenly<'a>(self) -> DistributedRow<'a> {
+    pub fn space_evenly<'a>(self) -> StyledDistributedRow<'a> {
         self.distribute(Distribution::SpaceEvenly)
     }
 

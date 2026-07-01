@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **`StyledWidget` and `StyledContainer` traits**, exported from the crate root and prelude, unifying the previously five different `.show()` signatures down to two documented shapes plus two justified exceptions:
-  - `StyledWidget::show(self, ui: &mut Ui) -> Response` - every leaf widget (`StyledButton`, `StyledCheckbox`, `StyledSlider`, `StyledLabel`, `StyledTextEdit`, `StyledImage`) plus every pre-populated container (`StyledSpacer`, `DistributedRow`, `WrappingRow`, `StyledStack`).
+  - `StyledWidget::show(self, ui: &mut Ui) -> Response` - every leaf widget (`StyledButton`, `StyledCheckbox`, `StyledSlider`, `StyledLabel`, `StyledTextEdit`, `StyledImage`) plus every pre-populated container (`StyledSpacer`, `StyledDistributedRow`, `StyledWrappingRow`, `StyledStack`).
   - `StyledContainer::show<R>(self, ui: &mut Ui, body: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R>` - `StyledFrame`, `StyledRow`, `StyledColumn`.
   - `StyledArea` (takes `&Context`, not `&mut Ui`) and `StyledComboBox` (returns `InnerResponse<Option<()>>` since its menu-contents closure only runs when the dropdown is open) remain outside both traits - documented as intentional divergences rather than gaps.
   - Implemented via new `impl_styled_widget!` / `impl_styled_container!` macros (same convention as `impl_style_builders!`); every existing `.show(...)` call site is unaffected.
@@ -19,12 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **`StyledSpacer::show` now returns `Response`** instead of `()`. It was the only styled type whose `show` discarded its result, which made it impossible to inspect its rect or compose it like every other widget.
-- **`StyledStack::show` now returns `Response`** instead of the redundant `InnerResponse<Response>` - the `inner` and `response` fields were always identical, so the wrapper carried no extra information and stood out among the other item-based containers (`DistributedRow`, `WrappingRow`), which already returned a plain `Response`.
+- **`StyledStack::show` now returns `Response`** instead of the redundant `InnerResponse<Response>` - the `inner` and `response` fields were always identical, so the wrapper carried no extra information and stood out among the other item-based containers (`StyledDistributedRow`, `StyledWrappingRow`), which already returned a plain `Response`.
 
 ### Changed
 
-- **`StyledRow::space_between` / `space_around` / `space_evenly` doc comments now show the full `.item(...).item(...).show(ui)` pattern inline**, and `.wrap()` explains *why* `WrappingRow` / `DistributedRow` are item-based instead of a `show(ui, body)` closure (they need every child up front for a measure-then-layout pass; a body closure paints inline as it runs and can't be replayed). Aimed at the moment of confusion where `.space_between()` / `.wrap()` silently swaps the row for a different builder type with a different `.show()` shape.
-- **`space_between` / `space_around` / `space_evenly` deduplicated** through a private `StyledRow::distribute(mode)` helper - the three public methods now differ only in which `Distribution` variant they pass in, instead of each repeating the same `DistributedRow` struct literal. No change to any call site.
+- **Breaking: `DistributedRow` renamed to `StyledDistributedRow`, `WrappingRow` renamed to `StyledWrappingRow`.** Every other public container (`StyledFrame`, `StyledRow`, `StyledColumn`, `StyledArea`, `StyledStack`) carries the `Styled` prefix; these two were the only containers that didn't, despite carrying a `SharedStyle` field and routing through `StyledFrame` like the rest. No behavior change - update any `DistributedRow`/`WrappingRow` references (unlikely outside of turbofish/explicit type annotations, since `.space_between()`/`.wrap()` etc. return the type via inference).
+- **`StyledRow::space_between` / `space_around` / `space_evenly` doc comments now show the full `.item(...).item(...).show(ui)` pattern inline**, and `.wrap()` explains *why* `StyledWrappingRow` / `StyledDistributedRow` are item-based instead of a `show(ui, body)` closure (they need every child up front for a measure-then-layout pass; a body closure paints inline as it runs and can't be replayed). Aimed at the moment of confusion where `.space_between()` / `.wrap()` silently swaps the row for a different builder type with a different `.show()` shape.
+- **`space_between` / `space_around` / `space_evenly` deduplicated** through a private `StyledRow::distribute(mode)` helper - the three public methods now differ only in which `Distribution` variant they pass in, instead of each repeating the same `StyledDistributedRow` struct literal. No change to any call site.
 
 ### Documentation
 

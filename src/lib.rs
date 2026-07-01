@@ -30,16 +30,16 @@ pub mod theme;
 pub mod widgets;
 
 pub use apply::Apply;
-pub use show::{StyledContainer, StyledWidget};
 pub use color::{ColorExt, rgb, rgba};
 pub use containers::area::StyledArea;
 pub use containers::column::StyledColumn;
-pub use containers::distribute::DistributedRow;
+pub use containers::distribute::StyledDistributedRow;
 pub use containers::frame::StyledFrame;
 pub use containers::row::StyledRow;
 pub use containers::spacer::StyledSpacer;
 pub use containers::stack::StyledStack;
-pub use containers::wrap::WrappingRow;
+pub use containers::wrap::StyledWrappingRow;
+pub use show::{StyledContainer, StyledWidget};
 pub use style::shared_style::Distribution;
 pub use style::shared_style::{
     BackgroundImageFit, BgGradient, BorderGradient, Gradient, GradientAxis, InnerGlow,

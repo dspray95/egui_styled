@@ -5,10 +5,10 @@ use crate::{
     style::shared_style::{Distribution, SharedStyle, distribute_row_horizontally},
 };
 
-/// A single child of a [`DistributedRow`], rendered once into the row's `Ui`.
+/// A single child of a [`StyledDistributedRow`], rendered once into the row's `Ui`.
 type ItemFn<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 
-pub struct DistributedRow<'a> {
+pub struct StyledDistributedRow<'a> {
     pub(crate) mode: Distribution,
     pub(crate) min_gap: f32,
     pub(crate) align: Option<Align>,
@@ -16,7 +16,7 @@ pub struct DistributedRow<'a> {
     pub(crate) items: Vec<ItemFn<'a>>,
 }
 
-impl<'a> DistributedRow<'a> {
+impl<'a> StyledDistributedRow<'a> {
     pub fn item(mut self, f: impl FnOnce(&mut Ui) + 'a) -> Self {
         self.items.push(Box::new(f));
         self
@@ -69,7 +69,7 @@ impl<'a> DistributedRow<'a> {
     }
 }
 
-crate::impl_styled_widget!(['a], DistributedRow<'a>);
+crate::impl_styled_widget!(['a], StyledDistributedRow<'a>);
 
 #[cfg(test)]
 mod tests {

@@ -30,7 +30,7 @@ pub use crate::WebPalette;
 pub use crate::{rgb, rgba};
 pub use egui::TextWrapMode;
 
-pub use crate::DistributedRow;
+pub use crate::StyledDistributedRow;
 pub use crate::Distribution;
 pub use crate::StyledArea;
 pub use crate::StyledButton;
@@ -45,4 +45,4 @@ pub use crate::StyledSlider;
 pub use crate::StyledSpacer;
 pub use crate::StyledStack;
 pub use crate::StyledTextEdit;
-pub use crate::WrappingRow;
+pub use crate::StyledWrappingRow;

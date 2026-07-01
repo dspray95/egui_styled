@@ -20,7 +20,7 @@
 ///
 /// For overflow-free edge-pinning and even distribution
 /// (`[A] ........ [B]`, nav bars, button groups), use the measured
-/// [`DistributedRow`](crate::DistributedRow) API instead — its invisible
+/// [`StyledDistributedRow`](crate::StyledDistributedRow) API instead — its invisible
 /// measure pass sizes the gaps so nothing overflows:
 ///
 /// ```ignore

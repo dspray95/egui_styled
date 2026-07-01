@@ -2,7 +2,7 @@ use egui::{Align, Layout, Response, Ui};
 
 use crate::{containers::frame::StyledFrame, style::shared_style::SharedStyle};
 
-/// A single child of a [`WrappingRow`], rendered once into the row's `Ui`.
+/// A single child of a [`StyledWrappingRow`], rendered once into the row's `Ui`.
 type ItemFn<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 
 /// A horizontal row whose children flow onto new lines when they run out of
@@ -24,14 +24,14 @@ type ItemFn<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 ///     .item(|ui| { Styled::button("rust").show(ui); })
 ///     .show(ui);
 /// ```
-pub struct WrappingRow<'a> {
+pub struct StyledWrappingRow<'a> {
     pub(crate) gap: f32,
     pub(crate) align: Option<Align>,
     pub(crate) style: SharedStyle,
     pub(crate) items: Vec<ItemFn<'a>>,
 }
 
-impl<'a> WrappingRow<'a> {
+impl<'a> StyledWrappingRow<'a> {
     pub fn item(mut self, f: impl FnOnce(&mut Ui) + 'a) -> Self {
         self.items.push(Box::new(f));
         self
@@ -124,7 +124,7 @@ impl<'a> WrappingRow<'a> {
     }
 }
 
-crate::impl_styled_widget!(['a], WrappingRow<'a>);
+crate::impl_styled_widget!(['a], StyledWrappingRow<'a>);
 
 /// Greedy line packing: returns the number of items on each line such that the
 /// summed widths plus `gap` between them stay within `avail`. An item wider than
