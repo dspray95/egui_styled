@@ -81,7 +81,7 @@ impl StyledButton {
 
             let response = ui
                 .scope(|ui| {
-                    SharedStyle::apply_to_visuals(&per, ui.visuals_mut());
+                    SharedStyle::apply_to_visuals(&per, pseudo, ui.visuals_mut());
 
                     // Wire `padding` through to egui's `button_padding`. egui's
                     // `Button` only supports symmetric padding (a single `Vec2`),
@@ -155,9 +155,6 @@ impl StyledButton {
         {
             ui.ctx().set_cursor_icon(icon);
         }
-
-        // Suppress unused-variable warning for pseudo (used for state loading only).
-        let _ = pseudo;
 
         response
     }

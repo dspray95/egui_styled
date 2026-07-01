@@ -57,7 +57,7 @@ impl StyledComboBox {
         let id = self
             .id_override
             .unwrap_or_else(|| ui.make_persistent_id(self.id_source));
-        let _pseudo = PseudoState::load(ui, id);
+        let pseudo = PseudoState::load(ui, id);
 
         let per = self.style.resolve_per_state(ui.visuals());
 
@@ -66,7 +66,7 @@ impl StyledComboBox {
             let gradient_idx = ui.painter().add(Shape::Noop);
             let result = ui
                 .scope(|ui| {
-                    SharedStyle::apply_to_visuals(&per, ui.visuals_mut());
+                    SharedStyle::apply_to_visuals(&per, pseudo, ui.visuals_mut());
 
                     // Apply font to selected_text if requested.
                     let selected_text: WidgetText = if let Some(size) = self.style.font_size {

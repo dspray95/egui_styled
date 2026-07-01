@@ -55,7 +55,7 @@ impl<'a, T: Numeric> StyledSlider<'a, T> {
         let id = self
             .id_override
             .unwrap_or_else(|| ui.make_persistent_id(ui.next_auto_id()));
-        let _pseudo = PseudoState::load(ui, id);
+        let pseudo = PseudoState::load(ui, id);
 
         let per = self.style.resolve_per_state(ui.visuals());
 
@@ -65,7 +65,7 @@ impl<'a, T: Numeric> StyledSlider<'a, T> {
             let response = ui
                 .scope(|ui| {
                     // selection.bg_fill drives the slider trailing fill.
-                    SharedStyle::apply_to_visuals(&per, ui.visuals_mut());
+                    SharedStyle::apply_to_visuals(&per, pseudo, ui.visuals_mut());
 
                     let mut slider = Slider::new(self.value, self.range);
                     if let Some(t) = self.text {

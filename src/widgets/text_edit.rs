@@ -95,7 +95,7 @@ impl<'a> StyledTextEdit<'a> {
             let gradient_idx = ui.painter().add(Shape::Noop);
             let response = ui
                 .scope(|ui| {
-                    SharedStyle::apply_to_visuals(&per, ui.visuals_mut());
+                    SharedStyle::apply_to_visuals(&per, pseudo, ui.visuals_mut());
 
                     let mut text_edit = if self.multiline {
                         TextEdit::multiline(self.text)

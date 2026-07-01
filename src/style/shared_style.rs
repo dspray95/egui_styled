@@ -44,7 +44,7 @@ pub struct Shadow {
 /// // ... add widget, get response ...
 /// paint_shadows(ui, shadow_idx, response.rect, corner_radius, &style.shadows);
 /// ```
-pub fn paint_shadows(
+pub(crate) fn paint_shadows(
     ui: &egui::Ui,
     reserve_idx: egui::layers::ShapeIdx,
     rect: egui::Rect,
@@ -358,7 +358,7 @@ impl BorderGradient {
 /// `border_top` / `border_left` / … builder; an unset side falls back to the
 /// uniform `border` (and then egui's default) at resolve time.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct SideStrokes {
+pub(crate) struct SideStrokes {
     pub top: Option<Stroke>,
     pub right: Option<Stroke>,
     pub bottom: Option<Stroke>,
@@ -376,7 +376,7 @@ impl SideStrokes {
 /// [`SharedStyle::resolve`]; consumed by [`paint_side_borders`] when the user
 /// set per-side overrides.
 #[derive(Clone, Copy, Debug)]
-pub struct ResolvedBorder {
+pub(crate) struct ResolvedBorder {
     pub top: Stroke,
     pub right: Stroke,
     pub bottom: Stroke,
@@ -389,7 +389,7 @@ pub struct ResolvedBorder {
 /// Unlike egui's uniform `bg_stroke`, partial borders are **not** rounded around
 /// the corner radius — each side is a straight edge. This is fine for the common
 /// case (left/right or top/bottom borders) and keeps the painting trivial.
-pub fn paint_side_borders(painter: &egui::Painter, rect: Rect, border: ResolvedBorder) {
+pub(crate) fn paint_side_borders(painter: &egui::Painter, rect: Rect, border: ResolvedBorder) {
     let line = |a, b, stroke: Stroke| {
         if stroke.width > 0.0 {
             painter.add(Shape::line_segment([a, b], stroke));
@@ -410,7 +410,7 @@ pub fn paint_side_borders(painter: &egui::Painter, rect: Rect, border: ResolvedB
 /// **Deadlock note:** `ctx.load_texture` and `ctx.data_mut` both lock the same
 /// `ContextImpl` RwLock (egui 0.34 — read lock vs write lock). Never call
 /// `load_texture` from inside `data_mut`.
-pub fn gradient_texture(ctx: &egui::Context, g: BgGradient) -> egui::TextureHandle {
+pub(crate) fn gradient_texture(ctx: &egui::Context, g: BgGradient) -> egui::TextureHandle {
     let key = egui::Id::new(("egui_styled::bg_gradient", g));
     if let Some(handle) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(key)) {
         return handle;
@@ -430,7 +430,7 @@ pub fn gradient_texture(ctx: &egui::Context, g: BgGradient) -> egui::TextureHand
 ///
 /// Uses a 2×2 texture with UVs at texel centers `(0.25,0.25)–(0.75,0.75)` so
 /// the visible rect spans the full interpolation zone without clamped-edge bands.
-pub fn bg_gradient_shape(
+pub(crate) fn bg_gradient_shape(
     ctx: &egui::Context,
     rect: Rect,
     cr: CornerRadius,
@@ -450,7 +450,7 @@ const LINEAR_RAMP_TEXELS: usize = 256;
 ///
 /// Vertical gradients bake to a `1×N` column, horizontal to an `N×1` row. Same
 /// deadlock-safe check-then-load pattern as [`gradient_texture`].
-pub fn linear_gradient_texture(ctx: &egui::Context, g: &LinearGradient) -> egui::TextureHandle {
+pub(crate) fn linear_gradient_texture(ctx: &egui::Context, g: &LinearGradient) -> egui::TextureHandle {
     let key = egui::Id::new(("egui_styled::linear_gradient", g));
     if let Some(handle) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(key)) {
         return handle;
@@ -476,7 +476,7 @@ pub fn linear_gradient_texture(ctx: &egui::Context, g: &LinearGradient) -> egui:
 /// Build a `Shape` that fills `rect` (respecting `corner_radius`) with a
 /// multi-stop linear gradient. UVs are inset by half a texel along the gradient
 /// axis so the ramp spans the full interpolation zone without clamped-edge bands.
-pub fn linear_gradient_shape(
+pub(crate) fn linear_gradient_shape(
     ctx: &egui::Context,
     rect: Rect,
     cr: CornerRadius,
@@ -493,7 +493,7 @@ pub fn linear_gradient_shape(
 }
 
 /// Build the fill `Shape` for any [`Gradient`], respecting `corner_radius`.
-pub fn gradient_shape(ctx: &egui::Context, rect: Rect, cr: CornerRadius, g: &Gradient) -> Shape {
+pub(crate) fn gradient_shape(ctx: &egui::Context, rect: Rect, cr: CornerRadius, g: &Gradient) -> Shape {
     match g {
         Gradient::Corners(c) => bg_gradient_shape(ctx, rect, cr, *c),
         Gradient::Linear(l) => linear_gradient_shape(ctx, rect, cr, l),
@@ -731,7 +731,7 @@ fn push_glow_band(mesh: &mut Mesh, rect: Rect, side: Sides, w: f32, color: Color
 ///
 /// Returns `None` when `glow.width < 0.5`, the color is fully transparent, or no
 /// side is selected.
-pub fn inner_glow_shape(rect: Rect, cr: CornerRadius, glow: InnerGlow) -> Option<Shape> {
+pub(crate) fn inner_glow_shape(rect: Rect, cr: CornerRadius, glow: InnerGlow) -> Option<Shape> {
     let max_w = (rect.width().min(rect.height()) / 2.0).max(0.0);
     let w = glow.width.clamp(0.0, max_w);
     if w < 0.5 || glow.color.a() == 0 || !glow.sides.any() {
@@ -763,7 +763,7 @@ pub fn inner_glow_shape(rect: Rect, cr: CornerRadius, glow: InnerGlow) -> Option
 /// The border sits **inside** `rect` so the widget's layout rect is unchanged.
 /// Corner-radius is not respected (straight mitered edges — same accepted limitation
 /// as the existing per-side line-segment borders).
-pub fn border_gradient_mesh(rect: Rect, g: BorderGradient) -> Mesh {
+pub(crate) fn border_gradient_mesh(rect: Rect, g: BorderGradient) -> Mesh {
     let w = g
         .width
         .min(rect.width() / 2.0)
@@ -788,7 +788,7 @@ pub fn border_gradient_mesh(rect: Rect, g: BorderGradient) -> Mesh {
 ///
 /// Call pattern: reserve a `Shape::Noop` slot _before_ the widget renders, then
 /// call this _after_ the response is available.
-pub fn paint_widget_gradient_underlay(
+pub(crate) fn paint_widget_gradient_underlay(
     ui: &egui::Ui,
     slot: egui::layers::ShapeIdx,
     rect: Rect,
@@ -808,9 +808,7 @@ pub fn paint_widget_gradient_underlay(
 ///
 /// `border_gradient` wins over per-side overrides and the uniform border; both
 /// can coexist with `inner_glow` (glow paints last, on top).
-///
-/// Call this in place of [`SharedStyle::paint_widget_side_borders`].
-pub fn paint_widget_overlays(ui: &egui::Ui, rect: Rect, state: &ResolvedStyle) {
+pub(crate) fn paint_widget_overlays(ui: &egui::Ui, rect: Rect, state: &ResolvedStyle) {
     if let Some(bg) = state.border_gradient {
         ui.painter()
             .add(Shape::Mesh(border_gradient_mesh(rect, bg).into()));
@@ -869,7 +867,7 @@ fn cover_uv(intrinsic: Vec2, dest: Rect) -> Rect {
 ///   [`egui::Align::to_factor`]).
 /// - `content_h_id`: a stable [`egui::Id`] used to persist the measured height
 ///   between frames. Derive with `ui.make_persistent_id(...).with("some_tag")`.
-pub fn justify_body_vertically<R>(
+pub(crate) fn justify_body_vertically<R>(
     ui: &mut egui::Ui,
     fill_height: f32,
     justify_factor: f32,
@@ -905,7 +903,7 @@ pub enum Distribution {
 /// Compute leading space `L` and inter-item gap `G` for a distribution mode.
 ///
 /// Returns `(L, G)`. When `slack <= 0` or `n == 0`, falls back to `(0, min_gap)`.
-pub fn distribution_spacing(mode: Distribution, slack: f32, n: usize, min_gap: f32) -> (f32, f32) {
+pub(crate) fn distribution_spacing(mode: Distribution, slack: f32, n: usize, min_gap: f32) -> (f32, f32) {
     if n == 0 {
         return (0.0, min_gap);
     }
@@ -933,7 +931,7 @@ pub fn distribution_spacing(mode: Distribution, slack: f32, n: usize, min_gap: f
 /// measure content width, caches it, and requests a repaint. On subsequent frames,
 /// uses the cached W to compute leading space and inter-item gap per `mode`.
 #[allow(clippy::too_many_arguments)]
-pub fn distribute_row_horizontally(
+pub(crate) fn distribute_row_horizontally(
     ui: &mut egui::Ui,
     avail: f32,
     mode: Distribution,
@@ -980,7 +978,7 @@ pub fn distribute_row_horizontally(
 }
 
 /// Fade alpha for a background-image reveal. Stamps the first-`ready` time in
-pub fn bgimg_fade_alpha(ctx: &egui::Context, id: egui::Id, duration: f32, ready: bool) -> f32 {
+pub(crate) fn bgimg_fade_alpha(ctx: &egui::Context, id: egui::Id, duration: f32, ready: bool) -> f32 {
     if duration <= 0.0 {
         return 1.0;
     }
@@ -1007,7 +1005,7 @@ pub fn bgimg_fade_alpha(ctx: &egui::Context, id: egui::Id, duration: f32, ready:
 /// 2. Texture rectangle (rounded, tinted) — omitted while still loading
 /// 3. Border stroke on top
 #[allow(clippy::too_many_arguments)]
-pub fn background_image_shape(
+pub(crate) fn background_image_shape(
     ui: &egui::Ui,
     rect: Rect,
     corner_radius: CornerRadius,
@@ -1087,7 +1085,7 @@ pub fn background_image_shape(
 /// unaffected. The scope must enclose the widget's entire visual output —
 /// frame, shadows, and inner content — so call shadow allocation/painting
 /// inside `f`.
-pub fn render_scoped<R>(ui: &mut egui::Ui, visible: bool, f: impl FnOnce(&mut egui::Ui) -> R) -> R {
+pub(crate) fn render_scoped<R>(ui: &mut egui::Ui, visible: bool, f: impl FnOnce(&mut egui::Ui) -> R) -> R {
     ui.scope(|ui| {
         if !visible {
             ui.set_invisible();
@@ -1114,16 +1112,21 @@ pub fn render_scoped<R>(ui: &mut egui::Ui, visible: bool, f: impl FnOnce(&mut eg
 /// implementing site links back here rather than restating it.
 ///
 /// **Pseudo-state colors** (`bg`, `border`, `text_color`, `accent`, and their
-/// gradient / glow counterparts) - resolved in [`resolve`](Self::resolve),
-/// per-field, against whichever of `hovered` / `active` / `focused` the
-/// current [`PseudoState`] has set:
+/// gradient / glow counterparts) - resolved internally per-field against
+/// whichever of `hovered` / `active` / `focused` the widget's current
+/// interaction state has set:
 /// - `bg` and the gradient/glow fields: `active` > `hover` > `focus` > base.
 /// - `border` (and per-side border overrides, which each fall back to the
 ///   resolved uniform `border` when unset for that state): `focus` > `hover` > base.
 ///   There is no `active_border` - a widget's border doesn't change on press,
 ///   only on hover/focus.
-/// - `text_color`: `hover` > base only. There is no `active_text_color` or
-///   `focus_text_color` yet.
+/// - `text_color` and `accent`: `hover` > base only. There is no
+///   `active_text_color`/`focus_text_color` or `active_accent`/`focus_accent`
+///   yet. `accent` maps to egui's `Visuals.selection.bg_fill`, which (unlike
+///   `bg`/`text_color`/`border`) has no per-widget-state slot to switch on
+///   during rendering - it's resolved against last frame's cached pseudo-state
+///   instead of the current response, the one field in this crate with that
+///   one-frame-lag tradeoff.
 /// - A pseudo-state's own field always wins over falling through to the base
 ///   field, which itself falls through to egui's active `Visuals` when unset.
 ///
@@ -1172,9 +1175,9 @@ pub struct SharedStyle {
     // Per-side border overrides. Each side falls back to the matching uniform
     // border above when unset. `border_sides` is the base state; the hover/focus
     // variants override it under those interaction states.
-    pub border_sides: SideStrokes,
-    pub hover_border_sides: SideStrokes,
-    pub focus_border_sides: SideStrokes,
+    pub(crate) border_sides: SideStrokes,
+    pub(crate) hover_border_sides: SideStrokes,
+    pub(crate) focus_border_sides: SideStrokes,
 
     // Geometry
     pub corner_radius: Option<CornerRadius>,
@@ -1299,7 +1302,7 @@ impl ResolvedSize {
 /// Concrete style values for one interaction state after resolving pseudo-state
 /// and falling back to egui defaults.
 #[derive(Clone)]
-pub struct ResolvedStyle {
+pub(crate) struct ResolvedStyle {
     pub bg: Color32,
     pub text_color: Color32,
     /// Uniform border representative — preserves existing behavior (egui
@@ -1312,9 +1315,6 @@ pub struct ResolvedStyle {
     /// between egui's uniform painting and manual per-side painting.
     pub has_border_overrides: bool,
     pub corner_radius: CornerRadius,
-    pub padding: Margin,
-    pub margin: Margin,
-    pub cursor_icon: Option<CursorIcon>,
     pub bg_gradient: Option<Gradient>,
     pub inner_glow: Option<InnerGlow>,
     pub border_gradient: Option<BorderGradient>,
@@ -1324,7 +1324,7 @@ pub struct ResolvedStyle {
 /// each per-state colour into the matching `WidgetVisuals` slot so egui's own
 /// hover/active response picks the right variant without clobbering it.
 #[derive(Clone)]
-pub struct PerStateStyle {
+pub(crate) struct PerStateStyle {
     pub inactive: ResolvedStyle,
     pub hovered: ResolvedStyle,
     pub active: ResolvedStyle,
@@ -1453,7 +1453,7 @@ impl SharedStyle {
     /// the "Precedence rules" section on [`SharedStyle`] for the per-field
     /// state precedence this implements.
     /// Kept for back-compat; prefer `resolve_per_state` for new widget code.
-    pub fn resolve(&self, state: PseudoState, default: &WidgetVisuals) -> ResolvedStyle {
+    pub(crate) fn resolve(&self, state: PseudoState, default: &WidgetVisuals) -> ResolvedStyle {
         let bg = match state {
             _ if state.active && self.active_bg.is_some() => self.active_bg.unwrap(),
             _ if state.hovered && self.hover_bg.is_some() => self.hover_bg.unwrap(),
@@ -1526,9 +1526,6 @@ impl SharedStyle {
             border_sides,
             has_border_overrides,
             corner_radius: self.corner_radius.unwrap_or(default.corner_radius),
-            padding: self.padding.unwrap_or_default(),
-            margin: self.margin.unwrap_or_default(),
-            cursor_icon: self.cursor_icon,
             bg_gradient,
             inner_glow,
             border_gradient,
@@ -1538,7 +1535,7 @@ impl SharedStyle {
     /// Resolve a `ResolvedStyle` for each interaction state independently.
     /// Use this in widget `show()` implementations so each state's colour is
     /// written into the matching `WidgetVisuals` slot.
-    pub fn resolve_per_state(&self, visuals: &Visuals) -> PerStateStyle {
+    pub(crate) fn resolve_per_state(&self, visuals: &Visuals) -> PerStateStyle {
         let resolve_one = |state: PseudoState, wv: &WidgetVisuals| self.resolve(state, wv);
 
         let inactive = resolve_one(
@@ -1600,10 +1597,15 @@ impl SharedStyle {
     /// Handles all known egui visuals quirks:
     /// - `weak_bg_fill` (used by ComboBox button) is kept in sync with `bg_fill`
     /// - `expansion` is zeroed so border rects don't drift
-    /// - `selection.bg_fill` receives `accent` (slider trail, text selection)
+    /// - `selection.bg_fill` receives `hover_accent` while `pseudo.hovered`,
+    ///   else `accent` (slider trail, text selection) - `Visuals.selection`
+    ///   has no per-widget-state slot the way `WidgetVisuals` does, so this
+    ///   is resolved against last frame's cached [`PseudoState`] instead of
+    ///   egui's own real-time hover detection (same one-frame-lag tradeoff
+    ///   documented on [`PseudoState`]).
     /// - `selection.stroke` receives `focused.border` (text-edit focus ring)
     /// - `extreme_bg_color` receives `inactive.bg` (TextEdit background)
-    pub fn apply_to_visuals(per: &PerStateStyle, vis: &mut Visuals) {
+    pub(crate) fn apply_to_visuals(per: &PerStateStyle, pseudo: PseudoState, vis: &mut Visuals) {
         let states: [(&ResolvedStyle, &mut WidgetVisuals); 3] = [
             (&per.inactive, &mut vis.widgets.inactive),
             (&per.hovered, &mut vis.widgets.hovered),
@@ -1646,13 +1648,17 @@ impl SharedStyle {
         vis.widgets.open.expansion = 0.0;
 
         vis.extreme_bg_color = per.inactive.bg;
-        vis.selection.bg_fill = per.accent;
+        vis.selection.bg_fill = if pseudo.hovered {
+            per.hover_accent
+        } else {
+            per.accent
+        };
         vis.selection.stroke = per.focused.border;
     }
 
     /// Pick the `ResolvedStyle` matching a widget response's interaction state,
     /// mirroring which `WidgetVisuals` slot egui itself would paint with.
-    pub fn for_response<'a>(
+    pub(crate) fn for_response<'a>(
         per: &'a PerStateStyle,
         response: &egui::Response,
     ) -> &'a ResolvedStyle {
@@ -1667,20 +1673,6 @@ impl SharedStyle {
         }
     }
 
-    /// Paint per-side borders for a widget when the response's interaction state
-    /// has overrides set. No-op otherwise (egui already painted the uniform
-    /// `bg_stroke`). Call after the widget renders, using its response rect.
-    pub fn paint_widget_side_borders(
-        ui: &egui::Ui,
-        response: &egui::Response,
-        per: &PerStateStyle,
-    ) {
-        let state = Self::for_response(per, response);
-        if state.has_border_overrides {
-            paint_side_borders(ui.painter(), response.rect, state.border_sides);
-        }
-    }
-
     /// True if any field that an [`egui::Frame`] could render is set.
     ///
     /// Containers (`StyledRow`, `StyledColumn`, `StyledStack`) use this to
@@ -1689,7 +1681,7 @@ impl SharedStyle {
     /// `outer_margin` - a margin-only container must still route through the
     /// frame or the spacing is silently dropped. Text color and sizing are
     /// intentionally excluded - they are not "frame" concerns.
-    pub fn has_frame_styles(&self) -> bool {
+    pub(crate) fn has_frame_styles(&self) -> bool {
         self.bg.is_some()
             || self.hover_bg.is_some()
             || self.active_bg.is_some()
@@ -2573,7 +2565,7 @@ mod tests {
         };
         let per = style.resolve_per_state(&visuals);
         let mut vis = visuals.clone();
-        SharedStyle::apply_to_visuals(&per, &mut vis);
+        SharedStyle::apply_to_visuals(&per, PseudoState::default(), &mut vis);
         assert_eq!(vis.widgets.inactive.bg_fill, Color32::TRANSPARENT);
         assert_eq!(vis.widgets.inactive.weak_bg_fill, Color32::TRANSPARENT);
         let _ = ctx;
@@ -2589,8 +2581,38 @@ mod tests {
         };
         let per = style.resolve_per_state(&visuals);
         let mut vis = visuals.clone();
-        SharedStyle::apply_to_visuals(&per, &mut vis);
+        SharedStyle::apply_to_visuals(&per, PseudoState::default(), &mut vis);
         assert_eq!(vis.widgets.inactive.bg_stroke, Stroke::NONE);
+    }
+
+    /// Regression: `.hover_accent(color)` was resolved into `PerStateStyle`
+    /// but `apply_to_visuals` always wrote the base `accent` into
+    /// `selection.bg_fill`, so the builder silently did nothing. Fixed by
+    /// selecting between `accent` / `hover_accent` using the pre-loaded
+    /// `PseudoState` (egui's `Visuals.selection` has no per-widget-state slot
+    /// to switch on the way `WidgetVisuals` does).
+    #[test]
+    fn apply_to_visuals_selects_hover_accent_when_pseudo_hovered() {
+        use egui::Visuals;
+        let visuals = Visuals::default();
+        let style = SharedStyle {
+            accent: Some(Color32::RED),
+            hover_accent: Some(Color32::GREEN),
+            ..Default::default()
+        };
+        let per = style.resolve_per_state(&visuals);
+
+        let mut vis_base = visuals.clone();
+        SharedStyle::apply_to_visuals(&per, PseudoState::default(), &mut vis_base);
+        assert_eq!(vis_base.selection.bg_fill, Color32::RED);
+
+        let mut vis_hovered = visuals.clone();
+        let hovered = PseudoState {
+            hovered: true,
+            ..Default::default()
+        };
+        SharedStyle::apply_to_visuals(&per, hovered, &mut vis_hovered);
+        assert_eq!(vis_hovered.selection.bg_fill, Color32::GREEN);
     }
 
     #[test]
