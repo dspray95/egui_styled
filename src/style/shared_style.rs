@@ -450,7 +450,10 @@ const LINEAR_RAMP_TEXELS: usize = 256;
 ///
 /// Vertical gradients bake to a `1×N` column, horizontal to an `N×1` row. Same
 /// deadlock-safe check-then-load pattern as [`gradient_texture`].
-pub(crate) fn linear_gradient_texture(ctx: &egui::Context, g: &LinearGradient) -> egui::TextureHandle {
+pub(crate) fn linear_gradient_texture(
+    ctx: &egui::Context,
+    g: &LinearGradient,
+) -> egui::TextureHandle {
     let key = egui::Id::new(("egui_styled::linear_gradient", g));
     if let Some(handle) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(key)) {
         return handle;
@@ -493,7 +496,12 @@ pub(crate) fn linear_gradient_shape(
 }
 
 /// Build the fill `Shape` for any [`Gradient`], respecting `corner_radius`.
-pub(crate) fn gradient_shape(ctx: &egui::Context, rect: Rect, cr: CornerRadius, g: &Gradient) -> Shape {
+pub(crate) fn gradient_shape(
+    ctx: &egui::Context,
+    rect: Rect,
+    cr: CornerRadius,
+    g: &Gradient,
+) -> Shape {
     match g {
         Gradient::Corners(c) => bg_gradient_shape(ctx, rect, cr, *c),
         Gradient::Linear(l) => linear_gradient_shape(ctx, rect, cr, l),
@@ -903,7 +911,12 @@ pub enum Distribution {
 /// Compute leading space `L` and inter-item gap `G` for a distribution mode.
 ///
 /// Returns `(L, G)`. When `slack <= 0` or `n == 0`, falls back to `(0, min_gap)`.
-pub(crate) fn distribution_spacing(mode: Distribution, slack: f32, n: usize, min_gap: f32) -> (f32, f32) {
+pub(crate) fn distribution_spacing(
+    mode: Distribution,
+    slack: f32,
+    n: usize,
+    min_gap: f32,
+) -> (f32, f32) {
     if n == 0 {
         return (0.0, min_gap);
     }
@@ -978,7 +991,12 @@ pub(crate) fn distribute_row_horizontally(
 }
 
 /// Fade alpha for a background-image reveal. Stamps the first-`ready` time in
-pub(crate) fn bgimg_fade_alpha(ctx: &egui::Context, id: egui::Id, duration: f32, ready: bool) -> f32 {
+pub(crate) fn bgimg_fade_alpha(
+    ctx: &egui::Context,
+    id: egui::Id,
+    duration: f32,
+    ready: bool,
+) -> f32 {
     if duration <= 0.0 {
         return 1.0;
     }
@@ -1085,7 +1103,11 @@ pub(crate) fn background_image_shape(
 /// unaffected. The scope must enclose the widget's entire visual output —
 /// frame, shadows, and inner content — so call shadow allocation/painting
 /// inside `f`.
-pub(crate) fn render_scoped<R>(ui: &mut egui::Ui, visible: bool, f: impl FnOnce(&mut egui::Ui) -> R) -> R {
+pub(crate) fn render_scoped<R>(
+    ui: &mut egui::Ui,
+    visible: bool,
+    f: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
     ui.scope(|ui| {
         if !visible {
             ui.set_invisible();
