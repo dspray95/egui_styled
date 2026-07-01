@@ -210,3 +210,4 @@ impl<'a> StyledTextEdit<'a> {
 }
 
 impl_style_builders!(StyledTextEdit<'_>);
+crate::impl_styled_widget!(['a], StyledTextEdit<'a>);

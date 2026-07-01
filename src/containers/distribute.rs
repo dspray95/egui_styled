@@ -69,6 +69,8 @@ impl<'a> DistributedRow<'a> {
     }
 }
 
+crate::impl_styled_widget!(['a], DistributedRow<'a>);
+
 #[cfg(test)]
 mod tests {
     use crate::containers::row::StyledRow;

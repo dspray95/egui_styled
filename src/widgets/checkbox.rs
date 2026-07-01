@@ -111,3 +111,4 @@ impl<'a> StyledCheckbox<'a> {
 }
 
 impl_style_builders!(StyledCheckbox<'_>);
+crate::impl_styled_widget!(['a], StyledCheckbox<'a>);

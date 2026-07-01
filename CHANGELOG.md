@@ -5,11 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [unreleased] - 2026-07-01
+
+### Added
+
+- **`StyledWidget` and `StyledContainer` traits**, exported from the crate root and prelude, unifying the previously five different `.show()` signatures down to two documented shapes plus two justified exceptions:
+  - `StyledWidget::show(self, ui: &mut Ui) -> Response` - every leaf widget (`StyledButton`, `StyledCheckbox`, `StyledSlider`, `StyledLabel`, `StyledTextEdit`, `StyledImage`) plus every pre-populated container (`StyledSpacer`, `DistributedRow`, `WrappingRow`, `StyledStack`).
+  - `StyledContainer::show<R>(self, ui: &mut Ui, body: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R>` - `StyledFrame`, `StyledRow`, `StyledColumn`.
+  - `StyledArea` (takes `&Context`, not `&mut Ui`) and `StyledComboBox` (returns `InnerResponse<Option<()>>` since its menu-contents closure only runs when the dropdown is open) remain outside both traits - documented as intentional divergences rather than gaps.
+  - Implemented via new `impl_styled_widget!` / `impl_styled_container!` macros (same convention as `impl_style_builders!`); every existing `.show(...)` call site is unaffected.
+- **Trait-coverage compile-test** in `src/show.rs` (`every_widget_and_container_implements_its_show_trait`). `cargo test --lib` now fails to compile if a styled type's `show` signature drifts from the shape its trait expects, or if a new styled type is added without being assigned to `StyledWidget`, `StyledContainer`, or documented as an exception - closing the same class of silent drift `all_shared_builders_compile` (0.6.0) prevents for the builder methods.
+
+### Fixed
+
+- **`StyledSpacer::show` now returns `Response`** instead of `()`. It was the only styled type whose `show` discarded its result, which made it impossible to inspect its rect or compose it like every other widget.
+- **`StyledStack::show` now returns `Response`** instead of the redundant `InnerResponse<Response>` - the `inner` and `response` fields were always identical, so the wrapper carried no extra information and stood out among the other item-based containers (`DistributedRow`, `WrappingRow`), which already returned a plain `Response`.
+
 ## [0.7.1] - 2026-06-27
 
 ### Changed
 
-- **egui bumped to 0.35.0.** `eframe` and `egui_kittest` dev-dependencies updated to match.
+- **egui bumped to 0.35.0.** `eframe` and `egui_kittest` dev-dependencies updated to match. egui_styled 0.7.1 requires egui 0.35; stay on 0.7.0 for egui 0.34.
 - The `id()` builders (and `combo_box` / `StyledComboBox::new`) now require `impl Hash + Debug` instead of `impl Hash`, to satisfy egui 0.35's new `AsId` bound on `Id::new`. Standard id sources (`&str`, integers, tuples thereof) already implement `Debug`, so most call sites are unaffected.
 
 ## [0.7.0] - 2026-06-11

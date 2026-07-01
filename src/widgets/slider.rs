@@ -125,3 +125,4 @@ impl<'a, T: Numeric> StyledSlider<'a, T> {
 }
 
 impl_style_builders!(['a, T: Numeric], StyledSlider<'a, T>);
+crate::impl_styled_widget!(['a, T: Numeric], StyledSlider<'a, T>);

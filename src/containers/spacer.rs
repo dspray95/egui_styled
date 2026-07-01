@@ -48,7 +48,7 @@ impl StyledSpacer {
         StyledSpacer
     }
 
-    pub fn show(self, ui: &mut egui::Ui) {
+    pub fn show(self, ui: &mut egui::Ui) -> egui::Response {
         let space = if ui.layout().is_horizontal() {
             ui.available_width()
         } else {
@@ -57,8 +57,11 @@ impl StyledSpacer {
         if space.is_finite() && space > 0.0 {
             ui.add_space(space);
         }
+        ui.response()
     }
 }
+
+crate::impl_styled_widget!(StyledSpacer);
 
 #[cfg(test)]
 mod tests {

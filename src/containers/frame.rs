@@ -396,6 +396,7 @@ impl StyledFrame {
 }
 
 impl_style_builders!(StyledFrame);
+crate::impl_styled_container!(StyledFrame);
 
 #[cfg(test)]
 mod tests {

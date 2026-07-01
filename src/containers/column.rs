@@ -89,6 +89,7 @@ impl StyledColumn {
 }
 
 impl_style_builders!(StyledColumn);
+crate::impl_styled_container!(StyledColumn);
 
 #[cfg(test)]
 mod tests {

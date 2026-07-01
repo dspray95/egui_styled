@@ -23,12 +23,14 @@ pub mod apply;
 pub mod color;
 pub mod containers;
 pub mod prelude;
+pub mod show;
 pub mod state;
 pub mod style;
 pub mod theme;
 pub mod widgets;
 
 pub use apply::Apply;
+pub use show::{StyledContainer, StyledWidget};
 pub use color::{ColorExt, rgb, rgba};
 pub use containers::area::StyledArea;
 pub use containers::column::StyledColumn;

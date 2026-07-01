@@ -43,6 +43,10 @@ impl StyledComboBox {
         self
     }
 
+    /// Doesn't implement [`crate::StyledContainer`]: unlike `StyledFrame`/`StyledRow`/
+    /// `StyledColumn`, the body closure only renders when the dropdown is open,
+    /// so the return type mirrors egui's own `ComboBox::show_ui` (`InnerResponse<Option<()>>`)
+    /// rather than the always-run `InnerResponse<R>` shape.
     pub fn show(
         self,
         ui: &mut Ui,

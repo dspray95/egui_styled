@@ -226,6 +226,7 @@ impl StyledImage {
 }
 
 impl_style_builders!(StyledImage);
+crate::impl_styled_widget!(StyledImage);
 
 #[cfg(test)]
 mod tests {

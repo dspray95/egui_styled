@@ -349,3 +349,4 @@ impl StyledLabel {
 }
 
 impl_style_builders!(StyledLabel);
+crate::impl_styled_widget!(StyledLabel);

@@ -164,3 +164,4 @@ impl StyledButton {
 }
 
 impl_style_builders!(StyledButton);
+crate::impl_styled_widget!(StyledButton);

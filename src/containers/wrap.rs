@@ -124,6 +124,8 @@ impl<'a> WrappingRow<'a> {
     }
 }
 
+crate::impl_styled_widget!(['a], WrappingRow<'a>);
+
 /// Greedy line packing: returns the number of items on each line such that the
 /// summed widths plus `gap` between them stay within `avail`. An item wider than
 /// `avail` gets its own line.

@@ -158,6 +158,7 @@ impl StyledRow {
 }
 
 impl_style_builders!(StyledRow);
+crate::impl_styled_container!(StyledRow);
 
 #[cfg(test)]
 mod tests {

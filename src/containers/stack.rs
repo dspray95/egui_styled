@@ -1,5 +1,5 @@
 use egui::{
-    Align, Align2, Direction, InnerResponse, Layout, Rect, Response, Sense, Shape, UiBuilder, Vec2,
+    Align, Align2, Direction, Layout, Rect, Response, Sense, Shape, UiBuilder, Vec2,
     emath::TSTransform,
 };
 
@@ -157,7 +157,7 @@ impl<'a> StyledStack<'a> {
         self
     }
 
-    pub fn show(self, ui: &mut egui::Ui) -> InnerResponse<Response> {
+    pub fn show(self, ui: &mut egui::Ui) -> Response {
         if self.style.visible == Some(false) {
             ui.set_invisible();
         }
@@ -250,18 +250,17 @@ impl<'a> StyledStack<'a> {
         };
 
         if self.style.has_frame_styles() {
-            let ir = StyledFrame {
+            StyledFrame {
                 style: self.style,
                 align: None,
                 justify: None,
                 gap: None,
                 fill_size: None,
             }
-            .show(ui, render);
-            let inner = ir.inner;
-            InnerResponse::new(inner, ir.response)
+            .show(ui, render)
+            .inner
         } else {
-            ui.scope(render)
+            ui.scope(render).inner
         }
     }
 }
@@ -304,3 +303,4 @@ fn layout_for(align: Align2) -> Layout {
 }
 
 impl_style_builders!(StyledStack<'_>);
+crate::impl_styled_widget!(['a], StyledStack<'a>);
