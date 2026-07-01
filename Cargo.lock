@@ -962,7 +962,7 @@ dependencies = [
 
 [[package]]
 name = "egui_styled"
-version = "0.7.1"
+version = "0.8.0-rc.1"
 dependencies = [
  "eframe",
  "egui",
