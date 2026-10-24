@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-10-24
+
+### Changed
+
+- **egui bumped to 0.37.0.** `eframe` and `egui_kittest` dev-dependencies updated to match. egui_styled 0.8.1 requires egui 0.37; stay on 0.8.0 for egui 0.35.
+- **MSRV raised to 1.95**, matching egui 0.37.
+- Replaced calls deprecated in egui 0.37: `Id::new` with `Id::unique`, and `TextEdit::horizontal_align` with `TextEdit::align`. No change to any call site.
+- `StyledComboBox` now stores its id source as an `IdSalt`, since it only needs to be unique within the parent ui. Combo box popup state persisted under the old id resets once after upgrading.
+
 ## [0.8.0] - 2026-07-02
 
 ### Added

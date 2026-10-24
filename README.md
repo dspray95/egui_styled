@@ -215,14 +215,16 @@ ui.scope(|ui| {
 
 ```toml
 [dependencies]
-egui_styled = "0.7"
-egui = "0.35"
+egui_styled = "0.8"
+egui = "0.37"
 ```
 
 ### Version compatibility
 
 | egui_styled | egui | Rust (MSRV) |
 |-------------|------|-------------|
+| 0.8.1       | 0.37 | 1.95        |
+| 0.8.0       | 0.35 | 1.92        |
 | 0.7.1       | 0.35 | 1.92        |
 | 0.7.0       | 0.34 | 1.92        |
 | 0.6         | 0.34 | 1.92        |

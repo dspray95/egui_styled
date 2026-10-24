@@ -4,7 +4,7 @@ use std::any::TypeId;
 use crate::theme::StyledTheme;
 
 fn slot_id() -> Id {
-    Id::new("egui_styled::design_slot")
+    Id::unique("egui_styled::design_slot")
 }
 
 /// Typed storage for design data on [`egui::Context`].

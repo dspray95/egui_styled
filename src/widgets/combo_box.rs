@@ -1,4 +1,4 @@
-use egui::{ComboBox, Id, InnerResponse, RichText, Shape, Ui, WidgetText};
+use egui::{ComboBox, Id, IdSalt, InnerResponse, RichText, Shape, Ui, WidgetText};
 
 use crate::{
     impl_style_builders,
@@ -10,7 +10,7 @@ use crate::{
 };
 
 pub struct StyledComboBox {
-    id_source: Id,
+    id_source: IdSalt,
     selected_text: WidgetText,
     width: Option<f32>,
     id_override: Option<Id>,
@@ -23,7 +23,7 @@ impl StyledComboBox {
         selected_text: impl Into<WidgetText>,
     ) -> Self {
         Self {
-            id_source: Id::new(id_source),
+            id_source: IdSalt::new(id_source),
             selected_text: selected_text.into(),
             width: None,
             id_override: None,
@@ -39,7 +39,7 @@ impl StyledComboBox {
     /// Override the auto-generated widget id. Pins pseudo-state across
     /// conditional rendering - see [`crate::StyledButton::id`] for the rationale.
     pub fn id(mut self, id: impl std::hash::Hash + std::fmt::Debug) -> Self {
-        self.id_override = Some(Id::new(id));
+        self.id_override = Some(Id::unique(id));
         self
     }
 

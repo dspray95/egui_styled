@@ -197,7 +197,7 @@ mod tests {
         let ctx = egui::Context::default();
         let mut first_top = f32::MAX;
         let mut last_bottom = f32::MIN;
-        let _ = ctx.run_ui(screen(80.0, 400.0), |ui| {
+        let _ = crate::test_util::run_ui(&ctx, screen(80.0, 400.0), |ui| {
             StyledRow::new().full_width().gap(4.0).show(ui, |ui| {
                 for label in ["Alpha", "Beta", "Gamma", "Delta", "Epsilon"] {
                     let rect = ui.label(label).rect;

@@ -442,7 +442,7 @@ mod tests {
             time: Some(time),
             ..Default::default()
         };
-        let output = ctx.run_ui(raw, |ui| {
+        let output = crate::test_util::run_ui(ctx, raw, |ui| {
             let mut frame = StyledFrame::new().background_image(img.clone());
             if let Some(d) = fade_secs {
                 frame = frame.background_image_fade_in(d);
@@ -522,7 +522,7 @@ mod tests {
             time: Some(time),
             ..Default::default()
         };
-        let output = ctx.run_ui(raw, |ui| {
+        let output = crate::test_util::run_ui(ctx, raw, |ui| {
             let mut frame = StyledFrame::new().background_image(img.clone());
             frame = if reveal {
                 frame.reveal_with_background_image(secs)
@@ -597,7 +597,7 @@ mod tests {
         bg: Color32,
     ) -> Vec<Shape> {
         let raw = egui::RawInput::default();
-        let output = ctx.run_ui(raw, |ui| {
+        let output = crate::test_util::run_ui(ctx, raw, |ui| {
             StyledFrame::new()
                 .bg(bg)
                 .background_image(img.clone())
@@ -654,7 +654,7 @@ mod tests {
         let img = pending_image();
 
         let raw = egui::RawInput::default();
-        let output = ctx.run_ui(raw, |ui| {
+        let output = crate::test_util::run_ui(&ctx, raw, |ui| {
             StyledFrame::new()
                 .background_image(img.clone())
                 .show(ui, |_ui| {});
@@ -701,7 +701,7 @@ mod tests {
             )),
             ..Default::default()
         };
-        let output = ctx.run_ui(raw, |ui| {
+        let output = crate::test_util::run_ui(&ctx, raw, |ui| {
             // full_width makes the frame try to expand to available (400px), but
             // max_width caps it at 100px. max is applied first so full_width reads
             // the capped available_width.
@@ -730,7 +730,7 @@ mod tests {
             )),
             ..Default::default()
         };
-        let output = ctx.run_ui(raw, |ui| {
+        let output = crate::test_util::run_ui(&ctx, raw, |ui| {
             StyledFrame::new()
                 .bg(Color32::RED)
                 .min_height(80.0)
@@ -756,7 +756,7 @@ mod tests {
             )),
             ..Default::default()
         };
-        let output = ctx.run_ui(raw, |ui| {
+        let output = crate::test_util::run_ui(&ctx, raw, |ui| {
             StyledFrame::new()
                 .bg(Color32::RED)
                 .full_height()
@@ -782,7 +782,7 @@ mod tests {
             )),
             ..Default::default()
         };
-        let output = ctx.run_ui(raw, |ui| {
+        let output = crate::test_util::run_ui(&ctx, raw, |ui| {
             StyledFrame::new().bg(Color32::RED).show(ui, |ui| {
                 // Some content so the frame has non-zero natural size.
                 ui.set_min_width(50.0);
@@ -816,7 +816,7 @@ mod tests {
         let mut content_visible = true;
         let mut content_center_y = 0.0f32;
         let screen_center_y = screen_h / 2.0;
-        let _ = ctx.run_ui(raw, |ui| {
+        let _ = crate::test_util::run_ui(ctx, raw, |ui| {
             StyledFrame::new()
                 .bg(Color32::RED)
                 .full_height()
@@ -880,7 +880,7 @@ mod tests {
             ..Default::default()
         };
         let mut content_center_y = 0.0f32;
-        let _ = ctx.run_ui(raw, |ui| {
+        let _ = crate::test_util::run_ui(&ctx, raw, |ui| {
             StyledFrame::new()
                 .bg(Color32::RED)
                 // No full_height — no determinate height, so justify is a no-op.
@@ -907,7 +907,7 @@ mod tests {
             )),
             ..Default::default()
         };
-        let output = ctx.run_ui(raw, |ui| {
+        let output = crate::test_util::run_ui(&ctx, raw, |ui| {
             StyledFrame::new()
                 .bg(Color32::RED)
                 .width_pct(50.0)
@@ -932,7 +932,7 @@ mod tests {
             )),
             ..Default::default()
         };
-        let output = ctx.run_ui(raw, |ui| {
+        let output = crate::test_util::run_ui(&ctx, raw, |ui| {
             StyledFrame::new()
                 .bg(Color32::RED)
                 .width_pct(50.0)
@@ -958,7 +958,7 @@ mod tests {
             )),
             ..Default::default()
         };
-        let output = ctx.run_ui(raw, |ui| {
+        let output = crate::test_util::run_ui(&ctx, raw, |ui| {
             StyledFrame::new()
                 .bg(Color32::RED)
                 .height_pct(50.0)

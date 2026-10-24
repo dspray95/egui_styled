@@ -411,7 +411,7 @@ pub(crate) fn paint_side_borders(painter: &egui::Painter, rect: Rect, border: Re
 /// `ContextImpl` RwLock (egui 0.34 — read lock vs write lock). Never call
 /// `load_texture` from inside `data_mut`.
 pub(crate) fn gradient_texture(ctx: &egui::Context, g: BgGradient) -> egui::TextureHandle {
-    let key = egui::Id::new(("egui_styled::bg_gradient", g));
+    let key = egui::Id::unique(("egui_styled::bg_gradient", g));
     if let Some(handle) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(key)) {
         return handle;
     }
@@ -454,7 +454,7 @@ pub(crate) fn linear_gradient_texture(
     ctx: &egui::Context,
     g: &LinearGradient,
 ) -> egui::TextureHandle {
-    let key = egui::Id::new(("egui_styled::linear_gradient", g));
+    let key = egui::Id::unique(("egui_styled::linear_gradient", g));
     if let Some(handle) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(key)) {
         return handle;
     }
@@ -1977,7 +1977,7 @@ mod tests {
     #[test]
     fn paint_side_borders_only_emits_positive_width_sides() {
         let ctx = egui::Context::default();
-        let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let output = crate::test_util::run_ui(&ctx, egui::RawInput::default(), |ui| {
             let rect = Rect::from_min_size(pos2(0.0, 0.0), Vec2::new(50.0, 30.0));
             // Only left + right have width; top + bottom are zero-width.
             let border = ResolvedBorder {

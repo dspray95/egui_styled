@@ -1,4 +1,4 @@
-use egui::{Align, FontId, Id, Response, Shape, TextEdit, Ui};
+use egui::{Align, Align2, FontId, Id, Response, Shape, TextEdit, Ui};
 
 use crate::{
     impl_style_builders,
@@ -41,7 +41,7 @@ impl<'a> StyledTextEdit<'a> {
     /// Override the auto-generated widget id. Pins pseudo-state across
     /// conditional rendering - see [`crate::StyledButton::id`] for the rationale.
     pub fn id(mut self, id: impl std::hash::Hash + std::fmt::Debug) -> Self {
-        self.id_override = Some(Id::new(id));
+        self.id_override = Some(Id::unique(id));
         self
     }
 
@@ -117,7 +117,7 @@ impl<'a> StyledTextEdit<'a> {
                         text_edit = text_edit.font(egui::FontId::proportional(size));
                     }
                     if let Some(align) = self.horizontal_align {
-                        text_edit = text_edit.horizontal_align(align);
+                        text_edit = text_edit.align(Align2([align, Align::TOP]));
                     }
                     if let Some(width) = self.desired_width {
                         text_edit = text_edit.desired_width(width);

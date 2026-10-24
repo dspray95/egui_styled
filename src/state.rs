@@ -50,7 +50,7 @@ mod tests {
     #[test]
     fn memory_roundtrip() {
         let ctx = egui::Context::default();
-        let id = Id::new("ps-test");
+        let id = Id::unique("ps-test");
         let state = PseudoState {
             hovered: true,
             active: false,
@@ -66,7 +66,7 @@ mod tests {
     #[test]
     fn unset_id_returns_default() {
         let ctx = egui::Context::default();
-        let id = Id::new("ps-never-stored");
+        let id = Id::unique("ps-never-stored");
         let loaded = ctx.memory_mut(|mem| mem.data.get_temp::<PseudoState>(id).unwrap_or_default());
         assert!(!loaded.hovered);
         assert!(!loaded.active);

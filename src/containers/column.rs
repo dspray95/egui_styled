@@ -113,7 +113,7 @@ mod tests {
         let mut content_visible = true;
         let mut content_center_y = 0.0f32;
         let screen_center_y = screen_h / 2.0;
-        let _ = ctx.run_ui(raw, |ui| {
+        let _ = crate::test_util::run_ui(ctx, raw, |ui| {
             StyledColumn::new()
                 .bg(Color32::RED)
                 .full_height()
@@ -165,7 +165,7 @@ mod tests {
             ..Default::default()
         };
         let mut content_center_y = 0.0f32;
-        let _ = ctx.run_ui(raw, |ui| {
+        let _ = crate::test_util::run_ui(&ctx, raw, |ui| {
             StyledColumn::new()
                 .bg(Color32::RED)
                 // No full_height — no determinate height, so justify is a no-op.

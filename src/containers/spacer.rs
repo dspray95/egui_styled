@@ -84,7 +84,7 @@ mod tests {
         let mut b_rect = egui::Rect::NOTHING;
         let screen_w = 400.0;
 
-        let _ = ctx.run_ui(screen(screen_w, 400.0), |ui| {
+        let _ = crate::test_util::run_ui(&ctx, screen(screen_w, 400.0), |ui| {
             crate::StyledRow::new().full_width().show(ui, |ui| {
                 a_rect = ui.label("A").rect;
                 StyledSpacer::new().show(ui);
@@ -114,7 +114,7 @@ mod tests {
         let mut a_rect = egui::Rect::NOTHING;
         let mut b_rect = egui::Rect::NOTHING;
 
-        let _ = ctx.run_ui(screen(400.0, screen_h), |ui| {
+        let _ = crate::test_util::run_ui(&ctx, screen(400.0, screen_h), |ui| {
             crate::StyledColumn::new().full_height().show(ui, |ui| {
                 a_rect = ui.label("A").rect;
                 StyledSpacer::new().show(ui);
@@ -145,7 +145,7 @@ mod tests {
         let ctx = egui::Context::default();
         let screen_h = 600.0;
         let mut h = 0.0f32;
-        let _ = ctx.run_ui(screen(640.0, screen_h), |ui| {
+        let _ = crate::test_util::run_ui(&ctx, screen(640.0, screen_h), |ui| {
             let r = crate::StyledRow::new()
                 .full_width()
                 .bg(egui::Color32::RED)
@@ -168,7 +168,7 @@ mod tests {
         // If there is no space left (e.g. the first sibling already consumed
         // all of it), the spacer must not crash or go negative.
         let ctx = egui::Context::default();
-        let _ = ctx.run_ui(screen(400.0, 400.0), |ui| {
+        let _ = crate::test_util::run_ui(&ctx, screen(400.0, 400.0), |ui| {
             crate::StyledRow::new().full_width().show(ui, |ui| {
                 // Consume everything first.
                 ui.set_min_width(ui.available_width());

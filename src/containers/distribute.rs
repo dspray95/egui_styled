@@ -91,7 +91,7 @@ mod tests {
         let out: Rc<RefCell<Vec<egui::Rect>>> = Rc::new(RefCell::new(Vec::new()));
         {
             let out_ref = Rc::clone(&out);
-            let _ = ctx.run_ui(screen(screen_w, 400.0), |ui| {
+            let _ = crate::test_util::run_ui(ctx, screen(screen_w, 400.0), |ui| {
                 let o1 = Rc::clone(&out_ref);
                 let o2 = Rc::clone(&out_ref);
                 let o3 = Rc::clone(&out_ref);
@@ -118,7 +118,7 @@ mod tests {
         let out: Rc<RefCell<Vec<egui::Rect>>> = Rc::new(RefCell::new(Vec::new()));
         {
             let out_ref = Rc::clone(&out);
-            let _ = ctx.run_ui(screen(screen_w, 400.0), |ui| {
+            let _ = crate::test_util::run_ui(ctx, screen(screen_w, 400.0), |ui| {
                 let o1 = Rc::clone(&out_ref);
                 let o2 = Rc::clone(&out_ref);
                 let o3 = Rc::clone(&out_ref);
@@ -202,7 +202,7 @@ mod tests {
             let right = Rc::new(RefCell::new(0.0f32));
             {
                 let r = Rc::clone(&right);
-                let _ = ctx.run_ui(screen(screen_w, 600.0), |ui| {
+                let _ = crate::test_util::run_ui(ctx, screen(screen_w, 600.0), |ui| {
                     let r1 = Rc::clone(&r);
                     let r2 = Rc::clone(&r);
                     StyledRow::new()
@@ -249,7 +249,7 @@ mod tests {
             let b_right = Rc::new(RefCell::new(0.0f32));
             {
                 let br = Rc::clone(&b_right);
-                let _ = ctx.run_ui(screen(screen_w, 600.0), |ui| {
+                let _ = crate::test_util::run_ui(ctx, screen(screen_w, 600.0), |ui| {
                     let br1 = Rc::clone(&br);
                     // Row A: tiny content.
                     StyledRow::new()

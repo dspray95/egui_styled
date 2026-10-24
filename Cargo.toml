@@ -1,8 +1,8 @@
 [package]
 name = "egui_styled"
-version = "0.8.0"
+version = "0.8.1"
 edition = "2024"
-rust-version = "1.92"
+rust-version = "1.95"
 authors = ["David Spray <dev@david-spray.me>"]
 description = "Tailwind-style utility styling for egui: per-widget hover/focus/active variants, design tokens, and composable style functions."
 license = "MIT OR Apache-2.0"
@@ -11,19 +11,15 @@ documentation = "https://docs.rs/egui_styled"
 readme = "README.md"
 keywords = ["egui", "gui", "styling", "theme", "ui"]
 categories = ["gui"]
-exclude = [
-    "docs/",
-    ".github/",
-    "target/",
-]
+exclude = ["docs/", ".github/", "target/"]
 
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-egui = "0.35.0"
+egui = "0.37.0"
 
 [dev-dependencies]
-eframe = "0.35.0"
-egui_kittest = { version = "0.35.0", features = ["snapshot", "wgpu"] }
+eframe = "0.37.0"
+egui_kittest = { version = "0.37.0", features = ["snapshot", "wgpu"] }

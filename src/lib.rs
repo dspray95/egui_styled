@@ -29,6 +29,9 @@ pub mod style;
 pub mod theme;
 pub mod widgets;
 
+#[cfg(test)]
+mod test_util;
+
 pub use apply::Apply;
 pub use color::{ColorExt, rgb, rgba};
 pub use containers::area::StyledArea;

@@ -219,7 +219,7 @@ mod tests {
                 let b = Rc::clone(&bottom);
                 let t = Rc::clone(&top);
                 let r = Rc::clone(&right);
-                let _ = ctx.run_ui(screen(vw, 600.0), |ui| {
+                let _ = crate::test_util::run_ui(ctx, screen(vw, 600.0), |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         Styled::column().padding(20.0).show(ui, |ui| {
                             let mut row = Styled::row().full_width().gap(6.0).wrap();
