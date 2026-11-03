@@ -12,6 +12,16 @@ repeatedly cloning and mutating `ui.visuals_mut()`.
 [crates.io](https://crates.io/crates/egui_styled) ·
 [examples](examples/)
 
+<p align="center">
+  <img src="docs/screenshots/dashboard_dark.webp" width="49%" alt="A dev-tool dashboard in a dark Linear-style theme: aurora hero, sign-in card, stat tiles with sparklines, code and settings">
+  <img src="docs/screenshots/dashboard_brutal.webp" width="49%" alt="The same dashboard restyled by swapping to a neubrutalist palette: cream, black outlines and hard shadows">
+  <img src="docs/screenshots/player.webp" width="49%" alt="A music player with glass panels over the blurred album art">
+  <img src="docs/screenshots/playground.webp" width="49%" alt="A style playground: a glass card over a sunset photo, with the builder code that renders it">
+</p>
+
+<p align="center"><sub>All plain egui plus <code>egui_styled</code>. See it live:
+<code>cargo run --release --example showcase --features backdrop-blur</code></sub></p>
+
 ---
 
 ## Quick start

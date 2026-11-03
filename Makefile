@@ -14,3 +14,8 @@ publish: pre_publish
 	cargo publish
 	git tag v$(shell cargo metadata --no-deps --format-version 1 | python3 -c "import sys,json; print(json.load(sys.stdin)['packages'][0]['version'])")
 	git push origin --tags
+
+# Regenerate the README screenshots. Needs a display and Pillow; keep the window visible.
+screenshots:
+	cargo run --release --example showcase --features backdrop-blur -- --screenshot target/screenshots
+	python3 docs/screenshots/encode.py target/screenshots docs/screenshots
