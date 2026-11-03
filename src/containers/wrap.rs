@@ -52,6 +52,8 @@ impl<'a> StyledWrappingRow<'a> {
                 return ui.response();
             }
             let avail = ui.available_width();
+            // Restored inside each item so the row's own gap doesn't leak into it.
+            let spacing = ui.spacing().item_spacing;
             // Per-position stable id for the cross-frame width cache (same
             // pattern as the distribution / vertical-justify caches).
             let id = ui
@@ -64,26 +66,40 @@ impl<'a> StyledWrappingRow<'a> {
                     // Greedy line assignment from the measured item widths.
                     let lines = assign_lines(&widths, gap, avail);
                     let mut it = items.drain(..);
-                    ui.vertical(|ui| {
-                        ui.spacing_mut().item_spacing.y = gap;
-                        for line in lines {
-                            let initial =
-                                egui::vec2(ui.available_width(), ui.spacing().interact_size.y);
-                            ui.allocate_ui_with_layout(
-                                initial,
-                                Layout::left_to_right(cross),
-                                |ui| {
-                                    ui.spacing_mut().item_spacing.x = gap;
-                                    for _ in 0..line {
-                                        if let Some(item) = it.next() {
-                                            item(ui);
+                    let mut drawn = Vec::with_capacity(n);
+                    let resp = ui
+                        .vertical(|ui| {
+                            ui.spacing_mut().item_spacing.y = gap;
+                            for line in lines {
+                                let initial =
+                                    egui::vec2(ui.available_width(), ui.spacing().interact_size.y);
+                                ui.allocate_ui_with_layout(
+                                    initial,
+                                    Layout::left_to_right(cross),
+                                    |ui| {
+                                        ui.spacing_mut().item_spacing.x = gap;
+                                        for _ in 0..line {
+                                            if let Some(item) = it.next() {
+                                                let r = ui.scope(|ui| {
+                                                    ui.spacing_mut().item_spacing = spacing;
+                                                    item(ui);
+                                                });
+                                                drawn.push(r.response.rect.width());
+                                            }
                                         }
-                                    }
-                                },
-                            );
-                        }
-                    })
-                    .response
+                                    },
+                                );
+                            }
+                        })
+                        .response;
+                    // Items can change size (text, fonts, state): re-flow from what was drawn.
+                    let changed = drawn.len() == widths.len()
+                        && drawn.iter().zip(&widths).any(|(d, w)| (d - w).abs() > 0.5);
+                    if changed {
+                        ui.ctx().memory_mut(|m| m.data.insert_temp(id, drawn));
+                        ui.ctx().request_repaint();
+                    }
+                    resp
                 }
                 _ => {
                     // Measure pass: render invisibly with zero spacing and record
@@ -95,7 +111,13 @@ impl<'a> StyledWrappingRow<'a> {
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 0.0;
                                 for item in items.drain(..) {
-                                    let r = ui.scope(|ui| item(ui)).response.rect;
+                                    let r = ui
+                                        .scope(|ui| {
+                                            ui.spacing_mut().item_spacing = spacing;
+                                            item(ui);
+                                        })
+                                        .response
+                                        .rect;
                                     widths.push(r.width());
                                 }
                             });
@@ -264,5 +286,35 @@ mod tests {
             right <= vw,
             "wrapped pills right={right} must stay within the viewport {vw}"
         );
+    }
+
+    #[test]
+    fn remeasures_when_an_item_grows() {
+        // Two items fit on one 300pt line; then the first grows past half the width,
+        // so the second must move to a new line instead of overflowing.
+        use crate::Styled;
+        let ctx = egui::Context::default();
+        let mut second = egui::Rect::NOTHING;
+        for first in [
+            "A",
+            "A",
+            "A rather long label that is now a good deal wider",
+            "A rather long label that is now a good deal wider",
+            "A rather long label that is now a good deal wider",
+        ] {
+            let _ = crate::test_util::run_ui(&ctx, screen(300.0, 200.0), |ui| {
+                Styled::row()
+                    .gap(8.0)
+                    .wrap()
+                    .item(|ui| {
+                        ui.add(egui::Label::new(first).extend());
+                    })
+                    .item(|ui| {
+                        second = ui.add(egui::Label::new("Second item here").extend()).rect;
+                    })
+                    .show(ui);
+            });
+        }
+        assert!(second.right() <= 300.0, "second item overflows: {second:?}");
     }
 }

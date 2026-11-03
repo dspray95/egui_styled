@@ -2,7 +2,10 @@
 pre_publish:
 	cargo fmt --all -- --check
 	cargo clippy --all-targets -- -D warnings
+	cargo clippy --all-targets --all-features -- -D warnings
+	cargo clippy --lib --target wasm32-unknown-unknown --all-features -- -D warnings
 	cargo test --all-targets
+	cargo test --lib --all-features
 	cargo doc --no-deps
 
 # Publish a new release to crates.io and tag the commit.
@@ -11,3 +14,8 @@ publish: pre_publish
 	cargo publish
 	git tag v$(shell cargo metadata --no-deps --format-version 1 | python3 -c "import sys,json; print(json.load(sys.stdin)['packages'][0]['version'])")
 	git push origin --tags
+
+# Regenerate the README screenshots. Needs a display and Pillow; keep the window visible.
+screenshots:
+	cargo run --release --example showcase --features backdrop-blur -- --screenshot target/screenshots
+	python3 docs/screenshots/encode.py target/screenshots docs/screenshots

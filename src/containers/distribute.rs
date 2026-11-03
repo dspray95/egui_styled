@@ -37,6 +37,9 @@ impl<'a> StyledDistributedRow<'a> {
         // are captured inside the closure to reflect post-padding dimensions.
         let mut render = move |ui: &mut Ui| {
             let avail = ui.available_width();
+            // The gap is applied as `item_spacing`; items get the parent's back so it
+            // doesn't leak into widgets that space their own parts (e.g. a slider's value box).
+            let spacing = ui.spacing().item_spacing;
             // Per-position stable id for the cross-frame W cache. A constant
             // source would collide between sibling distributed rows, so one row
             // would read another's cached content width. `next_auto_id` advances
@@ -47,7 +50,10 @@ impl<'a> StyledDistributedRow<'a> {
                 .with("__distribute_w");
             distribute_row_horizontally(ui, avail, mode, min_gap, n, cross_align, id, |ui| {
                 for item in items.drain(..) {
-                    ui.scope(|ui| item(ui));
+                    ui.scope(|ui| {
+                        ui.spacing_mut().item_spacing = spacing;
+                        item(ui);
+                    });
                 }
             });
             ui.response()
@@ -283,6 +289,75 @@ mod tests {
         assert!(
             b_right <= screen_w + 1.0,
             "second distributed row right={b_right} overflowed {screen_w} — W caches collided"
+        );
+    }
+
+    #[test]
+    fn remeasures_when_content_width_changes() {
+        use crate::Styled;
+        // Pin "B" to the right edge, then widen "A": the row must re-measure,
+        // not keep laying out with the first frame's width.
+        let ctx = egui::Context::default();
+        let (mut b_right, mut edge) = (0.0, 0.0);
+        for left in [
+            "A",
+            "A",
+            "A much wider label",
+            "A much wider label",
+            "A much wider label",
+        ] {
+            let _ = crate::test_util::run_ui(&ctx, screen(400.0, 200.0), |ui| {
+                edge = ui.max_rect().right();
+                Styled::row()
+                    .full_width()
+                    .space_between()
+                    .item(|ui| {
+                        ui.label(left);
+                    })
+                    .item(|ui| {
+                        b_right = ui.label("B").rect.right();
+                    })
+                    .show(ui);
+            });
+        }
+        assert!(
+            (b_right - edge).abs() < 1.0,
+            "B should stay pinned to the right edge {edge}, got {b_right}"
+        );
+    }
+
+    #[test]
+    fn gap_does_not_leak_into_items() {
+        // egui's Slider spaces its value box with `item_spacing`: a leaked gap widens it.
+        use crate::Styled;
+        let ctx = egui::Context::default();
+        let mut v = 8u32;
+        let mut widths = Vec::new();
+        let mut right = (0.0, 0.0);
+        for _ in 0..4 {
+            let _ = crate::test_util::run_ui(&ctx, screen(400.0, 200.0), |ui| {
+                let edge = ui.max_rect().right();
+                Styled::row()
+                    .full_width()
+                    .space_between()
+                    .item(|ui| {
+                        ui.label("Build concurrency");
+                    })
+                    .item(|ui| {
+                        let r = Styled::slider(&mut v, 1..=16).show(ui).rect;
+                        widths.push(r.width());
+                        right = (r.right(), edge);
+                    })
+                    .show(ui);
+            });
+        }
+        assert!(
+            widths.windows(2).all(|w| (w[0] - w[1]).abs() < 0.5),
+            "slider width should be stable, got {widths:?}"
+        );
+        assert!(
+            (right.0 - right.1).abs() < 1.0,
+            "slider pinned right: {right:?}"
         );
     }
 }

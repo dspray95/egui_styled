@@ -19,7 +19,12 @@
 //!
 //! The [`prelude`] module re-exports everything you usually need.
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 pub mod apply;
+#[cfg(feature = "backdrop-blur")]
+#[cfg_attr(docsrs, doc(cfg(feature = "backdrop-blur")))]
+pub mod backdrop;
 pub mod color;
 pub mod containers;
 pub mod prelude;

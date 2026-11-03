@@ -4,10 +4,10 @@ use egui::{
 };
 
 use crate::{
-    impl_style_builders,
+    ThemeExt, impl_style_builders,
     style::shared_style::{
-        ResolvedBorder, SharedStyle, border_gradient_mesh, gradient_shape, inner_glow_shape,
-        paint_shadows, paint_side_borders, render_scoped,
+        BackdropSlot, ResolvedBorder, SharedStyle, border_gradient_mesh, gradient_shape,
+        inner_glow_shape, paint_shadows, paint_side_borders, render_scoped,
     },
 };
 
@@ -212,24 +212,34 @@ impl StyledLabel {
     pub fn show(self, ui: &mut Ui) -> Response {
         let visible = self.style.visible != Some(false);
 
-        let mut rich = match self.text {
-            WidgetText::RichText(rt) => (*rt).clone(),
-            other => RichText::new(other.text().to_string()),
+        // A LayoutJob or Galley carries its own per-section formatting; overrides would erase it.
+        let rich: WidgetText = match self.text {
+            preformatted @ (WidgetText::LayoutJob(_) | WidgetText::Galley(_)) => preformatted,
+            text => {
+                let mut rich = match text {
+                    WidgetText::RichText(rt) => (*rt).clone(),
+                    other => RichText::new(other.text().to_string()),
+                };
+                if let Some(color) = self.style.text_color {
+                    rich = rich.color(color);
+                }
+                if let Some(font) = self.font.clone() {
+                    rich = rich.font(font);
+                } else if let Some(size) = self.style.font_size {
+                    rich = rich.size(size);
+                }
+                if self.bold {
+                    rich = match ui.ctx().styled_theme().font_family_bold {
+                        Some(family) => rich.family(family),
+                        None => rich.strong(),
+                    };
+                }
+                if self.italics {
+                    rich = rich.italics();
+                }
+                rich.into()
+            }
         };
-        if let Some(color) = self.style.text_color {
-            rich = rich.color(color);
-        }
-        if let Some(font) = self.font.clone() {
-            rich = rich.font(font);
-        } else if let Some(size) = self.style.font_size {
-            rich = rich.size(size);
-        }
-        if self.bold {
-            rich = rich.strong();
-        }
-        if self.italics {
-            rich = rich.italics();
-        }
 
         // Resolve static style (labels have no interaction state).
         let visuals = ui.visuals().clone();
@@ -274,9 +284,10 @@ impl StyledLabel {
 
         let response = render_scoped(ui, visible, |ui| {
             let shadow_idx = ui.painter().add(Shape::Noop);
+            let backdrop = BackdropSlot::reserve(ui, &self.style);
             let gradient_idx = ui.painter().add(Shape::Noop);
 
-            let response = egui::Frame::new()
+            let framed = egui::Frame::new()
                 .fill(frame_bg)
                 .stroke(frame_border)
                 .corner_radius(corner_radius)
@@ -307,14 +318,17 @@ impl StyledLabel {
                         }
                         ui.add(label)
                     }
-                })
-                .inner;
+                });
+            // The fill covers padding but not margin; `framed.inner` is just the text.
+            let fill = framed.response.rect - margin;
+            backdrop.fill(ui, fill, corner_radius);
+            let response = framed.inner;
 
             // Gradient underlay.
             if let Some(g) = &bg_gradient {
                 let shapes = vec![
-                    Shape::rect_filled(response.rect, corner_radius, bg),
-                    gradient_shape(ui.ctx(), response.rect, corner_radius, g),
+                    Shape::rect_filled(fill, corner_radius, bg),
+                    gradient_shape(ui.ctx(), fill, corner_radius, g),
                 ];
                 ui.painter().set(gradient_idx, Shape::Vec(shapes));
             }
@@ -322,19 +336,19 @@ impl StyledLabel {
             // Border: gradient > per-side > uniform.
             if let Some(bg) = border_gradient {
                 ui.painter()
-                    .add(Shape::Mesh(border_gradient_mesh(response.rect, bg).into()));
+                    .add(Shape::Mesh(border_gradient_mesh(fill, bg).into()));
             } else if has_border_overrides {
-                paint_side_borders(ui.painter(), response.rect, border_sides);
+                paint_side_borders(ui.painter(), fill, border_sides);
             }
 
             // Inner glow.
             if let Some(glow) = inner_glow
-                && let Some(shape) = inner_glow_shape(response.rect, corner_radius, glow)
+                && let Some(shape) = inner_glow_shape(fill, corner_radius, glow)
             {
                 ui.painter().add(shape);
             }
 
-            paint_shadows(ui, shadow_idx, response.rect, corner_radius, &style_shadows);
+            paint_shadows(ui, shadow_idx, fill, corner_radius, &style_shadows);
             response
         });
 
@@ -350,3 +364,129 @@ impl StyledLabel {
 
 impl_style_builders!(StyledLabel);
 crate::impl_styled_widget!(StyledLabel);
+
+#[cfg(test)]
+mod tests {
+    use crate::Styled;
+    use egui::{Color32, Rect, Shape};
+
+    fn painted_bounds(shapes: &[Shape], out: &mut Vec<Rect>) {
+        for shape in shapes {
+            match shape {
+                Shape::Vec(inner) => painted_bounds(inner, out),
+                Shape::Rect(rs) => out.push(rs.rect),
+                Shape::Mesh(m) => out.push(m.calc_bounds()),
+                _ => {}
+            }
+        }
+    }
+
+    #[test]
+    fn layout_job_keeps_its_own_formatting() {
+        use egui::text::{LayoutJob, TextFormat};
+        let mut job = LayoutJob::default();
+        job.append(
+            "red",
+            0.0,
+            TextFormat::simple(egui::FontId::monospace(20.0), Color32::RED),
+        );
+        job.append(
+            "blue",
+            0.0,
+            TextFormat::simple(egui::FontId::monospace(20.0), Color32::BLUE),
+        );
+
+        let ctx = egui::Context::default();
+        let output = crate::test_util::run_ui(&ctx, egui::RawInput::default(), |ui| {
+            Styled::label(job.clone())
+                .text_color(Color32::GREEN)
+                .show(ui);
+        });
+        let galley = output
+            .shapes
+            .iter()
+            .find_map(|cs| match &cs.shape {
+                Shape::Text(t) => Some(t.galley.clone()),
+                _ => None,
+            })
+            .expect("label painted text");
+        let colors: Vec<Color32> = galley.job.sections.iter().map(|s| s.format.color).collect();
+        assert_eq!(colors, vec![Color32::RED, Color32::BLUE]);
+    }
+
+    fn text_section_format(output: egui::FullOutput) -> egui::text::TextFormat {
+        output
+            .shapes
+            .iter()
+            .find_map(|cs| match &cs.shape {
+                Shape::Text(t) => Some(t.galley.job.sections[0].format.clone()),
+                _ => None,
+            })
+            .expect("label painted text")
+    }
+
+    #[test]
+    fn bold_uses_the_themes_bold_family() {
+        use crate::{StyledTheme, ThemeExt};
+        use egui::FontFamily;
+        let bold = FontFamily::Name("test-bold".into());
+        let ctx = egui::Context::default();
+        let mut fonts = egui::FontDefinitions::default();
+        fonts.families.insert(bold.clone(), vec!["Hack".into()]);
+        ctx.set_fonts(fonts);
+        ctx.set_styled_theme(StyledTheme {
+            font_family_bold: Some(bold.clone()),
+            ..Default::default()
+        });
+        let mut out = None;
+        // Fonts set on the context apply from the next pass.
+        for _ in 0..2 {
+            out = Some(crate::test_util::run_ui(
+                &ctx,
+                egui::RawInput::default(),
+                |ui| {
+                    Styled::label("weighty").font_size(20.0).bold().show(ui);
+                },
+            ));
+        }
+        let format = text_section_format(out.unwrap());
+        assert_eq!(format.font_id.family, bold);
+        assert_eq!(format.font_id.size, 20.0);
+    }
+
+    #[test]
+    fn bold_without_a_bold_family_keeps_strong_color() {
+        let ctx = egui::Context::default();
+        let strong = ctx.global_style().visuals.strong_text_color();
+        let out = crate::test_util::run_ui(&ctx, egui::RawInput::default(), |ui| {
+            Styled::label("weighty").bold().show(ui);
+        });
+        assert_eq!(text_section_format(out).color, strong);
+    }
+
+    #[test]
+    fn decorations_cover_padding_but_not_margin() {
+        let ctx = egui::Context::default();
+        let mut text = Rect::NOTHING;
+        let output = crate::test_util::run_ui(&ctx, egui::RawInput::default(), |ui| {
+            text = Styled::label("hi")
+                .padding(10.0)
+                .margin(5.0)
+                .bg(Color32::RED)
+                .bg_gradient_v(Color32::BLUE, Color32::GREEN)
+                .inner_glow(4.0, Color32::WHITE)
+                .show(ui)
+                .rect;
+        });
+        let shapes: Vec<Shape> = output.shapes.into_iter().map(|cs| cs.shape).collect();
+        let mut bounds = Vec::new();
+        painted_bounds(&shapes, &mut bounds);
+
+        // egui's frame fill, then solid bg, gradient and glow on the same rect.
+        let fill = text.expand(10.0);
+        assert_eq!(bounds.len(), 4, "{bounds:?}");
+        for b in bounds {
+            assert_eq!(b, fill, "decoration not on the padded fill rect");
+        }
+    }
+}

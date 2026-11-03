@@ -4,8 +4,8 @@ use crate::{
     impl_style_builders,
     state::PseudoState,
     style::shared_style::{
-        SharedStyle, border_gradient_mesh, gradient_shape, inner_glow_shape, paint_shadows,
-        paint_side_borders, render_scoped,
+        BackdropSlot, SharedStyle, border_gradient_mesh, gradient_shape, inner_glow_shape,
+        paint_shadows, paint_side_borders, render_scoped,
     },
 };
 
@@ -125,6 +125,7 @@ impl StyledImage {
 
         let response = render_scoped(ui, visible, |ui| {
             let shadow_idx = ui.painter().add(Shape::Noop);
+            let backdrop = BackdropSlot::reserve(ui, &self.style);
             let gradient_idx = ui.painter().add(Shape::Noop);
 
             let current_tint = if pseudo.hovered {
@@ -200,6 +201,7 @@ impl StyledImage {
                 })
                 .inner;
 
+            backdrop.fill(ui, resp.rect, per.corner_radius);
             paint_shadows(
                 ui,
                 shadow_idx,

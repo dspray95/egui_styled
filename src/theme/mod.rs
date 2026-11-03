@@ -37,6 +37,9 @@ pub struct StyledTheme {
     pub font_family_display: FontFamily,
     pub font_family_body: FontFamily,
     pub font_family_mono: FontFamily,
+    /// Family `.bold()` switches to, e.g. a registered 700-weight cut. egui has no
+    /// synthetic bold, so with `None` `.bold()` falls back to the `strong` text colour.
+    pub font_family_bold: Option<FontFamily>,
 
     // Text effect scales (pixel offsets / radii at logical pixel density).
     //
@@ -97,6 +100,7 @@ impl Default for StyledTheme {
             font_family_display: FontFamily::Proportional,
             font_family_body: FontFamily::Proportional,
             font_family_mono: FontFamily::Monospace,
+            font_family_bold: None,
 
             shadow_sm: Vec2::new(0.0, 1.0),
             shadow_md: Vec2::new(0.0, 2.0),

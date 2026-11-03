@@ -12,6 +12,16 @@ repeatedly cloning and mutating `ui.visuals_mut()`.
 [crates.io](https://crates.io/crates/egui_styled) ·
 [examples](examples/)
 
+<p align="center">
+  <img src="docs/screenshots/dashboard_dark.webp" width="49%" alt="A dev-tool dashboard in a dark Linear-style theme: aurora hero, sign-in card, stat tiles with sparklines, code and settings">
+  <img src="docs/screenshots/dashboard_brutal.webp" width="49%" alt="The same dashboard restyled by swapping to a neubrutalist palette: cream, black outlines and hard shadows">
+  <img src="docs/screenshots/player.webp" width="49%" alt="A music player with glass panels over the blurred album art">
+  <img src="docs/screenshots/playground.webp" width="49%" alt="A style playground: a glass card over a sunset photo, with the builder code that renders it">
+</p>
+
+<p align="center"><sub>All plain egui plus <code>egui_styled</code>. See it live:
+<code>cargo run --release --example showcase --features backdrop-blur</code></sub></p>
+
 ---
 
 ## Quick start
@@ -215,7 +225,7 @@ ui.scope(|ui| {
 
 ```toml
 [dependencies]
-egui_styled = "0.8"
+egui_styled = "0.9"
 egui = "0.37"
 ```
 
@@ -223,6 +233,7 @@ egui = "0.37"
 
 | egui_styled | egui | Rust (MSRV) |
 |-------------|------|-------------|
+| 0.9.0       | 0.37 | 1.95        |
 | 0.8.1       | 0.37 | 1.95        |
 | 0.8.0       | 0.35 | 1.92        |
 | 0.7.1       | 0.35 | 1.92        |
@@ -234,7 +245,11 @@ Tested with `eframe` on Linux, macOS, and Windows.
 
 Web (wasm) is supported - a live demo runs at [david-spray.me](https://david-spray.me).
 
-No feature flags currently.
+### Feature flags
+
+| Feature         | Adds |
+|-----------------|------|
+| `backdrop-blur` | `.backdrop_blur(radius)` on containers. wgpu backend only (native and web); pulls in `egui-wgpu`. |
 
 ---
 
@@ -300,7 +315,7 @@ Styled::label("Status")
 ```
 
 Available today: `StyledButton`, `StyledLabel`, `StyledTextEdit`,
-`StyledCheckbox`, `StyledSlider` (partial), `StyledComboBox` (partial).
+`StyledCheckbox`, `StyledSlider`, `StyledComboBox` (partial).
 
 ### Design tokens
 
@@ -319,6 +334,7 @@ StyledTheme {
     font_size_sm: 12.0, font_size_md: 14.0, font_size_lg: 18.0,
     font_family_body: FontFamily::Proportional,
     font_family_mono: FontFamily::Monospace,
+    font_family_bold: None, // a registered bold family makes `.bold()` real weight
     shadow_md: vec2(0.0, 2.0),
     glow_md: 8.0,
     // …
@@ -572,6 +588,35 @@ Background gradients bake into a small cached GPU texture (a 2×2 for corner
 blends, a 256-texel ramp for N-stop), so keep gradient colors from a fixed
 palette rather than animating them per frame. See `examples/gradients.rs`.
 
+### Backdrop blur
+
+With the `backdrop-blur` feature, any widget or container can blur whatever is
+painted behind it, like CSS `backdrop-filter: blur()`. Install once at startup, then add the
+builder and a translucent `bg` as the tint:
+
+```rust
+// In eframe's app creator:
+egui_styled::backdrop::install(&cc.egui_ctx, cc.wgpu_render_state.as_ref().unwrap());
+
+Styled::frame()
+    .backdrop_blur(24.0)
+    .bg(Color32::from_white_alpha(18))
+    .border(1.0, Color32::from_white_alpha(48))
+    .corner_radius(16.0)
+    .show(ui, body);
+```
+
+The shapes underneath are re-rendered offscreen and blurred, so it works over
+moving content and never blurs itself. Works natively and on the web (WebGPU and
+WebGL2).
+
+For game UIs, it can blur your own wgpu rendering too. Hand over a texture you
+show with `register_native_texture` via `backdrop::register_native_texture`, or a
+scene drawn outside egui via `backdrop::set_scene_texture`. See
+`examples/backdrop_game.rs`. Paint callbacks are not blurred. Without `install`,
+or on the glow backend, the builder is a no-op and only the tint shows. See
+`examples/backdrop_blur.rs`.
+
 ### Images
 
 `egui_styled` never loads or uploads textures itself. The app owns that part:
@@ -611,7 +656,7 @@ correctly.
 | `StyledLabel` | ✅ Font, color, effects, min-height, visibility |
 | `StyledTextEdit` | ✅ Hint, multiline, password, focus styling, padding, border |
 | `StyledCheckbox` | ✅ Full pseudo-state |
-| `StyledSlider` | 🚧 Partial - track/handle styling is shallow |
+| `StyledSlider` | ✅ Rail, fill, handle (incl. hover), value box, width, hide value |
 | `StyledComboBox` | 🚧 Partial - trigger styled, popup items inherit |
 | `StyledFrame` | ✅ Full box model, background image, vertical justify, aspect ratio |
 | `StyledRow` / `StyledColumn` | ✅ Gap, alignment, box styling, distribution, wrapping |
@@ -637,8 +682,10 @@ Things that are intentionally out of scope or not yet solved:
 - **Interactive widgets inside translated stacks are not reliable.**
   `StyledStack` paints visually in the right place, but hit-testing still uses
   the untranslated rect.
-- **`StyledSlider` and `StyledComboBox` are not deeply styleable yet.**
-  Trigger-level styling works; deeper internals are still limited.
+- **`StyledComboBox` is not deeply styleable yet.** The trigger is styled;
+  popup items inherit egui's defaults.
+- **Backdrop blur can't see paint callbacks.** Render that content to a texture
+  instead. wgpu backend only (native, WebGPU, WebGL2); not glow.
 - **Not a CSS or flexbox engine.** Percentage sizing, wrapping, and
   distribution are implemented as egui-friendly utilities, not a constraint
   solver.
@@ -665,6 +712,12 @@ numbers of styled widgets per frame.
 times. Lower `.glow_quality(n)` if you render lots of glowing labels
 simultaneously.
 
+**Backdrop blur costs roughly 0.1 ms of CPU per blurred container per frame** over a
+busy animated backdrop, plus a few small GPU passes. When nothing under a container
+changes, last frame's blur is reused and the GPU work is skipped. Backdrops containing
+images (other than text) are always redrawn, since an image updated in place can't be
+detected. Measure with `EGUI_STYLED_BENCH=N` on `examples/backdrop_blur.rs`.
+
 Distribution and wrapping rows add a measurement frame on first render, then
 settle. After that their steady-state overhead is similar to other styled
 containers.
@@ -685,6 +738,16 @@ cargo test         # all tests including kittest snapshots (requires wgpu)
 
 ## Examples
 
+The showcase is the best place to start: a dev-tool dashboard (dark and
+neubrutalist themes), a music player with glass over blurred album art, and a
+style playground that prints the builder code for what you see. Bundled OFL
+fonts (Inter, Geist, Space Grotesk) switch live.
+
+```bash
+cargo run --release --example showcase --features backdrop-blur
+cargo run --release --example showcase --features backdrop-blur -- --screenshot out/  # PNG of every scene
+```
+
 ```bash
 cargo run --example basic              # buttons + frame
 cargo run --example containers         # row / column / nesting
@@ -697,6 +760,8 @@ cargo run --example theme_demo         # live theme switching
 cargo run --example composable_styles  # Apply + reusable style functions
 cargo run --example all_widgets        # every widget in one screen
 cargo run --example game_over          # Area + Column + Stack + custom palette
+cargo run --example backdrop_blur --features backdrop-blur  # frosted glass over a moving scene
+cargo run --example backdrop_game --features backdrop-blur  # glass HUD over a custom wgpu scene
 ```
 
 ---

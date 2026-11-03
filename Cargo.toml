@@ -1,6 +1,6 @@
 [package]
 name = "egui_styled"
-version = "0.8.1"
+version = "0.9.0"
 edition = "2024"
 rust-version = "1.95"
 authors = ["David Spray <dev@david-spray.me>"]
@@ -11,15 +11,40 @@ documentation = "https://docs.rs/egui_styled"
 readme = "README.md"
 keywords = ["egui", "gui", "styling", "theme", "ui"]
 categories = ["gui"]
-exclude = ["docs/", ".github/", "target/"]
+exclude = ["docs/", ".github/", "target/", "examples/showcase/"]
 
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+[features]
+# CSS-style `backdrop-filter: blur()` on containers. wgpu backend only.
+backdrop-blur = ["dep:egui-wgpu"]
+
 [dependencies]
 egui = "0.37.0"
+egui-wgpu = { version = "0.37.0", optional = true, default-features = false }
+
+# egui-wgpu's defaults on web: WebGPU/WebGL backends, plus `Send + Sync` wgpu types for its
+# callback bounds. eframe's `wgpu` feature enables the same set.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+egui-wgpu = { version = "0.37.0", optional = true }
 
 [dev-dependencies]
 eframe = "0.37.0"
+egui_extras = { version = "0.37.0", features = ["image"] }
 egui_kittest = { version = "0.37.0", features = ["snapshot", "wgpu"] }
+# JPEG photos and PNG screenshots in the showcase.
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+
+[[example]]
+name = "backdrop_blur"
+required-features = ["backdrop-blur"]
+
+[[example]]
+name = "backdrop_game"
+required-features = ["backdrop-blur"]
+
+[[example]]
+name = "showcase"
+required-features = ["backdrop-blur"]

@@ -1,10 +1,10 @@
-use egui::{Align, Color32, InnerResponse, Layout, Shape, Ui};
+use egui::{Align, Color32, InnerResponse, Layout, Shape, Ui, UiBuilder};
 
 use crate::{
     impl_style_builders,
     state::PseudoState,
     style::shared_style::{
-        SharedStyle, background_image_shape, bgimg_fade_alpha, border_gradient_mesh,
+        BackdropSlot, SharedStyle, background_image_shape, bgimg_fade_alpha, border_gradient_mesh,
         gradient_shape, inner_glow_shape, justify_body_vertically, paint_shadows,
         paint_side_borders,
     },
@@ -71,6 +71,8 @@ impl StyledFrame {
         }
 
         let shadow_idx = ui.painter().add(Shape::Noop);
+        // Under the fill, so `bg` tints the blurred backdrop.
+        let backdrop = BackdropSlot::reserve(ui, &self.style);
         let corner_radius = self.style.corner_radius.unwrap_or_default();
         let shadows = self.style.shadows.clone();
 
@@ -150,6 +152,22 @@ impl StyledFrame {
                 .with("__vjustify_content_h")
         });
 
+        // Shrink-to-fit: a centred vertical layout spans its full width, and so would a frame
+        // with no width of its own. Measure the content's natural width and cap to it.
+        let parent = *ui.layout();
+        let shrink_id = (parent.is_vertical()
+            && parent.horizontal_align() == Align::Center
+            && !parent.horizontal_justify()
+            && !full_width
+            && max_width.is_none()
+            && fill_size.is_none()
+            && align.is_none()
+            && justify.is_none()
+            && self.style.width_pct.is_none()
+            && self.style.aspect_ratio.is_none())
+        .then(|| ui.make_persistent_id(ui.next_auto_id()).with("__shrink_w"));
+        let shrink_w = shrink_id.and_then(|id| ui.ctx().memory(|m| m.data.get_temp::<f32>(id)));
+
         // Content reveal: when set, the body fades in together with the
         // background image (same id + duration → in lockstep). `None` unless
         // `reveal_with_background_image` was used and an image is present.
@@ -213,6 +231,11 @@ impl StyledFrame {
                 // Apply max constraints first so full_width reads the capped
                 // available size, and min constraints last so an explicit minimum
                 // always wins over full_width.
+                if let Some(w) = shrink_w {
+                    // egui shrinks a centred region around its centre, which centres the frame.
+                    // Never below `min_width`, or the frame would grow rightwards off-centre.
+                    ui.set_max_width(w.max(min_width.unwrap_or(0.0)));
+                }
                 if let Some(w) = max_width {
                     ui.set_max_width(w);
                 }
@@ -276,6 +299,27 @@ impl StyledFrame {
                             layout = layout.with_main_align(j);
                         }
                         ui.with_layout(layout, body).inner
+                    } else if let Some(id) = shrink_id {
+                        // Left-aligned and uncapped, so the content's own width is measurable
+                        // even when it has grown past the current cap.
+                        let uncapped = egui::Rect::from_min_size(
+                            ui.max_rect().min,
+                            egui::vec2(avail_w, ui.max_rect().height()),
+                        );
+                        let layout = ui.layout().with_cross_align(Align::Min);
+                        let r = ui.scope_builder(
+                            UiBuilder::new().max_rect(uncapped).layout(layout),
+                            body,
+                        );
+                        let natural = r.response.rect.width();
+                        if shrink_w.is_none_or(|w| (w - natural).abs() > 0.5) {
+                            ui.ctx().memory_mut(|m| m.data.insert_temp(id, natural));
+                            // Re-run the pass so the change is never shown; repaint if discards are off.
+                            ui.ctx()
+                                .request_discard("StyledFrame shrink-to-fit width changed");
+                            ui.ctx().request_repaint();
+                        }
+                        r.inner
                     } else {
                         body(ui)
                     }
@@ -283,7 +327,11 @@ impl StyledFrame {
             }
         });
 
-        let rect = response.response.rect;
+        // Response rect includes the outer margin; egui's own fill (and ours) excludes it.
+        let rect = self
+            .style
+            .margin
+            .map_or(response.response.rect, |m| response.response.rect - m);
 
         // Paint background layers into the slot now that we know the rect.
         if let Some(slot) = bgimg_slot {
@@ -384,13 +432,9 @@ impl StyledFrame {
             ui.painter().add(shape);
         }
 
-        paint_shadows(
-            ui,
-            shadow_idx,
-            response.response.rect,
-            corner_radius,
-            &shadows,
-        );
+        backdrop.fill(ui, rect, corner_radius);
+
+        paint_shadows(ui, shadow_idx, rect, corner_radius, &shadows);
 
         response
     }
@@ -971,5 +1015,163 @@ mod tests {
             "height_pct(50) on 300px screen should be ~150px, got {}",
             rect.height()
         );
+    }
+
+    /// Collects the bounds of every rect and mesh in a shape tree.
+    fn painted_bounds(shapes: &[Shape], out: &mut Vec<egui::Rect>) {
+        for shape in shapes {
+            match shape {
+                Shape::Vec(inner) => painted_bounds(inner, out),
+                Shape::Rect(rs) => out.push(rs.rect),
+                Shape::Mesh(m) => out.push(m.calc_bounds()),
+                _ => {}
+            }
+        }
+    }
+
+    /// Runs one frame with a 10pt margin; returns the response rect and painted bounds.
+    fn run_with_margin(
+        style: impl Fn(StyledFrame) -> StyledFrame,
+    ) -> (egui::Rect, Vec<egui::Rect>) {
+        let ctx = egui::Context::default();
+        let mut outer = egui::Rect::NOTHING;
+        let output = crate::test_util::run_ui(&ctx, egui::RawInput::default(), |ui| {
+            outer = style(
+                StyledFrame::new()
+                    .margin(10.0)
+                    .min_width(100.0)
+                    .min_height(50.0),
+            )
+            .show(ui, |_ui| {})
+            .response
+            .rect;
+        });
+        let shapes: Vec<Shape> = output.shapes.into_iter().map(|cs| cs.shape).collect();
+        let mut bounds = Vec::new();
+        painted_bounds(&shapes, &mut bounds);
+        (outer, bounds)
+    }
+
+    #[test]
+    fn decorations_exclude_outer_margin() {
+        let (outer, bounds) = run_with_margin(|f| {
+            f.bg(Color32::RED)
+                .bg_gradient_v(Color32::BLUE, Color32::GREEN)
+                .inner_glow(4.0, Color32::WHITE)
+        });
+        let widget = outer - egui::Margin::same(10);
+        // egui's frame shape, solid bg, gradient and inner glow all share the fill rect.
+        assert_eq!(bounds.len(), 4, "{bounds:?}");
+        for b in bounds {
+            assert_eq!(b, widget, "decoration painted into the margin");
+        }
+    }
+
+    #[test]
+    fn shadow_offsets_from_fill_rect_not_margin() {
+        let (outer, bounds) = run_with_margin(|f| {
+            f.bg(Color32::RED)
+                .shadow_filled(egui::vec2(4.0, 4.0), Color32::BLACK)
+        });
+        let widget = outer - egui::Margin::same(10);
+        assert!(
+            bounds.contains(&widget.translate(egui::vec2(4.0, 4.0))),
+            "{bounds:?}"
+        );
+    }
+
+    fn screen_800() -> egui::RawInput {
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(800.0, 400.0),
+            )),
+            ..Default::default()
+        }
+    }
+
+    /// One frame of a padded frame holding `text`, inside a `layout` parent.
+    fn frame_in(ctx: &egui::Context, layout: Layout, text: &str, full: bool) -> egui::Rect {
+        let mut rect = egui::Rect::NOTHING;
+        let _ = crate::test_util::run_ui(ctx, screen_800(), |ui| {
+            ui.with_layout(layout, |ui| {
+                let f = StyledFrame::new().bg(Color32::RED).padding(10.0);
+                let f = if full { f.full_width() } else { f };
+                rect = f
+                    .show(ui, |ui| {
+                        ui.label(text);
+                    })
+                    .response
+                    .rect;
+            });
+        });
+        rect
+    }
+
+    #[test]
+    fn shrinks_to_content_and_centers_in_a_centered_layout() {
+        let ctx = egui::Context::default();
+        let centered = Layout::top_down(Align::Center);
+        // Right on the first frame: the measuring pass is discarded, not shown.
+        let r = frame_in(&ctx, centered, "short", false);
+        assert!(r.width() < 120.0, "should hug its content, got {r:?}");
+        assert!(
+            (r.center().x - 400.0).abs() < 1.0,
+            "should be centred, got {r:?}"
+        );
+    }
+
+    #[test]
+    fn shrink_to_fit_follows_content_changes() {
+        let ctx = egui::Context::default();
+        let centered = Layout::top_down(Align::Center);
+        let narrow = frame_in(&ctx, centered, "short", false);
+        let wide = frame_in(&ctx, centered, "a considerably longer line of text", false);
+        assert!(
+            wide.width() > narrow.width() + 50.0,
+            "{narrow:?} -> {wide:?}"
+        );
+        assert!(
+            (wide.center().x - 400.0).abs() < 1.0,
+            "still centred: {wide:?}"
+        );
+    }
+
+    #[test]
+    fn shrink_to_fit_respects_min_width_and_stays_centred() {
+        let ctx = egui::Context::default();
+        let mut rect = egui::Rect::NOTHING;
+        let _ = crate::test_util::run_ui(&ctx, screen_800(), |ui| {
+            ui.with_layout(Layout::top_down(Align::Center), |ui| {
+                rect = StyledFrame::new()
+                    .bg(Color32::RED)
+                    .padding(10.0)
+                    .min_width(300.0)
+                    .show(ui, |ui| {
+                        ui.label("short");
+                    })
+                    .response
+                    .rect;
+            });
+        });
+        assert!(
+            (rect.width() - 320.0).abs() < 1.0,
+            "min 300 + padding: {rect:?}"
+        );
+        assert!((rect.center().x - 400.0).abs() < 1.0, "centred: {rect:?}");
+    }
+
+    #[test]
+    fn full_width_wins_over_shrink_to_fit() {
+        let ctx = egui::Context::default();
+        let r = frame_in(&ctx, Layout::top_down(Align::Center), "short", true);
+        assert!(r.width() > 790.0, "{r:?}");
+    }
+
+    #[test]
+    fn left_layouts_are_unchanged() {
+        let ctx = egui::Context::default();
+        let r = frame_in(&ctx, Layout::top_down(Align::Min), "short", false);
+        assert!(r.left() < 1.0 && r.width() < 120.0, "{r:?}");
     }
 }
