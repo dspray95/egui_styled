@@ -997,14 +997,24 @@ pub(crate) fn distribute_row_horizontally(
         let slack = (avail - w).max(0.0);
         let (leading, gap) = distribution_spacing(mode, slack, n, min_gap);
 
-        ui.allocate_ui_with_layout(initial_size, layout, |ui| {
-            ui.spacing_mut().item_spacing.x = 0.0;
-            if leading > 0.0 {
-                ui.add_space(leading);
-            }
-            ui.spacing_mut().item_spacing.x = gap;
-            render_items(ui);
-        });
+        let drawn = ui
+            .allocate_ui_with_layout(initial_size, layout, |ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                if leading > 0.0 {
+                    ui.add_space(leading);
+                }
+                ui.spacing_mut().item_spacing.x = gap;
+                render_items(ui);
+                ui.min_rect().width()
+            })
+            .inner;
+        // Content can change size (text, fonts, state): re-measure from what was drawn.
+        let content_w = drawn - leading - gap * n.saturating_sub(1) as f32;
+        if (content_w - w).abs() > 0.5 {
+            ui.ctx()
+                .memory_mut(|m| m.data.insert_temp(content_w_id, content_w));
+            ui.ctx().request_repaint();
+        }
     } else {
         // Measure frame: invisible, zero spacing, record content width.
         let scope = ui.scope(|ui| {

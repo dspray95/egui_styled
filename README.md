@@ -304,7 +304,7 @@ Styled::label("Status")
 ```
 
 Available today: `StyledButton`, `StyledLabel`, `StyledTextEdit`,
-`StyledCheckbox`, `StyledSlider` (partial), `StyledComboBox` (partial).
+`StyledCheckbox`, `StyledSlider`, `StyledComboBox` (partial).
 
 ### Design tokens
 
@@ -644,7 +644,7 @@ correctly.
 | `StyledLabel` | ✅ Font, color, effects, min-height, visibility |
 | `StyledTextEdit` | ✅ Hint, multiline, password, focus styling, padding, border |
 | `StyledCheckbox` | ✅ Full pseudo-state |
-| `StyledSlider` | 🚧 Partial - track/handle styling is shallow |
+| `StyledSlider` | ✅ Rail, fill, handle (incl. hover), value box, width, hide value |
 | `StyledComboBox` | 🚧 Partial - trigger styled, popup items inherit |
 | `StyledFrame` | ✅ Full box model, background image, vertical justify, aspect ratio |
 | `StyledRow` / `StyledColumn` | ✅ Gap, alignment, box styling, distribution, wrapping |
@@ -670,8 +670,8 @@ Things that are intentionally out of scope or not yet solved:
 - **Interactive widgets inside translated stacks are not reliable.**
   `StyledStack` paints visually in the right place, but hit-testing still uses
   the untranslated rect.
-- **`StyledSlider` and `StyledComboBox` are not deeply styleable yet.**
-  Trigger-level styling works; deeper internals are still limited.
+- **`StyledComboBox` is not deeply styleable yet.** The trigger is styled;
+  popup items inherit egui's defaults.
 - **Backdrop blur can't see paint callbacks.** Render that content to a texture
   instead. wgpu backend only (native, WebGPU, WebGL2); not glow.
 - **Not a CSS or flexbox engine.** Percentage sizing, wrapping, and
@@ -725,6 +725,16 @@ cargo test         # all tests including kittest snapshots (requires wgpu)
 ---
 
 ## Examples
+
+The showcase is the best place to start: a dev-tool dashboard (dark and
+neubrutalist themes), a music player with glass over blurred album art, and a
+style playground that prints the builder code for what you see. Bundled OFL
+fonts (Inter, Geist, Space Grotesk) switch live.
+
+```bash
+cargo run --release --example showcase --features backdrop-blur
+cargo run --release --example showcase --features backdrop-blur -- --screenshot out/  # PNG of every scene
+```
 
 ```bash
 cargo run --example basic              # buttons + frame

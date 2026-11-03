@@ -212,24 +212,31 @@ impl StyledLabel {
     pub fn show(self, ui: &mut Ui) -> Response {
         let visible = self.style.visible != Some(false);
 
-        let mut rich = match self.text {
-            WidgetText::RichText(rt) => (*rt).clone(),
-            other => RichText::new(other.text().to_string()),
+        // A LayoutJob or Galley carries its own per-section formatting; overrides would erase it.
+        let rich: WidgetText = match self.text {
+            preformatted @ (WidgetText::LayoutJob(_) | WidgetText::Galley(_)) => preformatted,
+            text => {
+                let mut rich = match text {
+                    WidgetText::RichText(rt) => (*rt).clone(),
+                    other => RichText::new(other.text().to_string()),
+                };
+                if let Some(color) = self.style.text_color {
+                    rich = rich.color(color);
+                }
+                if let Some(font) = self.font.clone() {
+                    rich = rich.font(font);
+                } else if let Some(size) = self.style.font_size {
+                    rich = rich.size(size);
+                }
+                if self.bold {
+                    rich = rich.strong();
+                }
+                if self.italics {
+                    rich = rich.italics();
+                }
+                rich.into()
+            }
         };
-        if let Some(color) = self.style.text_color {
-            rich = rich.color(color);
-        }
-        if let Some(font) = self.font.clone() {
-            rich = rich.font(font);
-        } else if let Some(size) = self.style.font_size {
-            rich = rich.size(size);
-        }
-        if self.bold {
-            rich = rich.strong();
-        }
-        if self.italics {
-            rich = rich.italics();
-        }
 
         // Resolve static style (labels have no interaction state).
         let visuals = ui.visuals().clone();
@@ -369,6 +376,39 @@ mod tests {
                 _ => {}
             }
         }
+    }
+
+    #[test]
+    fn layout_job_keeps_its_own_formatting() {
+        use egui::text::{LayoutJob, TextFormat};
+        let mut job = LayoutJob::default();
+        job.append(
+            "red",
+            0.0,
+            TextFormat::simple(egui::FontId::monospace(20.0), Color32::RED),
+        );
+        job.append(
+            "blue",
+            0.0,
+            TextFormat::simple(egui::FontId::monospace(20.0), Color32::BLUE),
+        );
+
+        let ctx = egui::Context::default();
+        let output = crate::test_util::run_ui(&ctx, egui::RawInput::default(), |ui| {
+            Styled::label(job.clone())
+                .text_color(Color32::GREEN)
+                .show(ui);
+        });
+        let galley = output
+            .shapes
+            .iter()
+            .find_map(|cs| match &cs.shape {
+                Shape::Text(t) => Some(t.galley.clone()),
+                _ => None,
+            })
+            .expect("label painted text");
+        let colors: Vec<Color32> = galley.job.sections.iter().map(|s| s.format.color).collect();
+        assert_eq!(colors, vec![Color32::RED, Color32::BLUE]);
     }
 
     #[test]

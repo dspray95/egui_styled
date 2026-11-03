@@ -52,6 +52,8 @@ impl<'a> StyledWrappingRow<'a> {
                 return ui.response();
             }
             let avail = ui.available_width();
+            // Restored inside each item so the row's own gap doesn't leak into it.
+            let spacing = ui.spacing().item_spacing;
             // Per-position stable id for the cross-frame width cache (same
             // pattern as the distribution / vertical-justify caches).
             let id = ui
@@ -76,7 +78,10 @@ impl<'a> StyledWrappingRow<'a> {
                                     ui.spacing_mut().item_spacing.x = gap;
                                     for _ in 0..line {
                                         if let Some(item) = it.next() {
-                                            item(ui);
+                                            ui.scope(|ui| {
+                                                ui.spacing_mut().item_spacing = spacing;
+                                                item(ui);
+                                            });
                                         }
                                     }
                                 },
@@ -95,7 +100,13 @@ impl<'a> StyledWrappingRow<'a> {
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 0.0;
                                 for item in items.drain(..) {
-                                    let r = ui.scope(|ui| item(ui)).response.rect;
+                                    let r = ui
+                                        .scope(|ui| {
+                                            ui.spacing_mut().item_spacing = spacing;
+                                            item(ui);
+                                        })
+                                        .response
+                                        .rect;
                                     widths.push(r.width());
                                 }
                             });
