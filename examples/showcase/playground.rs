@@ -148,30 +148,27 @@ fn stage_panel(ui: &mut Ui, p: &Palette, look: &Look) {
         .full_width()
         .full_height()
         .show(ui, |ui| {
-            styled(look)
-                .min_width(380.0)
-                .max_width(380.0)
-                .show(ui, |ui| {
-                    Styled::column().gap(10.0).show(ui, |ui| {
-                        text("Weekend in the Alps", Weight::Bold, 22.0, look.text).show(ui);
-                        text(
-                            "Three nights, two passes, one very good view.",
-                            Weight::Regular,
-                            14.0,
-                            look.text.gamma_multiply(0.8),
-                        )
+            styled(look).min_width(340.0).show(ui, |ui| {
+                Styled::column().gap(10.0).show(ui, |ui| {
+                    text("Weekend in the Alps", Weight::Bold, 22.0, look.text).show(ui);
+                    text(
+                        "Three nights, two passes, one very good view.",
+                        Weight::Regular,
+                        14.0,
+                        look.text.gamma_multiply(0.8),
+                    )
+                    .show(ui);
+                    ui.add_space(6.0);
+                    Styled::button("Book trip")
+                        .font(crate::fonts::font(Weight::Semibold, 14.0))
+                        .bg(look.text)
+                        .hover_bg(look.text.gamma_multiply(0.85))
+                        .text_color(contrast(look.text))
+                        .corner_radius((look.radius * 0.5).min(12.0))
+                        .padding(egui::Margin::symmetric(16, 9))
                         .show(ui);
-                        ui.add_space(6.0);
-                        Styled::button("Book trip")
-                            .font(crate::fonts::font(Weight::Semibold, 14.0))
-                            .bg(look.text)
-                            .hover_bg(look.text.gamma_multiply(0.85))
-                            .text_color(contrast(look.text))
-                            .corner_radius((look.radius * 0.5).min(12.0))
-                            .padding(egui::Margin::symmetric(16, 9))
-                            .show(ui);
-                    });
                 });
+            });
         });
 }
 

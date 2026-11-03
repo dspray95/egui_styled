@@ -323,6 +323,7 @@ StyledTheme {
     font_size_sm: 12.0, font_size_md: 14.0, font_size_lg: 18.0,
     font_family_body: FontFamily::Proportional,
     font_family_mono: FontFamily::Monospace,
+    font_family_bold: None, // a registered bold family makes `.bold()` real weight
     shadow_md: vec2(0.0, 2.0),
     glow_md: 8.0,
     // …

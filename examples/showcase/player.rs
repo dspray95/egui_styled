@@ -162,6 +162,7 @@ fn scrubber(ui: &mut Ui, position: &mut f32, length: f32) {
         .rail_thickness(5.0)
         .fill(Color32::WHITE)
         .handle(Color32::TRANSPARENT)
+        .handle_border(0.0, Color32::TRANSPARENT)
         .hover_handle(Color32::WHITE)
         .handle_radius(7.0)
         .show(ui);

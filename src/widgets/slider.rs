@@ -183,6 +183,11 @@ impl<'a, T: Numeric> StyledSlider<'a, T> {
                             self.style
                                 .resolve_size(ui.available_width(), ui.available_height())
                                 .apply_to_ui(ui);
+                            // A bare rail is one fixed-size widget, so a centred parent can
+                            // centre it; a row would take the full width.
+                            if !parts.show_value && self.text.is_none() {
+                                return rail(ui, value, &range, self.step, &parts, has_accent);
+                            }
                             ui.horizontal(|ui| {
                                 let mut resp =
                                     rail(ui, value, &range, self.step, &parts, has_accent);
@@ -242,11 +247,15 @@ fn rail<T: Numeric>(
     has_accent: bool,
 ) -> Response {
     let styled = ui.visuals().clone();
+    // egui's Slider always wraps itself in a full-width row; a fixed slot lets centred
+    // parents centre it.
+    let width = parts.width.unwrap_or(ui.spacing().slider_width);
+    let height = ui
+        .text_style_height(&egui::TextStyle::Body)
+        .max(ui.spacing().interact_size.y);
     let resp = ui
-        .scope(|ui| {
-            if let Some(width) = parts.width {
-                ui.spacing_mut().slider_width = width;
-            }
+        .allocate_ui(egui::vec2(width, height), |ui| {
+            ui.spacing_mut().slider_width = width;
             hide_painting(ui.visuals_mut());
             let mut slider = Slider::new(value, range.clone())
                 .show_value(false)
@@ -444,5 +453,26 @@ mod tests {
         frame(&mut v, vec![Event::PointerMoved(end), press(true)]);
         frame(&mut v, vec![press(false)]);
         assert!(v > 9.5, "click at the rail's end should set ~max, got {v}");
+    }
+
+    #[test]
+    fn bare_rail_centres_in_a_centred_layout() {
+        let ctx = egui::Context::default();
+        let mut v = 3.0_f32;
+        let mut rect = Rect::NOTHING;
+        let _ = crate::test_util::run_ui(&ctx, raw(vec![]), |ui| {
+            ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                rect = Styled::slider(&mut v, 0.0..=10.0)
+                    .show_value(false)
+                    .width(200.0)
+                    .show(ui)
+                    .rect;
+            });
+        });
+        assert!(
+            (rect.center().x - 200.0).abs() < 1.0,
+            "centred in 400: {rect:?}"
+        );
+        assert!((rect.width() - 200.0).abs() < 1.0, "{rect:?}");
     }
 }

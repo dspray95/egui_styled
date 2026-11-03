@@ -117,6 +117,11 @@ impl App {
         egui_extras::install_image_loaders(&cc.egui_ctx);
         cc.egui_ctx.set_fonts(fonts::definitions(Choice::Inter));
         cc.egui_ctx.set_design_data(Palette::for_mode(Mode::Dark));
+        // `.bold()` picks this family; every bundled choice registers a real 700 cut there.
+        cc.egui_ctx.set_styled_theme(StyledTheme {
+            font_family_bold: Some(egui::FontFamily::Name("w700".into())),
+            ..Default::default()
+        });
 
         Self {
             scene: Scene::Dashboard,
@@ -152,7 +157,11 @@ impl App {
                             .font(fonts::font(Weight::Bold, 18.0))
                             .text_color(p.accent)
                             .show(ui);
-                        text("egui_styled", Weight::Bold, 16.0, p.text).show(ui);
+                        Styled::label("egui_styled")
+                            .font_size(16.0)
+                            .bold()
+                            .text_color(p.text)
+                            .show(ui);
                         text("showcase", Weight::Regular, 14.0, p.text_muted).show(ui);
                         ui.add_space(24.0);
                         for s in Scene::ALL {

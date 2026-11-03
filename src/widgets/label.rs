@@ -4,7 +4,7 @@ use egui::{
 };
 
 use crate::{
-    impl_style_builders,
+    ThemeExt, impl_style_builders,
     style::shared_style::{
         BackdropSlot, ResolvedBorder, SharedStyle, border_gradient_mesh, gradient_shape,
         inner_glow_shape, paint_shadows, paint_side_borders, render_scoped,
@@ -229,7 +229,10 @@ impl StyledLabel {
                     rich = rich.size(size);
                 }
                 if self.bold {
-                    rich = rich.strong();
+                    rich = match ui.ctx().styled_theme().font_family_bold {
+                        Some(family) => rich.family(family),
+                        None => rich.strong(),
+                    };
                 }
                 if self.italics {
                     rich = rich.italics();
@@ -409,6 +412,56 @@ mod tests {
             .expect("label painted text");
         let colors: Vec<Color32> = galley.job.sections.iter().map(|s| s.format.color).collect();
         assert_eq!(colors, vec![Color32::RED, Color32::BLUE]);
+    }
+
+    fn text_section_format(output: egui::FullOutput) -> egui::text::TextFormat {
+        output
+            .shapes
+            .iter()
+            .find_map(|cs| match &cs.shape {
+                Shape::Text(t) => Some(t.galley.job.sections[0].format.clone()),
+                _ => None,
+            })
+            .expect("label painted text")
+    }
+
+    #[test]
+    fn bold_uses_the_themes_bold_family() {
+        use crate::{StyledTheme, ThemeExt};
+        use egui::FontFamily;
+        let bold = FontFamily::Name("test-bold".into());
+        let ctx = egui::Context::default();
+        let mut fonts = egui::FontDefinitions::default();
+        fonts.families.insert(bold.clone(), vec!["Hack".into()]);
+        ctx.set_fonts(fonts);
+        ctx.set_styled_theme(StyledTheme {
+            font_family_bold: Some(bold.clone()),
+            ..Default::default()
+        });
+        let mut out = None;
+        // Fonts set on the context apply from the next pass.
+        for _ in 0..2 {
+            out = Some(crate::test_util::run_ui(
+                &ctx,
+                egui::RawInput::default(),
+                |ui| {
+                    Styled::label("weighty").font_size(20.0).bold().show(ui);
+                },
+            ));
+        }
+        let format = text_section_format(out.unwrap());
+        assert_eq!(format.font_id.family, bold);
+        assert_eq!(format.font_id.size, 20.0);
+    }
+
+    #[test]
+    fn bold_without_a_bold_family_keeps_strong_color() {
+        let ctx = egui::Context::default();
+        let strong = ctx.global_style().visuals.strong_text_color();
+        let out = crate::test_util::run_ui(&ctx, egui::RawInput::default(), |ui| {
+            Styled::label("weighty").bold().show(ui);
+        });
+        assert_eq!(text_section_format(out).color, strong);
     }
 
     #[test]
