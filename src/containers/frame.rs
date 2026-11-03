@@ -4,7 +4,7 @@ use crate::{
     impl_style_builders,
     state::PseudoState,
     style::shared_style::{
-        SharedStyle, background_image_shape, bgimg_fade_alpha, border_gradient_mesh,
+        BackdropSlot, SharedStyle, background_image_shape, bgimg_fade_alpha, border_gradient_mesh,
         gradient_shape, inner_glow_shape, justify_body_vertically, paint_shadows,
         paint_side_borders,
     },
@@ -71,6 +71,8 @@ impl StyledFrame {
         }
 
         let shadow_idx = ui.painter().add(Shape::Noop);
+        // Under the fill, so `bg` tints the blurred backdrop.
+        let backdrop = BackdropSlot::reserve(ui, &self.style);
         let corner_radius = self.style.corner_radius.unwrap_or_default();
         let shadows = self.style.shadows.clone();
 
@@ -283,7 +285,11 @@ impl StyledFrame {
             }
         });
 
-        let rect = response.response.rect;
+        // Response rect includes the outer margin; egui's own fill (and ours) excludes it.
+        let rect = self
+            .style
+            .margin
+            .map_or(response.response.rect, |m| response.response.rect - m);
 
         // Paint background layers into the slot now that we know the rect.
         if let Some(slot) = bgimg_slot {
@@ -384,13 +390,9 @@ impl StyledFrame {
             ui.painter().add(shape);
         }
 
-        paint_shadows(
-            ui,
-            shadow_idx,
-            response.response.rect,
-            corner_radius,
-            &shadows,
-        );
+        backdrop.fill(ui, rect, corner_radius);
+
+        paint_shadows(ui, shadow_idx, rect, corner_radius, &shadows);
 
         response
     }
@@ -970,6 +972,69 @@ mod tests {
             (rect.height() - 150.0).abs() < 2.0,
             "height_pct(50) on 300px screen should be ~150px, got {}",
             rect.height()
+        );
+    }
+
+    /// Collects the bounds of every rect and mesh in a shape tree.
+    fn painted_bounds(shapes: &[Shape], out: &mut Vec<egui::Rect>) {
+        for shape in shapes {
+            match shape {
+                Shape::Vec(inner) => painted_bounds(inner, out),
+                Shape::Rect(rs) => out.push(rs.rect),
+                Shape::Mesh(m) => out.push(m.calc_bounds()),
+                _ => {}
+            }
+        }
+    }
+
+    /// Runs one frame with a 10pt margin; returns the response rect and painted bounds.
+    fn run_with_margin(
+        style: impl Fn(StyledFrame) -> StyledFrame,
+    ) -> (egui::Rect, Vec<egui::Rect>) {
+        let ctx = egui::Context::default();
+        let mut outer = egui::Rect::NOTHING;
+        let output = crate::test_util::run_ui(&ctx, egui::RawInput::default(), |ui| {
+            outer = style(
+                StyledFrame::new()
+                    .margin(10.0)
+                    .min_width(100.0)
+                    .min_height(50.0),
+            )
+            .show(ui, |_ui| {})
+            .response
+            .rect;
+        });
+        let shapes: Vec<Shape> = output.shapes.into_iter().map(|cs| cs.shape).collect();
+        let mut bounds = Vec::new();
+        painted_bounds(&shapes, &mut bounds);
+        (outer, bounds)
+    }
+
+    #[test]
+    fn decorations_exclude_outer_margin() {
+        let (outer, bounds) = run_with_margin(|f| {
+            f.bg(Color32::RED)
+                .bg_gradient_v(Color32::BLUE, Color32::GREEN)
+                .inner_glow(4.0, Color32::WHITE)
+        });
+        let widget = outer - egui::Margin::same(10);
+        // egui's frame shape, solid bg, gradient and inner glow all share the fill rect.
+        assert_eq!(bounds.len(), 4, "{bounds:?}");
+        for b in bounds {
+            assert_eq!(b, widget, "decoration painted into the margin");
+        }
+    }
+
+    #[test]
+    fn shadow_offsets_from_fill_rect_not_margin() {
+        let (outer, bounds) = run_with_margin(|f| {
+            f.bg(Color32::RED)
+                .shadow_filled(egui::vec2(4.0, 4.0), Color32::BLACK)
+        });
+        let widget = outer - egui::Margin::same(10);
+        assert!(
+            bounds.contains(&widget.translate(egui::vec2(4.0, 4.0))),
+            "{bounds:?}"
         );
     }
 }

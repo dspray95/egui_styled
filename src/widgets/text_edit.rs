@@ -4,8 +4,8 @@ use crate::{
     impl_style_builders,
     state::PseudoState,
     style::shared_style::{
-        SharedStyle, paint_shadows, paint_widget_gradient_underlay, paint_widget_overlays,
-        render_scoped,
+        BackdropSlot, SharedStyle, paint_shadows, paint_widget_gradient_underlay,
+        paint_widget_overlays, render_scoped,
     },
 };
 
@@ -92,6 +92,7 @@ impl<'a> StyledTextEdit<'a> {
 
         let response = render_scoped(ui, visible, |ui| {
             let shadow_idx = ui.painter().add(Shape::Noop);
+            let backdrop = BackdropSlot::reserve(ui, &self.style);
             let gradient_idx = ui.painter().add(Shape::Noop);
             let response = ui
                 .scope(|ui| {
@@ -186,6 +187,7 @@ impl<'a> StyledTextEdit<'a> {
                 .inner;
 
             let resolved = SharedStyle::for_response(&per, &response);
+            backdrop.fill(ui, response.rect, per.corner_radius);
             paint_widget_gradient_underlay(
                 ui,
                 gradient_idx,

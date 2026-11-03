@@ -44,6 +44,39 @@ pub struct Shadow {
 /// // ... add widget, get response ...
 /// paint_shadows(ui, shadow_idx, response.rect, corner_radius, &style.shadows);
 /// ```
+/// Slot under a styled type's fill for `backdrop_blur`. Reserves nothing without the
+/// `backdrop-blur` feature.
+pub(crate) struct BackdropSlot {
+    #[cfg(feature = "backdrop-blur")]
+    slot: Option<(egui::layers::ShapeIdx, f32)>,
+}
+
+impl BackdropSlot {
+    /// Call before anything the backdrop should sit under is painted.
+    pub(crate) fn reserve(ui: &egui::Ui, style: &SharedStyle) -> Self {
+        #[cfg(feature = "backdrop-blur")]
+        let slot = style
+            .backdrop_blur
+            .map(|blur| (ui.painter().add(Shape::Noop), blur));
+        #[cfg(not(feature = "backdrop-blur"))]
+        let _ = (ui, style);
+        Self {
+            #[cfg(feature = "backdrop-blur")]
+            slot,
+        }
+    }
+
+    /// `rect` is the fill rect, so the blur lines up with `bg`.
+    pub(crate) fn fill(self, ui: &egui::Ui, rect: Rect, corner_radius: CornerRadius) {
+        #[cfg(feature = "backdrop-blur")]
+        if let Some((slot, blur)) = self.slot {
+            crate::backdrop::queue(ui, slot, rect, corner_radius, blur);
+        }
+        #[cfg(not(feature = "backdrop-blur"))]
+        let _ = (ui, rect, corner_radius);
+    }
+}
+
 pub(crate) fn paint_shadows(
     ui: &egui::Ui,
     reserve_idx: egui::layers::ShapeIdx,
@@ -1255,6 +1288,9 @@ pub struct SharedStyle {
     pub active_border_gradient: Option<BorderGradient>,
     pub focus_border_gradient: Option<BorderGradient>,
 
+    // Backdrop blur radius in points. Needs the `backdrop-blur` feature.
+    pub backdrop_blur: Option<f32>,
+
     // Decorations
     pub shadows: Vec<Shadow>,
 
@@ -1734,6 +1770,7 @@ impl SharedStyle {
             || self.hover_border_gradient.is_some()
             || self.active_border_gradient.is_some()
             || self.focus_border_gradient.is_some()
+            || self.backdrop_blur.is_some()
     }
 }
 

@@ -6,8 +6,8 @@ use egui::{
 use crate::{
     impl_style_builders,
     style::shared_style::{
-        ResolvedBorder, SharedStyle, border_gradient_mesh, gradient_shape, inner_glow_shape,
-        paint_shadows, paint_side_borders, render_scoped,
+        BackdropSlot, ResolvedBorder, SharedStyle, border_gradient_mesh, gradient_shape,
+        inner_glow_shape, paint_shadows, paint_side_borders, render_scoped,
     },
 };
 
@@ -274,9 +274,10 @@ impl StyledLabel {
 
         let response = render_scoped(ui, visible, |ui| {
             let shadow_idx = ui.painter().add(Shape::Noop);
+            let backdrop = BackdropSlot::reserve(ui, &self.style);
             let gradient_idx = ui.painter().add(Shape::Noop);
 
-            let response = egui::Frame::new()
+            let framed = egui::Frame::new()
                 .fill(frame_bg)
                 .stroke(frame_border)
                 .corner_radius(corner_radius)
@@ -307,14 +308,17 @@ impl StyledLabel {
                         }
                         ui.add(label)
                     }
-                })
-                .inner;
+                });
+            // The fill covers padding but not margin; `framed.inner` is just the text.
+            let fill = framed.response.rect - margin;
+            backdrop.fill(ui, fill, corner_radius);
+            let response = framed.inner;
 
             // Gradient underlay.
             if let Some(g) = &bg_gradient {
                 let shapes = vec![
-                    Shape::rect_filled(response.rect, corner_radius, bg),
-                    gradient_shape(ui.ctx(), response.rect, corner_radius, g),
+                    Shape::rect_filled(fill, corner_radius, bg),
+                    gradient_shape(ui.ctx(), fill, corner_radius, g),
                 ];
                 ui.painter().set(gradient_idx, Shape::Vec(shapes));
             }
@@ -322,19 +326,19 @@ impl StyledLabel {
             // Border: gradient > per-side > uniform.
             if let Some(bg) = border_gradient {
                 ui.painter()
-                    .add(Shape::Mesh(border_gradient_mesh(response.rect, bg).into()));
+                    .add(Shape::Mesh(border_gradient_mesh(fill, bg).into()));
             } else if has_border_overrides {
-                paint_side_borders(ui.painter(), response.rect, border_sides);
+                paint_side_borders(ui.painter(), fill, border_sides);
             }
 
             // Inner glow.
             if let Some(glow) = inner_glow
-                && let Some(shape) = inner_glow_shape(response.rect, corner_radius, glow)
+                && let Some(shape) = inner_glow_shape(fill, corner_radius, glow)
             {
                 ui.painter().add(shape);
             }
 
-            paint_shadows(ui, shadow_idx, response.rect, corner_radius, &style_shadows);
+            paint_shadows(ui, shadow_idx, fill, corner_radius, &style_shadows);
             response
         });
 
@@ -350,3 +354,46 @@ impl StyledLabel {
 
 impl_style_builders!(StyledLabel);
 crate::impl_styled_widget!(StyledLabel);
+
+#[cfg(test)]
+mod tests {
+    use crate::Styled;
+    use egui::{Color32, Rect, Shape};
+
+    fn painted_bounds(shapes: &[Shape], out: &mut Vec<Rect>) {
+        for shape in shapes {
+            match shape {
+                Shape::Vec(inner) => painted_bounds(inner, out),
+                Shape::Rect(rs) => out.push(rs.rect),
+                Shape::Mesh(m) => out.push(m.calc_bounds()),
+                _ => {}
+            }
+        }
+    }
+
+    #[test]
+    fn decorations_cover_padding_but_not_margin() {
+        let ctx = egui::Context::default();
+        let mut text = Rect::NOTHING;
+        let output = crate::test_util::run_ui(&ctx, egui::RawInput::default(), |ui| {
+            text = Styled::label("hi")
+                .padding(10.0)
+                .margin(5.0)
+                .bg(Color32::RED)
+                .bg_gradient_v(Color32::BLUE, Color32::GREEN)
+                .inner_glow(4.0, Color32::WHITE)
+                .show(ui)
+                .rect;
+        });
+        let shapes: Vec<Shape> = output.shapes.into_iter().map(|cs| cs.shape).collect();
+        let mut bounds = Vec::new();
+        painted_bounds(&shapes, &mut bounds);
+
+        // egui's frame fill, then solid bg, gradient and glow on the same rect.
+        let fill = text.expand(10.0);
+        assert_eq!(bounds.len(), 4, "{bounds:?}");
+        for b in bounds {
+            assert_eq!(b, fill, "decoration not on the padded fill rect");
+        }
+    }
+}

@@ -251,6 +251,12 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
+            /// Set outer margin (space outside the border). Accepts any `Into<egui::Margin>`.
+            pub fn margin(mut self, margin: impl Into<egui::Margin>) -> Self {
+                self.style.margin = Some(margin.into());
+                self
+            }
+
             /// Set the top outer margin in points (space outside the border).
             pub fn margin_top(mut self, val: f32) -> Self {
                 let mut m = self.style.margin.unwrap_or_default();
@@ -639,6 +645,20 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
+            // ── Backdrop blur ─────────────────────────────────────────────
+
+            /// Blur whatever is painted behind this widget or container, like CSS
+            /// `backdrop-filter: blur()`. `radius` is in points. Pair with a translucent
+            /// [`bg`](Self::bg) as the tint. On checkbox and slider it covers the whole
+            /// row, like their other box effects.
+            ///
+            /// Needs the `backdrop-blur` feature and `egui_styled::backdrop::install`;
+            /// otherwise this is a no-op.
+            pub fn backdrop_blur(mut self, radius: f32) -> Self {
+                self.style.backdrop_blur = Some(radius);
+                self
+            }
+
             // ── Inner glow ────────────────────────────────────────────────
 
             /// Inward glow: `width` logical pixels deep, fading from `color` at the
@@ -800,6 +820,7 @@ mod tests {
             .border_left(1.0, egui::Color32::RED)
             .corner_radius(4.0)
             .padding(8.0)
+            .margin(4.0)
             .margin_top(4.0)
             .margin_bottom(4.0)
             .margin_left(4.0)
@@ -868,7 +889,8 @@ mod tests {
             .border_gradient(2.0, egui::Color32::RED, egui::Color32::BLUE)
             .hover_border_gradient(2.0, egui::Color32::RED, egui::Color32::BLUE)
             .active_border_gradient(2.0, egui::Color32::RED, egui::Color32::BLUE)
-            .focus_border_gradient(2.0, egui::Color32::RED, egui::Color32::BLUE);
+            .focus_border_gradient(2.0, egui::Color32::RED, egui::Color32::BLUE)
+            .backdrop_blur(8.0);
         // font_id: set via widget-specific .font() builder — intentional omission.
         // background_image_fade_content: set via .reveal_with_background_image() — intentional alias.
     }

@@ -966,6 +966,7 @@ version = "0.8.1"
 dependencies = [
  "eframe",
  "egui",
+ "egui-wgpu",
  "egui_kittest",
 ]
 

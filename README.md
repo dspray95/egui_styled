@@ -234,7 +234,11 @@ Tested with `eframe` on Linux, macOS, and Windows.
 
 Web (wasm) is supported - a live demo runs at [david-spray.me](https://david-spray.me).
 
-No feature flags currently.
+### Feature flags
+
+| Feature         | Adds |
+|-----------------|------|
+| `backdrop-blur` | `.backdrop_blur(radius)` on containers. wgpu backend only (native and web); pulls in `egui-wgpu`. |
 
 ---
 
@@ -572,6 +576,35 @@ Background gradients bake into a small cached GPU texture (a 2×2 for corner
 blends, a 256-texel ramp for N-stop), so keep gradient colors from a fixed
 palette rather than animating them per frame. See `examples/gradients.rs`.
 
+### Backdrop blur
+
+With the `backdrop-blur` feature, any widget or container can blur whatever is
+painted behind it, like CSS `backdrop-filter: blur()`. Install once at startup, then add the
+builder and a translucent `bg` as the tint:
+
+```rust
+// In eframe's app creator:
+egui_styled::backdrop::install(&cc.egui_ctx, cc.wgpu_render_state.as_ref().unwrap());
+
+Styled::frame()
+    .backdrop_blur(24.0)
+    .bg(Color32::from_white_alpha(18))
+    .border(1.0, Color32::from_white_alpha(48))
+    .corner_radius(16.0)
+    .show(ui, body);
+```
+
+The shapes underneath are re-rendered offscreen and blurred, so it works over
+moving content and never blurs itself. Works natively and on the web (WebGPU and
+WebGL2).
+
+For game UIs, it can blur your own wgpu rendering too. Hand over a texture you
+show with `register_native_texture` via `backdrop::register_native_texture`, or a
+scene drawn outside egui via `backdrop::set_scene_texture`. See
+`examples/backdrop_game.rs`. Paint callbacks are not blurred. Without `install`,
+or on the glow backend, the builder is a no-op and only the tint shows. See
+`examples/backdrop_blur.rs`.
+
 ### Images
 
 `egui_styled` never loads or uploads textures itself. The app owns that part:
@@ -639,6 +672,8 @@ Things that are intentionally out of scope or not yet solved:
   the untranslated rect.
 - **`StyledSlider` and `StyledComboBox` are not deeply styleable yet.**
   Trigger-level styling works; deeper internals are still limited.
+- **Backdrop blur can't see paint callbacks.** Render that content to a texture
+  instead. wgpu backend only (native, WebGPU, WebGL2); not glow.
 - **Not a CSS or flexbox engine.** Percentage sizing, wrapping, and
   distribution are implemented as egui-friendly utilities, not a constraint
   solver.
@@ -664,6 +699,12 @@ numbers of styled widgets per frame.
 **Text glow is the most expensive primitive** - it stamps the glyph run many
 times. Lower `.glow_quality(n)` if you render lots of glowing labels
 simultaneously.
+
+**Backdrop blur costs roughly 0.1 ms of CPU per blurred container per frame** over a
+busy animated backdrop, plus a few small GPU passes. When nothing under a container
+changes, last frame's blur is reused and the GPU work is skipped. Backdrops containing
+images (other than text) are always redrawn, since an image updated in place can't be
+detected. Measure with `EGUI_STYLED_BENCH=N` on `examples/backdrop_blur.rs`.
 
 Distribution and wrapping rows add a measurement frame on first render, then
 settle. After that their steady-state overhead is similar to other styled
@@ -697,6 +738,8 @@ cargo run --example theme_demo         # live theme switching
 cargo run --example composable_styles  # Apply + reusable style functions
 cargo run --example all_widgets        # every widget in one screen
 cargo run --example game_over          # Area + Column + Stack + custom palette
+cargo run --example backdrop_blur --features backdrop-blur  # frosted glass over a moving scene
+cargo run --example backdrop_game --features backdrop-blur  # glass HUD over a custom wgpu scene
 ```
 
 ---

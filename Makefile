@@ -2,7 +2,10 @@
 pre_publish:
 	cargo fmt --all -- --check
 	cargo clippy --all-targets -- -D warnings
+	cargo clippy --all-targets --all-features -- -D warnings
+	cargo clippy --lib --target wasm32-unknown-unknown --all-features -- -D warnings
 	cargo test --all-targets
+	cargo test --lib --all-features
 	cargo doc --no-deps
 
 # Publish a new release to crates.io and tag the commit.

@@ -4,8 +4,8 @@ use crate::{
     impl_style_builders,
     state::PseudoState,
     style::shared_style::{
-        SharedStyle, paint_shadows, paint_widget_gradient_underlay, paint_widget_overlays,
-        render_scoped,
+        BackdropSlot, SharedStyle, paint_shadows, paint_widget_gradient_underlay,
+        paint_widget_overlays, render_scoped,
     },
 };
 
@@ -63,6 +63,7 @@ impl StyledComboBox {
 
         let result = render_scoped(ui, visible, |ui| {
             let shadow_idx = ui.painter().add(Shape::Noop);
+            let backdrop = BackdropSlot::reserve(ui, &self.style);
             let gradient_idx = ui.painter().add(Shape::Noop);
             let result = ui
                 .scope(|ui| {
@@ -107,6 +108,7 @@ impl StyledComboBox {
                 .inner;
 
             let resolved = SharedStyle::for_response(&per, &result.response);
+            backdrop.fill(ui, result.response.rect, per.corner_radius);
             paint_widget_gradient_underlay(
                 ui,
                 gradient_idx,

@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Backdrop blur behind the `backdrop-blur` feature**: `.backdrop_blur(radius)` on every styled widget and container, like CSS `backdrop-filter: blur()`. Call `egui_styled::backdrop::install(ctx, render_state)` once at startup (`install_with_msaa` if MSAA is on). At end of pass, a plugin re-tessellates the shapes under each blurred element. A wgpu paint callback renders them offscreen around the element, blurs them with dual Kawase and composites the result under its fill, clipped to its corner radius. The framebuffer is never read back, so elements don't blur themselves and moving content doesn't smear. Unchanged backdrops reuse last frame's blur, skipping tessellation and all GPU passes (backdrops containing images are always redrawn). Roughly 0.1 ms CPU per blurred element per frame over an animated backdrop. The blur fades with the element's opacity (area fade-in, `multiply_opacity`). Works natively and on the web (WebGPU and WebGL2). Without `install`, or with the feature off, the builder is a no-op. New example: `examples/backdrop_blur.rs`.
+- `SharedStyle::backdrop_blur` field.
+- **Blurring your own wgpu rendering**: `backdrop::register_native_texture(ctx, id, &texture)` for images shown via `egui_wgpu::Renderer::register_native_texture` (egui_wgpu keeps no handle to sample them), and `backdrop::set_scene_texture(ctx, Some(&texture))` for scenes drawn outside egui, layered under everything egui paints. New example: `examples/backdrop_game.rs`.
+- **Uniform `.margin(m)` builder** on every styled type, mirroring `.padding(m)` (`impl Into<egui::Margin>`). Previously only the per-side `margin_top` / `margin_bottom` / `margin_left` / `margin_right` existed.
+
+### Fixed
+
+- **`StyledFrame` decorations no longer paint into the outer margin.** The solid `bg` (when a gradient or image is set), `bg_gradient`, background image, per-side borders, `border_gradient`, `inner_glow` and shadows used the frame's response rect, which includes the margin. egui's own fill excludes it, so any frame with a margin drew these decorations offset from its fill. They now share the fill rect. Applies to every container that renders through `StyledFrame`.
+- **`StyledLabel` decorations now cover its padding.** `bg_gradient`, per-side borders, `border_gradient`, `inner_glow` and shadows were painted on the bare text rect, so with `.padding(...)` they sat inside the label's own background. They now use the padded fill rect, matching `bg`.
+
+### Documented limitations
+
+- On `StyledCheckbox` and `StyledSlider` the blur covers the whole widget row, as their other box effects do.
+- Paint callbacks are not blurred.
+- A blurred element doesn't see another blurred element's blur below it (a glass button in a glass card blurs the raw scene, not the card's blur).
+- wgpu backend only. On glow the builder is a no-op.
+
 ## [0.8.1] - 2026-10-24
 
 ### Changed
