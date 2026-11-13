@@ -1,4 +1,5 @@
 pub mod area;
+pub mod collapsing;
 pub mod column;
 pub mod distribute;
 pub mod frame;

@@ -1,4 +1,6 @@
-use egui::{Align2, Context, InnerResponse, Order, Pos2, Vec2};
+use std::panic::Location;
+
+use egui::{Align2, Context, Id, InnerResponse, Order, Pos2, Vec2};
 
 use crate::{
     containers::frame::StyledFrame, impl_style_builders, style::shared_style::SharedStyle,
@@ -28,9 +30,12 @@ use crate::{
 ///   `fixed_pos(center - size / 2.0)` — no lag, no caching.
 pub struct StyledArea {
     id: Option<egui::Id>,
+    caller: &'static Location<'static>,
     anchor: Option<(Align2, Vec2)>,
     fixed_pos: Option<Pos2>,
     fixed_pos_centered: Option<Pos2>,
+    default_pos: Option<Pos2>,
+    pivot: Option<Align2>,
     order: Option<Order>,
     interactable: bool,
     movable: bool,
@@ -42,18 +47,23 @@ pub struct StyledArea {
 }
 
 impl Default for StyledArea {
+    #[track_caller]
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl StyledArea {
+    #[track_caller]
     pub fn new() -> Self {
         Self {
             id: None,
+            caller: Location::caller(),
             anchor: None,
             fixed_pos: None,
             fixed_pos_centered: None,
+            default_pos: None,
+            pivot: None,
             order: None,
             interactable: true,
             movable: false,
@@ -65,8 +75,8 @@ impl StyledArea {
         }
     }
 
-    /// Stable id for this area. Defaults to one derived from call-site
-    /// auto-id; set explicitly if you have multiple areas of the same shape.
+    /// Stable id for this area. Defaults to the construction site plus its order among
+    /// same-site areas this pass; set one if that order can change between frames.
     pub fn id(mut self, id: impl std::hash::Hash + std::fmt::Debug) -> Self {
         self.id = Some(egui::Id::unique(id));
         self
@@ -105,6 +115,20 @@ impl StyledArea {
         self
     }
 
+    /// Initial position only; egui remembers it after that, so `movable(true)` works.
+    /// Lowest placement priority. Set an explicit [`id`](Self::id) so the position persists.
+    pub fn default_pos(mut self, pos: Pos2) -> Self {
+        self.default_pos = Some(pos);
+        self
+    }
+
+    /// Which point of the area `fixed_pos` / `default_pos` refers to, e.g. `Align2::RIGHT_TOP`.
+    /// Ignored by `anchor` (its align is the pivot) and `fixed_pos_centered`.
+    pub fn pivot(mut self, pivot: Align2) -> Self {
+        self.pivot = Some(pivot);
+        self
+    }
+
     /// Set the egui rendering order (Background / Middle / Foreground / Tooltip / etc).
     pub fn order(mut self, order: Order) -> Self {
         self.order = Some(order);
@@ -116,6 +140,8 @@ impl StyledArea {
         self
     }
 
+    /// Drag to move. Only takes effect with [`default_pos`](Self::default_pos) or no
+    /// placement; the other placements re-pin the area every frame.
     pub fn movable(mut self, movable: bool) -> Self {
         self.movable = movable;
         self
@@ -147,7 +173,7 @@ impl StyledArea {
     }
 
     pub fn show<R>(self, ctx: &Context, body: impl FnOnce(&mut egui::Ui) -> R) -> InnerResponse<R> {
-        let id = self.id.unwrap_or_else(|| egui::Id::unique("styled_area"));
+        let id = self.id.unwrap_or_else(|| auto_id(ctx, self.caller));
         let mut area = egui::Area::new(id)
             .interactable(self.interactable)
             .movable(self.movable);
@@ -155,7 +181,13 @@ impl StyledArea {
             area = area.order(order);
         }
 
-        // Priority: fixed_pos_centered > fill_screen > fixed_pos > anchor.
+        if let Some(pivot) = self.pivot
+            && self.fixed_pos_centered.is_none()
+        {
+            area = area.pivot(pivot);
+        }
+
+        // Priority: fixed_pos_centered > fill_screen > fixed_pos > anchor > default_pos.
         // `fixed_pos_centered` uses last-frame's measured size; on first
         // appearance the area pops in at `pos` (top-left) and snaps centered
         // on the next frame.
@@ -173,6 +205,8 @@ impl StyledArea {
             area = area.fixed_pos(pos);
         } else if let Some((align, offset)) = self.anchor {
             area = area.anchor(align, offset);
+        } else if let Some(pos) = self.default_pos {
+            area = area.default_pos(pos);
         }
 
         let visible = self.style.visible;
@@ -206,12 +240,100 @@ impl StyledArea {
     }
 }
 
+/// Call site plus its nth use this pass, so loops and shared helpers get distinct ids.
+fn auto_id(ctx: &Context, caller: &Location<'_>) -> Id {
+    let site = Id::unique(("styled_area", caller.file(), caller.line(), caller.column()));
+    // +1 so the zeroed default never matches pass 0.
+    let pass = ctx.cumulative_pass_nr() + 1;
+    let nth = ctx.data_mut(|d| {
+        let (seen_pass, count) = d.get_temp_mut_or_default::<(u64, u32)>(site);
+        if *seen_pass == pass {
+            *count += 1;
+        } else {
+            (*seen_pass, *count) = (pass, 0);
+        }
+        *count
+    });
+    site.with(nth)
+}
+
 impl_style_builders!(StyledArea);
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use egui::{Rect, pos2, vec2};
+
+    #[test]
+    fn auto_ids_are_distinct_and_stable() {
+        let ctx = Context::default();
+        let run = || {
+            let mut ids = vec![];
+            let _ = crate::test_util::run_ui(&ctx, egui::RawInput::default(), |ui| {
+                for _ in 0..2 {
+                    ids.push(StyledArea::new().show(ui.ctx(), |_| {}).response.layer_id);
+                }
+                ids.push(
+                    crate::Styled::area()
+                        .show(ui.ctx(), |_| {})
+                        .response
+                        .layer_id,
+                );
+            });
+            ids
+        };
+        let first = run();
+        assert!(first[0] != first[1] && first[1] != first[2], "{first:?}");
+        assert_eq!(first, run(), "same ids next frame");
+    }
+
+    #[test]
+    fn default_pos_area_is_draggable() {
+        let ctx = Context::default();
+        let run = |events: Vec<egui::Event>| {
+            let raw = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))),
+                events,
+                ..Default::default()
+            };
+            let mut rect = Rect::NOTHING;
+            let _ = crate::test_util::run_ui(&ctx, raw, |ui| {
+                rect = StyledArea::new()
+                    .id("drag_test")
+                    .default_pos(pos2(790.0, 10.0))
+                    .pivot(Align2::RIGHT_TOP)
+                    .movable(true)
+                    .show(ui.ctx(), |ui| {
+                        ui.allocate_exact_size(vec2(100.0, 50.0), egui::Sense::hover());
+                    })
+                    .response
+                    .rect;
+            });
+            rect
+        };
+        run(vec![]);
+        let start = run(vec![]);
+        assert!(
+            (start.right_top() - pos2(790.0, 10.0)).length() < 1.0,
+            "{start:?}"
+        );
+
+        let press = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        };
+        let (a, b) = (start.center(), start.center() - vec2(200.0, -100.0));
+        run(vec![egui::Event::PointerMoved(a), press(a, true)]);
+        run(vec![egui::Event::PointerMoved(b)]);
+        run(vec![press(b, false)]);
+        let end = run(vec![]);
+        assert!(
+            (end.center() - b).length() < 1.0,
+            "dragged to {b:?}, got {end:?}"
+        );
+    }
 
     #[test]
     #[allow(deprecated)]

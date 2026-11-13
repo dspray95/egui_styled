@@ -42,6 +42,9 @@ struct SliderParts {
     handle_radius: Option<f32>,
     show_value: bool,
     value_bg: Option<Color32>,
+    suffix: Option<String>,
+    logarithmic: bool,
+    smallest_positive: Option<f64>,
 }
 
 impl Default for SliderParts {
@@ -57,7 +60,18 @@ impl Default for SliderParts {
             handle_radius: None,
             show_value: true,
             value_bg: None,
+            suffix: None,
+            logarithmic: false,
+            smallest_positive: None,
         }
+    }
+}
+
+impl SliderParts {
+    /// egui's default: 1 for integers, else 1e-6.
+    fn smallest<T: Numeric>(&self) -> f64 {
+        self.smallest_positive
+            .unwrap_or(if T::INTEGRAL { 1.0 } else { 1e-6 })
     }
 }
 
@@ -148,6 +162,26 @@ impl<'a, T: Numeric> StyledSlider<'a, T> {
     /// Value box background. Defaults to `bg`, then the theme's widget fill.
     pub fn value_bg(mut self, color: Color32) -> Self {
         self.parts.value_bg = Some(color);
+        self
+    }
+
+    /// Unit shown after the number inside the value box, e.g. `" m"`. Typing edits only the
+    /// number. No effect with `show_value(false)`.
+    pub fn suffix(mut self, suffix: impl Into<String>) -> Self {
+        self.parts.suffix = Some(suffix.into());
+        self
+    }
+
+    /// Spread values logarithmically along the rail, like `egui::Slider::logarithmic`.
+    pub fn logarithmic(mut self, logarithmic: bool) -> Self {
+        self.parts.logarithmic = logarithmic;
+        self
+    }
+
+    /// Smallest positive value a logarithmic rail reaches when the range starts at 0.
+    /// Defaults to 1 for integers, else 1e-6.
+    pub fn smallest_positive(mut self, smallest_positive: f64) -> Self {
+        self.parts.smallest_positive = Some(smallest_positive);
         self
     }
 
@@ -259,7 +293,11 @@ fn rail<T: Numeric>(
             hide_painting(ui.visuals_mut());
             let mut slider = Slider::new(value, range.clone())
                 .show_value(false)
-                .trailing_fill(false);
+                .trailing_fill(false)
+                .logarithmic(parts.logarithmic);
+            if let Some(sp) = parts.smallest_positive {
+                slider = slider.smallest_positive(sp);
+            }
             if let Some(step) = step {
                 slider = slider.step_by(step);
             }
@@ -279,11 +317,13 @@ fn rail<T: Numeric>(
         pos2(rect.right(), rect.center().y + half),
     );
     let (lo, hi) = (range.start().to_f64(), range.end().to_f64());
-    let t = if hi == lo {
-        0.0
-    } else {
-        ((value.to_f64() - lo) / (hi - lo)).clamp(0.0, 1.0) as f32
-    };
+    let t = normalized(
+        value.to_f64(),
+        lo,
+        hi,
+        parts.logarithmic,
+        parts.smallest::<T>(),
+    ) as f32;
     let x = rect.left() + inset + t * (rect.width() - 2.0 * inset);
 
     let painter = ui.painter();
@@ -320,7 +360,12 @@ fn value_box<T: Numeric>(
     parts: &SliderParts,
 ) -> Response {
     let (lo, hi) = (range.start().to_f64(), range.end().to_f64());
-    let speed = (hi - lo).abs() / f64::from(parts.width.unwrap_or(ui.spacing().slider_width));
+    let speed = if parts.logarithmic {
+        // 1% of the value per point.
+        value.to_f64().abs().max(parts.smallest::<T>()) * 0.01
+    } else {
+        (hi - lo).abs() / f64::from(parts.width.unwrap_or(ui.spacing().slider_width))
+    };
     ui.scope(|ui| {
         if let Some(bg) = parts.value_bg {
             let w = &mut ui.visuals_mut().widgets;
@@ -329,9 +374,63 @@ fn value_box<T: Numeric>(
                 v.weak_bg_fill = bg;
             }
         }
-        ui.add(DragValue::new(value).range(range.clone()).speed(speed))
+        let mut drag = DragValue::new(value).range(range.clone()).speed(speed);
+        if let Some(suffix) = &parts.suffix {
+            drag = drag.suffix(suffix.as_str());
+        }
+        ui.add(drag)
     })
     .inner
+}
+
+/// Port of egui's private `normalized_from_value`, so the painted handle tracks the input.
+fn normalized(value: f64, lo: f64, hi: f64, log: bool, smallest: f64) -> f64 {
+    if lo.is_nan() || hi.is_nan() {
+        0.0
+    } else if lo == hi {
+        0.5
+    } else if lo > hi {
+        1.0 - normalized(value, hi, lo, log, smallest)
+    } else if value <= lo {
+        0.0
+    } else if value >= hi {
+        1.0
+    } else if !log {
+        (value - lo) / (hi - lo)
+    } else if hi <= 0.0 {
+        normalized(-value, -lo, -hi, log, smallest)
+    } else if lo >= 0.0 {
+        let (a, b) = log10_span(lo, hi, smallest);
+        egui::emath::remap_clamp(value.log10(), a..=b, 0.0..=1.0)
+    } else {
+        let mag = |v: f64| {
+            if v.is_infinite() {
+                LOG_INF_DECADES
+            } else {
+                v.abs().log10().abs()
+            }
+        };
+        let cut = mag(lo) / (mag(lo) + mag(hi));
+        if value < 0.0 {
+            normalized(value, lo, 0.0, log, smallest) * cut
+        } else {
+            cut + normalized(value, 0.0, hi, log, smallest) * (1.0 - cut)
+        }
+    }
+}
+
+/// egui's span for an infinite log range.
+const LOG_INF_DECADES: f64 = 10.0;
+
+fn log10_span(lo: f64, hi: f64, smallest: f64) -> (f64, f64) {
+    match (lo == 0.0, hi.is_infinite()) {
+        (true, true) => (smallest.log10(), LOG_INF_DECADES),
+        (true, false) if smallest < hi => (smallest.log10(), hi.log10()),
+        (true, false) => (hi.log10() - LOG_INF_DECADES, hi.log10()),
+        // egui's `largest_finite` default is infinite; matched so the handle tracks egui.
+        (false, true) => (lo.log10(), f64::INFINITY),
+        (false, false) => (lo.log10(), hi.log10()),
+    }
 }
 
 /// Input and accessibility only: egui paints nothing we then paint over.
@@ -414,6 +513,65 @@ mod tests {
         assert!(
             texts(&shapes).iter().any(|t| t.contains('5')),
             "value box shown"
+        );
+    }
+
+    #[test]
+    fn normalized_matches_egui_log_mapping() {
+        use super::normalized;
+        let n = |v, lo, hi| normalized(v, lo, hi, true, 1e-6);
+        assert!((n(10.0, 1.0, 100.0) - 0.5).abs() < 1e-9);
+        assert!(
+            (n(1e-3, 0.0, 1.0) - 0.5).abs() < 1e-9,
+            "0 maps via smallest_positive"
+        );
+        assert!((n(-10.0, -100.0, -1.0) - 0.5).abs() < 1e-9);
+        assert!(
+            (n(0.0, -100.0, 100.0) - 0.5).abs() < 1e-9,
+            "symmetric zero cutoff"
+        );
+        assert!((normalized(5.0, 0.0, 10.0, false, 1e-6) - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn log_handle_paints_at_log_position() {
+        let ctx = egui::Context::default();
+        let mut v = 100.0_f64;
+        let mut rect = Rect::NOTHING;
+        let out = crate::test_util::run_ui(&ctx, raw(vec![]), |ui| {
+            rect = Styled::slider(&mut v, 1.0..=10_000.0)
+                .logarithmic(true)
+                .show_value(false)
+                .handle(HANDLE)
+                .show(ui)
+                .rect;
+        });
+        let x = out
+            .shapes
+            .iter()
+            .find_map(|c| match &c.shape {
+                Shape::Circle(h) if h.fill == HANDLE => Some(h.center.x),
+                _ => None,
+            })
+            .expect("handle painted");
+        assert!(
+            (x - rect.center().x).abs() < 1.0,
+            "100 on 1..=1e4 is mid-rail: {x} vs {rect:?}"
+        );
+    }
+
+    #[test]
+    fn suffix_shows_in_the_value_box() {
+        let ctx = egui::Context::default();
+        let mut v = 5u32;
+        let out = crate::test_util::run_ui(&ctx, raw(vec![]), |ui| {
+            Styled::slider(&mut v, 0..=10).suffix(" m").show(ui);
+        });
+        let shapes: Vec<Shape> = out.shapes.into_iter().map(|c| c.shape).collect();
+        assert!(
+            texts(&shapes).iter().any(|t| t == " m"),
+            "{:?}",
+            texts(&shapes)
         );
     }
 
