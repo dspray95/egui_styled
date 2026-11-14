@@ -576,6 +576,19 @@ Styled::frame()
     .bg_gradient_stops_h([(0.0, red), (0.5, green), (1.0, blue)])     // N-stop / rainbow
     .show(ui, body);
 
+// Radial gradient - CSS radial-gradient()-style
+Styled::frame()
+    .bg_radial(RadialGradient::new([(0.0, white), (1.0, transparent)]))  // centered ellipse, farthest-corner
+    .show(ui, body);
+Styled::frame()
+    .bg_radial(
+        RadialGradient::new([(0.0, glow), (1.0, dark)])
+            .circle(RadialLength::Px(120.0))                 // explicit radius, or .ellipse(rx, ry) / .extent(..)
+            .center(RadialPosition::Align(egui::Align2::LEFT_TOP))
+            .quality(RadialQuality::High),                   // High for large backdrops
+    )
+    .show(ui, body);
+
 // Inner glow - bright at the edge, fading inward (follows the corner radius)
 Styled::button("NEW GAME")
     .bg(dark)
@@ -590,8 +603,11 @@ Styled::frame().inner_glow_left(14.0, accent).show(ui, body);
 ```
 
 Background gradients bake into a small cached GPU texture (a 2×2 for corner
-blends, a 256-texel ramp for N-stop), so keep gradient colors from a fixed
-palette rather than animating them per frame. See `examples/gradients.rs`.
+blends, a 256-texel ramp for N-stop, a 128²/512² circular ramp for radial), so
+keep gradient colors from a fixed palette rather than animating them per frame.
+Radial shape, radius and center are applied via UVs at paint time, so only the
+stops (and `quality`) key the texture - animating geometry is free. See
+`examples/gradients.rs`.
 
 ### Backdrop blur
 
@@ -671,6 +687,7 @@ correctly.
 | `StyledImage` | ✅ Inline images, tint, hover tint, corner radius, border, shadow |
 | `StyledSpacer` | ✅ Flex spacer |
 | `background_image` | ✅ On box containers: stretch or cover fit, fade-in, tint |
+| `bg_gradient` | ✅ On every styled type: 2-stop, 4-corner, N-stop linear, and radial (circle/ellipse, keyword or explicit px/% radii, positionable center) |
 
 ---
 

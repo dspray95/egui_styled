@@ -645,6 +645,46 @@ macro_rules! __impl_style_builders_body {
                 self
             }
 
+            /// Radial gradient over the solid `bg` fill, CSS `radial-gradient()`-style.
+            /// Respects `corner_radius`. Build with [`RadialGradient`](crate::RadialGradient).
+            pub fn bg_radial(
+                mut self,
+                gradient: $crate::style::shared_style::RadialGradient,
+            ) -> Self {
+                self.style.bg_gradient = Some($crate::style::shared_style::Gradient::Radial(gradient));
+                self
+            }
+
+            /// `bg_radial` applied when hovered.
+            pub fn hover_bg_radial(
+                mut self,
+                gradient: $crate::style::shared_style::RadialGradient,
+            ) -> Self {
+                self.style.hover_bg_gradient =
+                    Some($crate::style::shared_style::Gradient::Radial(gradient));
+                self
+            }
+
+            /// `bg_radial` applied when active (pointer pressed).
+            pub fn active_bg_radial(
+                mut self,
+                gradient: $crate::style::shared_style::RadialGradient,
+            ) -> Self {
+                self.style.active_bg_gradient =
+                    Some($crate::style::shared_style::Gradient::Radial(gradient));
+                self
+            }
+
+            /// `bg_radial` applied when focused.
+            pub fn focus_bg_radial(
+                mut self,
+                gradient: $crate::style::shared_style::RadialGradient,
+            ) -> Self {
+                self.style.focus_bg_gradient =
+                    Some($crate::style::shared_style::Gradient::Radial(gradient));
+                self
+            }
+
             // ── Backdrop blur ─────────────────────────────────────────────
 
             /// Blur whatever is painted behind this widget or container, like CSS

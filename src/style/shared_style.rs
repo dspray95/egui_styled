@@ -208,23 +208,28 @@ impl LinearGradient {
     /// Sample the gradient at `t` (0.0..=1.0), interpolating between stops in
     /// gamma space. Clamps to the first/last stop outside the stop range.
     pub fn sample(&self, t: f32) -> Color32 {
-        match self.stops.as_slice() {
-            [] => Color32::TRANSPARENT,
-            [(_, c)] => *c,
-            stops => {
-                let t = t.clamp(0.0, 1.0);
-                if t <= stops[0].0 {
-                    return stops[0].1;
-                }
-                if t >= stops[stops.len() - 1].0 {
-                    return stops[stops.len() - 1].1;
-                }
-                let hi = stops.iter().position(|s| s.0 >= t).unwrap();
-                let (p0, c0) = stops[hi - 1];
-                let (p1, c1) = stops[hi];
-                let span = (p1 - p0).max(f32::EPSILON);
-                c0.lerp_to_gamma(c1, (t - p0) / span)
+        sample_stops(&self.stops, t)
+    }
+}
+
+/// Interpolate sorted `(pos, color)` stops at `t` in gamma space, clamping ends.
+pub(crate) fn sample_stops(stops: &[(f32, Color32)], t: f32) -> Color32 {
+    match stops {
+        [] => Color32::TRANSPARENT,
+        [(_, c)] => *c,
+        stops => {
+            let t = t.clamp(0.0, 1.0);
+            if t <= stops[0].0 {
+                return stops[0].1;
             }
+            if t >= stops[stops.len() - 1].0 {
+                return stops[stops.len() - 1].1;
+            }
+            let hi = stops.iter().position(|s| s.0 >= t).unwrap();
+            let (p0, c0) = stops[hi - 1];
+            let (p1, c1) = stops[hi];
+            let span = (p1 - p0).max(f32::EPSILON);
+            c0.lerp_to_gamma(c1, (t - p0) / span)
         }
     }
 }
@@ -240,12 +245,203 @@ impl std::hash::Hash for LinearGradient {
     }
 }
 
-/// A background gradient — either a 4-corner bilinear blend ([`BgGradient`]) or a
-/// multi-stop linear ramp ([`LinearGradient`]). Paints over the solid `bg` fill.
+/// Circle (one radius) or per-axis ellipse.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RadialShape {
+    Circle,
+    Ellipse,
+}
+
+/// CSS extent keyword: where the last stop lands, resolved against the box.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RadialExtent {
+    ClosestSide,
+    ClosestCorner,
+    FarthestSide,
+    /// CSS default.
+    FarthestCorner,
+}
+
+/// A length in points, or a percentage of the box dimension (width for the
+/// horizontal radius, height for the vertical).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum RadialLength {
+    Px(f32),
+    Pct(f32),
+}
+
+impl RadialLength {
+    fn resolve(self, basis: f32) -> f32 {
+        match self {
+            RadialLength::Px(px) => px,
+            RadialLength::Pct(pct) => pct / 100.0 * basis,
+        }
+    }
+}
+
+impl std::hash::Hash for RadialLength {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            RadialLength::Px(v) => (0u8, v.to_bits()).hash(state),
+            RadialLength::Pct(v) => (1u8, v.to_bits()).hash(state),
+        }
+    }
+}
+
+/// The ending shape's size: a CSS extent keyword, an explicit circle radius, or
+/// explicit per-axis ellipse radii.
+#[derive(Clone, Copy, Debug, PartialEq, Hash)]
+pub enum RadialRadius {
+    Extent {
+        shape: RadialShape,
+        extent: RadialExtent,
+    },
+    Circle(RadialLength),
+    Ellipse(RadialLength, RadialLength),
+}
+
+/// Gradient center (CSS `at <position>`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum RadialPosition {
+    Align(egui::Align2),
+    /// Fraction of the box, `(0,0)` top-left to `(1,1)` bottom-right.
+    Frac(f32, f32),
+}
+
+impl std::hash::Hash for RadialPosition {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            RadialPosition::Align(a) => (0u8, a).hash(state),
+            RadialPosition::Frac(x, y) => (1u8, x.to_bits(), y.to_bits()).hash(state),
+        }
+    }
+}
+
+/// Baked texture resolution.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RadialQuality {
+    /// 128², ~64 KB. Default; widget-sized elements.
+    Standard,
+    /// 512², ~1 MB. Large/full-screen backdrops.
+    High,
+}
+
+impl RadialQuality {
+    fn texels(self) -> usize {
+        match self {
+            RadialQuality::Standard => 128,
+            RadialQuality::High => 512,
+        }
+    }
+}
+
+/// A multi-stop radial gradient, CSS `radial-gradient()`-style: color ramps from
+/// `center` out to an elliptical/circular ending shape.
+///
+/// One normalized circular texture is baked per unique `(stops, quality)` and
+/// reused across every size, shape, radius and center (those apply via paint-time
+/// UVs, so animating them is free). `corner_radius` is respected.
+///
+/// **Cache note:** each unique `(stops, quality)` allocates one texture per egui
+/// `Context` for its lifetime — keep stops from a fixed palette.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RadialGradient {
+    /// `(position, color)` stops, sorted by position.
+    pub stops: Vec<(f32, Color32)>,
+    pub radius: RadialRadius,
+    pub center: RadialPosition,
+    pub quality: RadialQuality,
+}
+
+impl RadialGradient {
+    /// From `(position, color)` stops. Defaults: ellipse, farthest-corner,
+    /// centered, standard quality.
+    pub fn new(stops: impl IntoIterator<Item = (f32, Color32)>) -> Self {
+        let mut stops: Vec<(f32, Color32)> = stops.into_iter().collect();
+        stops.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+        Self {
+            stops,
+            radius: RadialRadius::Extent {
+                shape: RadialShape::Ellipse,
+                extent: RadialExtent::FarthestCorner,
+            },
+            center: RadialPosition::Align(egui::Align2::CENTER_CENTER),
+            quality: RadialQuality::Standard,
+        }
+    }
+
+    /// Evenly-spaced stops, center (0.0) to edge (1.0).
+    pub fn evenly_spaced(colors: impl IntoIterator<Item = Color32>) -> Self {
+        let colors: Vec<Color32> = colors.into_iter().collect();
+        let n = colors.len();
+        let stops = colors.into_iter().enumerate().map(|(i, c)| {
+            let pos = if n <= 1 {
+                0.0
+            } else {
+                i as f32 / (n - 1) as f32
+            };
+            (pos, c)
+        });
+        Self::new(stops)
+    }
+
+    /// Explicit circle radius.
+    pub fn circle(mut self, radius: RadialLength) -> Self {
+        self.radius = RadialRadius::Circle(radius);
+        self
+    }
+
+    /// Explicit ellipse radii.
+    pub fn ellipse(mut self, rx: RadialLength, ry: RadialLength) -> Self {
+        self.radius = RadialRadius::Ellipse(rx, ry);
+        self
+    }
+
+    /// Extent keyword (e.g. `circle closest-side`).
+    pub fn extent(mut self, shape: RadialShape, extent: RadialExtent) -> Self {
+        self.radius = RadialRadius::Extent { shape, extent };
+        self
+    }
+
+    /// Center (CSS `at <position>`).
+    pub fn center(mut self, center: RadialPosition) -> Self {
+        self.center = center;
+        self
+    }
+
+    /// Baked resolution; `High` for large backdrops.
+    pub fn quality(mut self, quality: RadialQuality) -> Self {
+        self.quality = quality;
+        self
+    }
+
+    /// Sample the ramp at radial fraction `t` (0.0 center .. 1.0 edge).
+    pub fn sample(&self, t: f32) -> Color32 {
+        sample_stops(&self.stops, t)
+    }
+}
+
+impl std::hash::Hash for RadialGradient {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.stops.len().hash(state);
+        for (pos, color) in &self.stops {
+            pos.to_bits().hash(state);
+            color.hash(state);
+        }
+        self.radius.hash(state);
+        self.center.hash(state);
+        self.quality.hash(state);
+    }
+}
+
+/// A background gradient: a 4-corner bilinear blend ([`BgGradient`]), a multi-stop
+/// linear ramp ([`LinearGradient`]), or a radial ramp ([`RadialGradient`]). Paints
+/// over the solid `bg` fill.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Gradient {
     Corners(BgGradient),
     Linear(LinearGradient),
+    Radial(RadialGradient),
 }
 
 impl std::hash::Hash for Gradient {
@@ -257,6 +453,10 @@ impl std::hash::Hash for Gradient {
             }
             Gradient::Linear(g) => {
                 1u8.hash(state);
+                g.hash(state);
+            }
+            Gradient::Radial(g) => {
+                2u8.hash(state);
                 g.hash(state);
             }
         }
@@ -528,6 +728,142 @@ pub(crate) fn linear_gradient_shape(
     Shape::Rect(RectShape::filled(rect, cr, Color32::WHITE).with_texture(tex.id(), uv))
 }
 
+/// Bake (or fetch) the normalized circular ramp texture for `g`. Keyed by stops
+/// and quality only; geometry is applied via UVs at paint time. Same
+/// deadlock-safe check-then-load pattern as [`linear_gradient_texture`].
+pub(crate) fn radial_gradient_texture(
+    ctx: &egui::Context,
+    g: &RadialGradient,
+) -> egui::TextureHandle {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    g.quality.hash(&mut hasher);
+    g.stops.len().hash(&mut hasher);
+    for (p, c) in &g.stops {
+        p.to_bits().hash(&mut hasher);
+        c.hash(&mut hasher);
+    }
+    let key = egui::Id::unique(("egui_styled::radial_gradient", hasher.finish()));
+    if let Some(handle) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(key)) {
+        return handle;
+    }
+    let n = g.quality.texels();
+    let mut pixels = Vec::with_capacity(n * n);
+    for y in 0..n {
+        let ny = 2.0 * (y as f32 + 0.5) / n as f32 - 1.0;
+        for x in 0..n {
+            let nx = 2.0 * (x as f32 + 0.5) / n as f32 - 1.0;
+            pixels.push(g.sample((nx * nx + ny * ny).sqrt()));
+        }
+    }
+    let img = egui::ColorImage::new([n, n], pixels);
+    let handle = ctx.load_texture(
+        "egui_styled_radial_gradient",
+        img,
+        egui::TextureOptions::LINEAR,
+    );
+    ctx.data_mut(|d| d.insert_temp(key, handle.clone()));
+    handle
+}
+
+/// Resolve the gradient center to a point in `rect`.
+fn radial_center(rect: Rect, center: RadialPosition) -> egui::Pos2 {
+    let (fx, fy) = match center {
+        RadialPosition::Frac(x, y) => (x, y),
+        RadialPosition::Align(a) => {
+            let f = |al: egui::Align| match al {
+                egui::Align::Min => 0.0,
+                egui::Align::Center => 0.5,
+                egui::Align::Max => 1.0,
+            };
+            (f(a.0[0]), f(a.0[1]))
+        }
+    };
+    pos2(
+        rect.left() + fx * rect.width(),
+        rect.top() + fy * rect.height(),
+    )
+}
+
+/// Resolve the ending-shape radii `(rx, ry)` in points.
+fn radial_radii(rect: Rect, c: egui::Pos2, radius: RadialRadius) -> (f32, f32) {
+    match radius {
+        RadialRadius::Circle(l) => {
+            let r = l.resolve(rect.width());
+            (r, r)
+        }
+        RadialRadius::Ellipse(lx, ly) => (lx.resolve(rect.width()), ly.resolve(rect.height())),
+        RadialRadius::Extent { shape, extent } => {
+            let (left, right) = (c.x - rect.left(), rect.right() - c.x);
+            let (top, bottom) = (c.y - rect.top(), rect.bottom() - c.y);
+            // closest / farthest distances to the vertical (x) and horizontal (y) edges.
+            let (cx, fx) = (left.min(right), left.max(right));
+            let (cy, fy) = (top.min(bottom), top.max(bottom));
+            match shape {
+                RadialShape::Circle => {
+                    let r = match extent {
+                        RadialExtent::ClosestSide => cx.min(cy),
+                        RadialExtent::FarthestSide => fx.max(fy),
+                        RadialExtent::ClosestCorner => (cx * cx + cy * cy).sqrt(),
+                        RadialExtent::FarthestCorner => (fx * fx + fy * fy).sqrt(),
+                    };
+                    (r, r)
+                }
+                RadialShape::Ellipse => match extent {
+                    RadialExtent::ClosestSide => (cx, cy),
+                    RadialExtent::FarthestSide => (fx, fy),
+                    RadialExtent::ClosestCorner => ellipse_corner(cx, cy),
+                    RadialExtent::FarthestCorner => ellipse_corner(fx, fy),
+                },
+            }
+        }
+    }
+}
+
+/// CSS corner-extent ellipse: side radii `(sx, sy)` scaled to pass through the
+/// corner at `(sx, sy)` keeping the `sx/sy` aspect.
+fn ellipse_corner(sx: f32, sy: f32) -> (f32, f32) {
+    if sx <= f32::EPSILON || sy <= f32::EPSILON {
+        return (sx, sy);
+    }
+    let ratio = sx / sy;
+    let ry = ((sx / ratio).powi(2) + sy * sy).sqrt();
+    (ratio * ry, ry)
+}
+
+/// UV rect that positions/scales the circular texture onto `rect` for `g`.
+/// Maps center → (0.5,0.5) and center±radius → 0/1; UVs beyond `[0,1]` clamp to
+/// the final stop.
+pub(crate) fn radial_uv(rect: Rect, g: &RadialGradient) -> Rect {
+    let c = radial_center(rect, g.center);
+    let (rx, ry) = radial_radii(rect, c, g.radius);
+    let (rx, ry) = (rx.max(f32::EPSILON), ry.max(f32::EPSILON));
+    Rect::from_min_max(
+        pos2(
+            0.5 + (rect.left() - c.x) / (2.0 * rx),
+            0.5 + (rect.top() - c.y) / (2.0 * ry),
+        ),
+        pos2(
+            0.5 + (rect.right() - c.x) / (2.0 * rx),
+            0.5 + (rect.bottom() - c.y) / (2.0 * ry),
+        ),
+    )
+}
+
+/// Build a `Shape` filling `rect` with the radial gradient `g`, respecting
+/// `corner_radius`.
+pub(crate) fn radial_gradient_shape(
+    ctx: &egui::Context,
+    rect: Rect,
+    cr: CornerRadius,
+    g: &RadialGradient,
+) -> Shape {
+    use egui::epaint::RectShape;
+    let tex = radial_gradient_texture(ctx, g);
+    let uv = radial_uv(rect, g);
+    Shape::Rect(RectShape::filled(rect, cr, Color32::WHITE).with_texture(tex.id(), uv))
+}
+
 /// Build the fill `Shape` for any [`Gradient`], respecting `corner_radius`.
 pub(crate) fn gradient_shape(
     ctx: &egui::Context,
@@ -538,6 +874,7 @@ pub(crate) fn gradient_shape(
     match g {
         Gradient::Corners(c) => bg_gradient_shape(ctx, rect, cr, *c),
         Gradient::Linear(l) => linear_gradient_shape(ctx, rect, cr, l),
+        Gradient::Radial(r) => radial_gradient_shape(ctx, rect, cr, r),
     }
 }
 
@@ -1787,7 +2124,7 @@ impl SharedStyle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use egui::Visuals;
+    use egui::{Align2, Visuals};
 
     fn default_visuals() -> WidgetVisuals {
         Visuals::default().widgets.inactive
@@ -2984,6 +3321,229 @@ mod tests {
         // Inner rect should not go negative — vertices stay inside rect.
         for v in &mesh.vertices {
             assert!(rect.contains(v.pos) || rect.distance_to_pos(v.pos) < 1e-3);
+        }
+    }
+
+    // ── Radial gradient ───────────────────────────────────────────────
+
+    fn rect_100() -> Rect {
+        Rect::from_min_size(pos2(0.0, 0.0), egui::vec2(100.0, 100.0))
+    }
+
+    fn radial(radius: RadialRadius, center: RadialPosition) -> RadialGradient {
+        RadialGradient {
+            stops: vec![(0.0, Color32::WHITE), (1.0, Color32::BLACK)],
+            radius,
+            center,
+            quality: RadialQuality::Standard,
+        }
+    }
+
+    fn approx(a: f32, b: f32) {
+        assert!((a - b).abs() < 1e-3, "{a} != {b}");
+    }
+
+    #[test]
+    fn radial_center_align_and_frac() {
+        let r = rect_100();
+        assert_eq!(
+            radial_center(r, RadialPosition::Align(Align2::CENTER_CENTER)),
+            pos2(50.0, 50.0)
+        );
+        assert_eq!(
+            radial_center(r, RadialPosition::Align(Align2::LEFT_TOP)),
+            pos2(0.0, 0.0)
+        );
+        assert_eq!(
+            radial_center(r, RadialPosition::Align(Align2::RIGHT_BOTTOM)),
+            pos2(100.0, 100.0)
+        );
+        assert_eq!(
+            radial_center(r, RadialPosition::Frac(0.25, 0.75)),
+            pos2(25.0, 75.0)
+        );
+    }
+
+    #[test]
+    fn radial_radii_explicit_px_and_pct() {
+        let r = rect_100();
+        let c = pos2(50.0, 50.0);
+        assert_eq!(
+            radial_radii(r, c, RadialRadius::Circle(RadialLength::Px(30.0))),
+            (30.0, 30.0)
+        );
+        assert_eq!(
+            radial_radii(
+                r,
+                c,
+                RadialRadius::Ellipse(RadialLength::Px(20.0), RadialLength::Pct(50.0))
+            ),
+            (20.0, 50.0)
+        );
+    }
+
+    #[test]
+    fn radial_radii_circle_extents_centered() {
+        let r = rect_100();
+        let c = pos2(50.0, 50.0);
+        let get = |e| {
+            radial_radii(
+                r,
+                c,
+                RadialRadius::Extent {
+                    shape: RadialShape::Circle,
+                    extent: e,
+                },
+            )
+        };
+        approx(get(RadialExtent::ClosestSide).0, 50.0);
+        approx(get(RadialExtent::FarthestSide).0, 50.0);
+        approx(
+            get(RadialExtent::ClosestCorner).0,
+            (50.0f32 * 50.0 + 50.0 * 50.0).sqrt(),
+        );
+        approx(
+            get(RadialExtent::FarthestCorner).0,
+            (50.0f32 * 50.0 + 50.0 * 50.0).sqrt(),
+        );
+    }
+
+    #[test]
+    fn radial_radii_circle_extents_off_center() {
+        let r = rect_100();
+        let c = pos2(20.0, 30.0); // edges: left 20, right 80, top 30, bottom 70
+        let get = |e| {
+            radial_radii(
+                r,
+                c,
+                RadialRadius::Extent {
+                    shape: RadialShape::Circle,
+                    extent: e,
+                },
+            )
+        };
+        approx(get(RadialExtent::ClosestSide).0, 20.0); // min(20,80,30,70)
+        approx(get(RadialExtent::FarthestSide).0, 80.0); // max(20,80,30,70)
+        approx(
+            get(RadialExtent::ClosestCorner).0,
+            (20.0f32 * 20.0 + 30.0 * 30.0).sqrt(),
+        );
+        approx(
+            get(RadialExtent::FarthestCorner).0,
+            (80.0f32 * 80.0 + 70.0 * 70.0).sqrt(),
+        );
+    }
+
+    #[test]
+    fn radial_radii_ellipse_side_extents_off_center() {
+        let r = rect_100();
+        let c = pos2(20.0, 30.0);
+        let closest = radial_radii(
+            r,
+            c,
+            RadialRadius::Extent {
+                shape: RadialShape::Ellipse,
+                extent: RadialExtent::ClosestSide,
+            },
+        );
+        assert_eq!(closest, (20.0, 30.0)); // (closest x, closest y)
+        let farthest = radial_radii(
+            r,
+            c,
+            RadialRadius::Extent {
+                shape: RadialShape::Ellipse,
+                extent: RadialExtent::FarthestSide,
+            },
+        );
+        assert_eq!(farthest, (80.0, 70.0)); // (farthest x, farthest y)
+    }
+
+    #[test]
+    fn radial_radii_ellipse_farthest_corner_passes_through_corner() {
+        let r = rect_100();
+        let c = pos2(20.0, 30.0); // farthest side (80, 70), farthest corner at (80, 70)
+        let (rx, ry) = radial_radii(
+            r,
+            c,
+            RadialRadius::Extent {
+                shape: RadialShape::Ellipse,
+                extent: RadialExtent::FarthestCorner,
+            },
+        );
+        // The resolved ellipse must pass through the farthest corner.
+        approx((80.0 / rx).powi(2) + (70.0 / ry).powi(2), 1.0);
+        // And keep the farthest-side aspect ratio (80/70).
+        approx(rx / ry, 80.0 / 70.0);
+    }
+
+    #[test]
+    fn radial_uv_centered_circle_maps_center_and_edge() {
+        // Circle radius 50 centered in a 100² box: UV spans exactly 0..1.
+        let g = radial(
+            RadialRadius::Circle(RadialLength::Px(50.0)),
+            RadialPosition::Align(Align2::CENTER_CENTER),
+        );
+        let uv = radial_uv(rect_100(), &g);
+        approx(uv.min.x, 0.0);
+        approx(uv.min.y, 0.0);
+        approx(uv.max.x, 1.0);
+        approx(uv.max.y, 1.0);
+        // Center of the rect maps to UV center.
+        approx(uv.center().x, 0.5);
+        approx(uv.center().y, 0.5);
+    }
+
+    #[test]
+    fn radial_uv_small_radius_overflows_past_unit() {
+        // Radius smaller than the box → edges map beyond [0,1] (clamp to final stop).
+        let g = radial(
+            RadialRadius::Circle(RadialLength::Px(25.0)),
+            RadialPosition::Align(Align2::CENTER_CENTER),
+        );
+        let uv = radial_uv(rect_100(), &g);
+        approx(uv.min.x, -0.5);
+        approx(uv.max.x, 1.5);
+    }
+
+    #[test]
+    fn radial_gradient_sample_delegates_to_stops() {
+        let g = radial(
+            RadialRadius::Circle(RadialLength::Px(10.0)),
+            RadialPosition::Frac(0.5, 0.5),
+        );
+        assert_eq!(g.sample(0.0), Color32::WHITE);
+        assert_eq!(g.sample(1.0), Color32::BLACK);
+    }
+
+    #[test]
+    fn radial_quality_texel_counts() {
+        assert_eq!(RadialQuality::Standard.texels(), 128);
+        assert_eq!(RadialQuality::High.texels(), 512);
+    }
+
+    #[test]
+    fn radial_shape_emits_textured_white_rect() {
+        let ctx = egui::Context::default();
+        let raw = egui::RawInput {
+            screen_rect: Some(rect_100()),
+            ..Default::default()
+        };
+        let mut shape = None;
+        crate::test_util::run_ui(&ctx, raw, |ui| {
+            let g = RadialGradient::new([(0.0, Color32::WHITE), (1.0, Color32::BLACK)]);
+            shape = Some(radial_gradient_shape(
+                ui.ctx(),
+                rect_100(),
+                CornerRadius::ZERO,
+                &g,
+            ));
+        });
+        match shape.unwrap() {
+            Shape::Rect(r) => {
+                assert!(r.brush.is_some(), "radial fill should carry a texture");
+                assert_eq!(r.fill, Color32::WHITE);
+            }
+            other => panic!("expected Rect, got {other:?}"),
         }
     }
 }

@@ -52,7 +52,8 @@ pub use show::{StyledContainer, StyledWidget};
 pub use style::shared_style::Distribution;
 pub use style::shared_style::{
     BackgroundImageFit, BgGradient, BorderGradient, Gradient, GradientAxis, InnerGlow,
-    LinearGradient, Shadow, Sides,
+    LinearGradient, RadialExtent, RadialGradient, RadialLength, RadialPosition, RadialQuality,
+    RadialRadius, RadialShape, Shadow, Sides,
 };
 pub use theme::StyledTheme;
 pub use theme::theme_ext::{DesignSlots, ThemeExt};

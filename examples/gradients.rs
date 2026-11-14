@@ -187,6 +187,105 @@ fn gradients_example(ui: &mut egui::Ui) {
 
     ui.add_space(24.0);
 
+    // ── Radial gradient (centered) ─────────────────────────────────────────────
+    ui.label("Radial gradient (.bg_radial, centered ellipse):");
+    ui.add_space(12.0);
+    Styled::frame()
+        .bg(Color32::from_rgb(10, 10, 14))
+        .bg_radial(RadialGradient::new([
+            (0.0, Color32::from_rgb(90, 120, 220)),
+            (1.0, Color32::from_rgb(10, 10, 14)),
+        ]))
+        .corner_radius(8.0)
+        .padding(20.0)
+        .full_width()
+        .show(ui, |ui| {
+            ui.colored_label(Color32::WHITE, "Bright center fading to the corners");
+        });
+
+    ui.add_space(24.0);
+
+    // ── Radial gradient (off-center spotlight) ─────────────────────────────────
+    ui.label("Off-center circle spotlight (.center + .circle):");
+    ui.add_space(12.0);
+    Styled::frame()
+        .bg(Color32::from_rgb(12, 10, 8))
+        .bg_radial(
+            RadialGradient::new([
+                (0.0, Color32::from_rgb(255, 220, 140)),
+                (1.0, Color32::from_rgb(12, 10, 8)),
+            ])
+            .center(RadialPosition::Frac(0.2, 0.3))
+            .circle(RadialLength::Pct(70.0)),
+        )
+        .corner_radius(8.0)
+        .padding(20.0)
+        .full_width()
+        .show(ui, |ui| {
+            ui.colored_label(Color32::WHITE, "Spotlight centered at 20% / 30%");
+        });
+
+    ui.add_space(24.0);
+
+    // ── Radial gradient (true circle on a wide box) ────────────────────────────
+    ui.label("True circle on a wide box (.extent(Circle, ClosestSide)):");
+    ui.add_space(12.0);
+    Styled::frame()
+        .bg(Color32::from_rgb(10, 12, 16))
+        .bg_radial(
+            RadialGradient::new([
+                (0.0, Color32::from_rgb(120, 200, 160)),
+                (1.0, Color32::from_rgb(10, 12, 16)),
+            ])
+            .extent(RadialShape::Circle, RadialExtent::ClosestSide),
+        )
+        .corner_radius(8.0)
+        .padding(20.0)
+        .full_width()
+        .show(ui, |ui| {
+            ui.colored_label(Color32::WHITE, "Circle stays round — not stretched to the box");
+        });
+
+    ui.add_space(24.0);
+
+    // ── Stacked radial gradients ───────────────────────────────────────────────
+    // No single element holds two gradients; stack coincident frames to layer them.
+    ui.label("Stacked radials (two translucent spotlights):");
+    ui.add_space(12.0);
+    Styled::frame()
+        .bg(Color32::from_rgb(8, 8, 12))
+        .bg_radial(
+            RadialGradient::new([
+                (0.0, Color32::from_rgb(40, 90, 220)),
+                (1.0, Color32::TRANSPARENT),
+            ])
+            .center(RadialPosition::Frac(0.28, 0.5))
+            .circle(RadialLength::Pct(55.0)),
+        )
+        .corner_radius(8.0)
+        .padding(0.0)
+        .full_width()
+        .show(ui, |ui| {
+            Styled::frame()
+                .bg(Color32::TRANSPARENT) // transparent so the base layer shows through
+                .bg_radial(
+                    RadialGradient::new([
+                        (0.0, Color32::from_rgba_premultiplied(220, 40, 140, 200)),
+                        (1.0, Color32::TRANSPARENT),
+                    ])
+                    .center(RadialPosition::Frac(0.72, 0.5))
+                    .circle(RadialLength::Pct(55.0)),
+                )
+                .full_width()
+                .min_height(120.0)
+                .padding(20.0)
+                .show(ui, |ui| {
+                    ui.colored_label(Color32::WHITE, "Blue + pink blend where they overlap");
+                });
+        });
+
+    ui.add_space(24.0);
+
     // ── Per-side glow ──────────────────────────────────────────────────────────
     ui.label("Inner glow on top + bottom only (.inner_glow_y):");
     ui.add_space(12.0);

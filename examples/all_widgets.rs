@@ -119,37 +119,34 @@ fn all_widgets(ui: &mut egui::Ui, state: &mut AppState) {
 
                     // --- Button row, pinned bottom-right ---
                     // Right-to-left layout: add Save first so it ends up rightmost.
-                    ui.with_layout(
-                        egui::Layout::right_to_left(egui::Align::Center),
-                        |ui| {
-                            if Styled::button("Save")
-                                .bg(p.accent)
-                                .hover_bg(p.accent_hover)
-                                .active_bg(p.accent_active)
-                                .text_color(p.fg_on_accent)
-                                .font(font("w600", 14.0))
-                                .corner_radius(t.rounding_md)
-                                .padding(Margin::symmetric(18, 10))
-                                .inner_glow(10.0, Color32::from_white_alpha(28))
-                                .show(ui)
-                                .clicked()
-                            {
-                                println!("saved: {:?}", state.quality.label());
-                            }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if Styled::button("Save")
+                            .bg(p.accent)
+                            .hover_bg(p.accent_hover)
+                            .active_bg(p.accent_active)
+                            .text_color(p.fg_on_accent)
+                            .font(font("w600", 14.0))
+                            .corner_radius(t.rounding_md)
+                            .padding(Margin::symmetric(18, 10))
+                            .inner_glow(10.0, Color32::from_white_alpha(28))
+                            .show(ui)
+                            .clicked()
+                        {
+                            println!("saved: {:?}", state.quality.label());
+                        }
 
-                            ui.add_space(t.spacing_sm);
+                        ui.add_space(t.spacing_sm);
 
-                            Styled::button("Cancel")
-                                .bg(Color32::from_white_alpha(8))
-                                .hover_bg(Color32::from_white_alpha(16))
-                                .text_color(p.fg_secondary)
-                                .font(font("w500", 14.0))
-                                .corner_radius(t.rounding_md)
-                                .border(1.0, p.border)
-                                .padding(Margin::symmetric(18, 10))
-                                .show(ui);
-                        },
-                    );
+                        Styled::button("Cancel")
+                            .bg(Color32::from_white_alpha(8))
+                            .hover_bg(Color32::from_white_alpha(16))
+                            .text_color(p.fg_secondary)
+                            .font(font("w500", 14.0))
+                            .corner_radius(t.rounding_md)
+                            .border(1.0, p.border)
+                            .padding(Margin::symmetric(18, 10))
+                            .show(ui);
+                    });
                 });
             });
     });
@@ -253,7 +250,8 @@ fn advanced_tab(ui: &mut egui::Ui, state: &mut AppState, t: &StyledTheme, p: &We
                         .corner_radius(t.rounding_md)
                         .border(1.0, p.border)
                         .show(ui, |ui| {
-                            for q in [Quality::Low, Quality::Medium, Quality::High, Quality::Ultra] {
+                            for q in [Quality::Low, Quality::Medium, Quality::High, Quality::Ultra]
+                            {
                                 ui.selectable_value(&mut state.quality, q, q.label());
                             }
                         });
@@ -281,10 +279,22 @@ fn install_fonts(ctx: &egui::Context) {
     };
 
     for (name, bytes) in [
-        ("w400", include_bytes!("showcase/assets/fonts/inter/inter-400.ttf").as_slice()),
-        ("w500", include_bytes!("showcase/assets/fonts/inter/inter-500.ttf").as_slice()),
-        ("w600", include_bytes!("showcase/assets/fonts/inter/inter-600.ttf").as_slice()),
-        ("w700", include_bytes!("showcase/assets/fonts/inter/inter-700.ttf").as_slice()),
+        (
+            "w400",
+            include_bytes!("showcase/assets/fonts/inter/inter-400.ttf").as_slice(),
+        ),
+        (
+            "w500",
+            include_bytes!("showcase/assets/fonts/inter/inter-500.ttf").as_slice(),
+        ),
+        (
+            "w600",
+            include_bytes!("showcase/assets/fonts/inter/inter-600.ttf").as_slice(),
+        ),
+        (
+            "w700",
+            include_bytes!("showcase/assets/fonts/inter/inter-700.ttf").as_slice(),
+        ),
     ] {
         defs.font_data
             .insert(name.to_owned(), Arc::new(FontData::from_static(bytes)));
