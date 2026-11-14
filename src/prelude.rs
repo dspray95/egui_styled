@@ -34,6 +34,7 @@ pub use crate::Distribution;
 pub use crate::StyledArea;
 pub use crate::StyledButton;
 pub use crate::StyledCheckbox;
+pub use crate::StyledCollapsing;
 pub use crate::StyledColumn;
 pub use crate::StyledComboBox;
 pub use crate::StyledDistributedRow;

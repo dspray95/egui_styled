@@ -1,4 +1,4 @@
-use egui::{FontId, Id, Image, Response, RichText, Shape, Ui, WidgetText};
+use egui::{Color32, FontId, Id, Image, Response, RichText, Shape, Stroke, Ui, WidgetText};
 
 use crate::{
     impl_style_builders,
@@ -20,11 +20,17 @@ use crate::{
 /// Construct via [`Styled::button`](crate::Styled::button) and call
 /// [`show`](Self::show) to add it to a `Ui`. Set [`id`](Self::id) when the
 /// button is conditionally rendered so its pseudo-state stays stable.
+///
+/// [`selected`](Self::selected) gives toggle and tab styling; see
+/// [`show_selectable`](Self::show_selectable) for the `selectable_value` pattern.
 pub struct StyledButton {
     text: WidgetText,
     image: Option<Image<'static>>,
     font: Option<FontId>,
     id_override: Option<Id>,
+    selected: bool,
+    selected_bg: Option<Color32>,
+    selected_text_color: Option<Color32>,
     style: SharedStyle,
 }
 
@@ -35,6 +41,9 @@ impl StyledButton {
             image: None,
             font: None,
             id_override: None,
+            selected: false,
+            selected_bg: None,
+            selected_text_color: None,
             style: SharedStyle::default(),
         }
     }
@@ -60,7 +69,58 @@ impl StyledButton {
         self
     }
 
-    pub fn show(self, ui: &mut Ui) -> Response {
+    /// Mark the button selected, like egui's `selectable_label`. A selected button holds
+    /// its selected colours through hover and press; the focus border still applies.
+    pub fn selected(mut self, selected: bool) -> Self {
+        self.selected = selected;
+        self
+    }
+
+    /// Background while selected. Defaults to `accent`, then the theme's selection fill.
+    pub fn selected_bg(mut self, color: Color32) -> Self {
+        self.selected_bg = Some(color);
+        self
+    }
+
+    /// Text colour while selected. Defaults to `text_color`, then the theme's selection text.
+    pub fn selected_text_color(mut self, color: Color32) -> Self {
+        self.selected_text_color = Some(color);
+        self
+    }
+
+    /// Show as one option of a mutually exclusive choice, like egui's `selectable_value`:
+    /// selected when `*current == value`, and a click sets `*current = value`.
+    pub fn show_selectable<V: PartialEq>(self, ui: &mut Ui, current: &mut V, value: V) -> Response {
+        let mut response = self.selected(*current == value).show(ui);
+        if response.clicked() && *current != value {
+            *current = value;
+            response.mark_changed();
+        }
+        response
+    }
+
+    /// Selected colours replace the base and hover/press variants, so every state
+    /// resolves to them. Returns the selected (bg, text) pair.
+    fn apply_selected(&mut self, visuals: &egui::Visuals) -> (Color32, Color32) {
+        let s = &mut self.style;
+        let bg = self
+            .selected_bg
+            .or(s.accent)
+            .unwrap_or(visuals.selection.bg_fill);
+        let text = self
+            .selected_text_color
+            .or(s.text_color)
+            .unwrap_or(visuals.selection.stroke.color);
+        s.bg = Some(bg);
+        s.hover_bg = None;
+        s.active_bg = None;
+        s.text_color = Some(text);
+        s.hover_text_color = None;
+        (bg, text)
+    }
+
+    pub fn show(mut self, ui: &mut Ui) -> Response {
+        let selected = self.selected.then(|| self.apply_selected(ui.visuals()));
         let visible = self.style.visible != Some(false);
 
         let id = self
@@ -83,6 +143,13 @@ impl StyledButton {
             let response = ui
                 .scope(|ui| {
                     SharedStyle::apply_to_visuals(&per, pseudo, ui.visuals_mut());
+                    // egui paints a selected button from `selection`, for every state.
+                    if let Some((bg, text)) = selected {
+                        let vis = ui.visuals_mut();
+                        vis.selection.bg_fill = bg;
+                        vis.selection.stroke =
+                            Stroke::new(vis.widgets.inactive.fg_stroke.width, text);
+                    }
 
                     // Wire `padding` through to egui's `button_padding`. egui's
                     // `Button` only supports symmetric padding (a single `Vec2`),
@@ -116,6 +183,9 @@ impl StyledButton {
                         Some(img) => egui::Button::opt_image_and_text(Some(img), Some(text)),
                         None => egui::Button::new(text),
                     };
+                    if selected.is_some() {
+                        btn = btn.selected(true);
+                    }
                     let min_w = sz.definite_w.or(sz.min_w).unwrap_or(0.0);
                     let min_h = sz.definite_h.or(sz.min_h).unwrap_or(0.0);
                     if min_w > 0.0 || min_h > 0.0 {
@@ -164,3 +234,121 @@ impl StyledButton {
 
 impl_style_builders!(StyledButton);
 crate::impl_styled_widget!(StyledButton);
+
+#[cfg(test)]
+mod tests {
+    use crate::Styled;
+    use egui::{Color32, Event, PointerButton, Pos2, Rect, Shape, vec2};
+
+    const SEL: Color32 = Color32::from_rgb(200, 10, 10);
+    const HOVER: Color32 = Color32::from_rgb(10, 200, 10);
+    const SEL_TEXT: Color32 = Color32::from_rgb(1, 2, 3);
+
+    fn raw(events: Vec<Event>) -> egui::RawInput {
+        egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 200.0))),
+            events,
+            ..Default::default()
+        }
+    }
+
+    fn rect_fills(shapes: &[Shape], out: &mut Vec<Color32>) {
+        for shape in shapes {
+            match shape {
+                Shape::Vec(inner) => rect_fills(inner, out),
+                Shape::Rect(r) => out.push(r.fill),
+                _ => {}
+            }
+        }
+    }
+
+    fn text_colors(shapes: &[Shape]) -> Vec<Color32> {
+        shapes
+            .iter()
+            .filter_map(|s| match s {
+                Shape::Text(t) => Some(t.fallback_color),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn frame(
+        ctx: &egui::Context,
+        events: Vec<Event>,
+        selected: bool,
+    ) -> (Rect, Vec<Color32>, Vec<Color32>) {
+        let mut rect = Rect::NOTHING;
+        let out = crate::test_util::run_ui(ctx, raw(events), |ui| {
+            rect = Styled::button("Tab")
+                .hover_bg(HOVER)
+                .selected(selected)
+                .selected_bg(SEL)
+                .selected_text_color(SEL_TEXT)
+                .show(ui)
+                .rect;
+        });
+        let shapes: Vec<Shape> = out.shapes.into_iter().map(|c| c.shape).collect();
+        let mut fills = Vec::new();
+        rect_fills(&shapes, &mut fills);
+        (rect, fills, text_colors(&shapes))
+    }
+
+    #[test]
+    fn selected_paints_selected_colors() {
+        let ctx = egui::Context::default();
+        let (_, fills, texts) = frame(&ctx, vec![], true);
+        assert!(fills.contains(&SEL), "{fills:?}");
+        assert!(texts.contains(&SEL_TEXT), "{texts:?}");
+
+        let ctx = egui::Context::default();
+        let (_, fills, texts) = frame(&ctx, vec![], false);
+        assert!(!fills.contains(&SEL), "{fills:?}");
+        assert!(!texts.contains(&SEL_TEXT), "{texts:?}");
+    }
+
+    #[test]
+    fn selected_holds_through_hover() {
+        let ctx = egui::Context::default();
+        let (rect, _, _) = frame(&ctx, vec![], true);
+        let over = vec![Event::PointerMoved(rect.center())];
+        frame(&ctx, over.clone(), true);
+        let (_, fills, _) = frame(&ctx, over, true);
+        assert!(fills.contains(&SEL), "{fills:?}");
+        assert!(!fills.contains(&HOVER), "{fills:?}");
+    }
+
+    #[test]
+    fn show_selectable_sets_value_on_click() {
+        #[derive(PartialEq, Debug, Clone, Copy)]
+        enum Tab {
+            A,
+            B,
+        }
+        let ctx = egui::Context::default();
+        let mut current = Tab::A;
+        let mut changed = false;
+        let mut run = |current: &mut Tab, events| {
+            let mut b_rect = Rect::NOTHING;
+            let _ = crate::test_util::run_ui(&ctx, raw(events), |ui| {
+                ui.horizontal(|ui| {
+                    Styled::button("A").show_selectable(ui, current, Tab::A);
+                    let r = Styled::button("B").show_selectable(ui, current, Tab::B);
+                    changed |= r.changed();
+                    b_rect = r.rect;
+                });
+            });
+            b_rect
+        };
+        let b = run(&mut current, vec![]).center();
+        let press = |pressed| Event::PointerButton {
+            pos: b,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        };
+        run(&mut current, vec![Event::PointerMoved(b), press(true)]);
+        run(&mut current, vec![press(false)]);
+        assert_eq!(current, Tab::B);
+        assert!(changed);
+    }
+}

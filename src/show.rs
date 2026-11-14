@@ -39,6 +39,9 @@ pub trait StyledWidget {
 /// }
 /// ```
 ///
+/// [`StyledCollapsing`](crate::StyledCollapsing) doesn't either: it returns egui's
+/// `CollapsingResponse<R>`, since the body may be closed.
+///
 /// [`StyledArea`](crate::StyledArea) doesn't implement this despite having the
 /// same body-closure shape: it takes `&Context` instead of `&mut Ui`, since the
 /// underlying `egui::Area` is a floating layer outside the current `Ui` tree.

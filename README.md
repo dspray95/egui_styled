@@ -418,7 +418,12 @@ border, corner radius, width/height constraints, vertical justify, and
 background images.
 
 **`StyledArea`** is a top-level positioned container for modals, toasts, and
-backdrops. It works on `&egui::Context` rather than `&mut Ui`.
+backdrops. It works on `&egui::Context` rather than `&mut Ui`. Use
+`default_pos` (with an optional `pivot`) instead of `fixed_pos` for a draggable
+`movable(true)` window.
+
+**`StyledCollapsing`** is a titled section that folds away. Style builders apply
+to the header; the body keeps the surrounding style.
 
 **`StyledStack`** is the overlay container: multiple layers share one origin
 and paint on top of each other. Use it for layered backgrounds, badges,
@@ -652,16 +657,17 @@ correctly.
 
 | Widget | Status |
 |--------|--------|
-| `StyledButton` | ✅ Full pseudo-state, shadow, padding, border |
+| `StyledButton` | ✅ Full pseudo-state, shadow, padding, border, selected state |
 | `StyledLabel` | ✅ Font, color, effects, min-height, visibility |
 | `StyledTextEdit` | ✅ Hint, multiline, password, focus styling, padding, border |
 | `StyledCheckbox` | ✅ Full pseudo-state |
-| `StyledSlider` | ✅ Rail, fill, handle (incl. hover), value box, width, hide value |
+| `StyledSlider` | ✅ Rail, fill, handle (incl. hover), value box, width, hide value, suffix, logarithmic |
 | `StyledComboBox` | 🚧 Partial - trigger styled, popup items inherit |
 | `StyledFrame` | ✅ Full box model, background image, vertical justify, aspect ratio |
 | `StyledRow` / `StyledColumn` | ✅ Gap, alignment, box styling, distribution, wrapping |
 | `StyledStack` | ✅ Overlay layers, offsets, alignment, fixed-size layers |
-| `StyledArea` | ✅ Top-level positioned container, fill_screen, anchor |
+| `StyledArea` | ✅ Top-level positioned container, fill_screen, anchor, draggable |
+| `StyledCollapsing` | ✅ Styled header, indent toggle, custom icon |
 | `StyledImage` | ✅ Inline images, tint, hover tint, corner radius, border, shadow |
 | `StyledSpacer` | ✅ Flex spacer |
 | `background_image` | ✅ On box containers: stretch or cover fit, fade-in, tint |

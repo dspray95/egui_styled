@@ -40,6 +40,7 @@ mod test_util;
 pub use apply::Apply;
 pub use color::{ColorExt, rgb, rgba};
 pub use containers::area::StyledArea;
+pub use containers::collapsing::StyledCollapsing;
 pub use containers::column::StyledColumn;
 pub use containers::distribute::StyledDistributedRow;
 pub use containers::frame::StyledFrame;
@@ -84,8 +85,14 @@ impl Styled {
     /// Start a styled top-level area (modal, backdrop, toast). Operates on
     /// `&Context`, not `&mut Ui` - the area is a floating layer outside the
     /// current `Ui` tree.
+    #[track_caller]
     pub fn area() -> StyledArea {
         StyledArea::new()
+    }
+
+    /// Start a styled collapsing section. Style builders apply to the header.
+    pub fn collapsing(text: impl Into<WidgetText>) -> StyledCollapsing {
+        StyledCollapsing::new(text)
     }
 
     /// Start a styled button with per-state hover / active colors.
