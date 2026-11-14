@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2026-11-14
+
+### Added
+
+- **`StyledCollapsing`**: a titled section that folds away, via `Styled::collapsing(text)`. Wraps `egui::CollapsingHeader`; style builders apply to the header only, while the body keeps the surrounding style. Builders: `default_open`, `indent`, `icon` and `id`. Returns egui's `CollapsingResponse<R>` (so it doesn't implement `StyledContainer`, since the body may be closed). Exported from the crate root and prelude.
+- **Draggable `StyledArea`**: `.default_pos(pos)` with an optional `.pivot(align)` seed the position so `.movable(true)` works, where `fixed_pos` can't be dragged. Id-less areas now get `#[track_caller]` call-site auto-ids instead of all sharing one.
+- **Selected state on `StyledButton`**: `.selected(bool)`, `.selected_bg(color)`, `.selected_text_color(color)`, and `show_selectable(ui, &mut current, value)` for the `selectable_value` pattern (the building block for tab bars).
+- **`StyledSlider::logarithmic`** (plus `.smallest_positive(v)`). The custom rail painter ports egui's log mapping so the handle stays under the pointer.
+- **`StyledSlider::suffix`**: passed through to the value box's `DragValue`.
+
 ## [0.9.0] - 2026-11-03
 
 ### Breaking
