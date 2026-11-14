@@ -243,7 +243,10 @@ fn gradients_example(ui: &mut egui::Ui) {
         .padding(20.0)
         .full_width()
         .show(ui, |ui| {
-            ui.colored_label(Color32::WHITE, "Circle stays round — not stretched to the box");
+            ui.colored_label(
+                Color32::WHITE,
+                "Circle stays round, not stretched to the box",
+            );
         });
 
     ui.add_space(24.0);
