@@ -18,8 +18,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      # Runners have no GPU; lavapipe gives wgpu a software Vulkan adapter for snapshot tests.
+      - run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers
       - run: cargo build --all-targets
       - run: cargo test --all-targets
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: snapshot-diffs
+          path: |
+            tests/snapshots/*.diff.png
+            tests/snapshots/*.new.png
 
   fmt:
     name: Rustfmt
