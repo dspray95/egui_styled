@@ -46,109 +46,119 @@ fn all_widgets(ui: &mut egui::Ui, state: &mut AppState) {
     let p = ui.ctx().design_data::<WebPalette>();
 
     const CARD_WIDTH: f32 = 440.0;
-    const CARD_HEIGHT_ESTIMATE: f32 = 420.0;
-    ui.vertical_centered(|ui| {
-        // Roughly centre on Y, but always keep a top margin on short windows.
-        let top = ((ui.available_height() - CARD_HEIGHT_ESTIMATE) / 2.0).max(32.0);
-        ui.add_space(top);
-        Styled::frame()
-            .bg(p.bg_surface)
-            .corner_radius(t.rounding_lg)
-            .padding(28.0)
-            .border(1.0, p.border)
-            .inner_glow(16.0, Color32::from_white_alpha(8))
-            .min_width(CARD_WIDTH)
-            .max_width(CARD_WIDTH)
-            .show(ui, |ui| {
-                Styled::column().gap(22.0).full_width().show(ui, |ui| {
-                    Styled::column().gap(2.0).show(ui, |ui| {
-                        Styled::label("SETTINGS")
-                            .font(font("w600", 11.0))
-                            .text_color(p.fg_muted)
-                            .show(ui);
+    const MARGIN: f32 = 32.0;
+    // Last frame's card height, for vertical centring.
+    let height_id = egui::Id::unique("all_widgets_card_height");
+    let card_h = ui.data(|d| d.get_temp::<f32>(height_id)).unwrap_or(0.0);
+    let avail_h = ui.available_height();
+    egui::ScrollArea::vertical().show(ui, |ui| {
+        ui.vertical_centered(|ui| {
+            ui.add_space(((avail_h - card_h) / 2.0).max(MARGIN));
+            let card = Styled::frame()
+                .bg(p.bg_surface)
+                .corner_radius(t.rounding_lg)
+                .padding(28.0)
+                .border(1.0, p.border)
+                .inner_glow(16.0, Color32::from_white_alpha(8))
+                .min_width(CARD_WIDTH)
+                .max_width(CARD_WIDTH)
+                .show(ui, |ui| {
+                    Styled::column().gap(22.0).full_width().show(ui, |ui| {
+                        Styled::column().gap(2.0).show(ui, |ui| {
+                            Styled::label("SETTINGS")
+                                .font(font("w600", 11.0))
+                                .text_color(p.fg_muted)
+                                .show(ui);
 
-                        Styled::label("Account")
-                            .font(font("w700", 22.0))
-                            .text_color(p.fg_primary)
-                            .show(ui);
-                    });
-
-                    // --- Tab bar: flush text tabs, no container fill. The selected tab is
-                    // marked by faint side rules plus a hint of fill - accent stays unique to Save.
-                    Styled::row().gap(0.0).full_width().show(ui, |ui| {
-                        for (tab, label) in [
-                            (Tab::Profile, "Profile"),
-                            (Tab::Audio, "Audio"),
-                            (Tab::Advanced, "Advanced"),
-                        ] {
-                            let selected = state.tab == tab;
-                            let mut button = Styled::button(label)
-                                .bg(Color32::TRANSPARENT)
-                                .hover_bg(Color32::from_white_alpha(8))
-                                .hover_border_x(1.0, p.border)
-                                // Unset sides fall back to egui's default stroke, so zero
-                                // top/bottom explicitly to keep the rules to the sides only.
-                                .hover_border_y(0.0, Color32::TRANSPARENT)
-                                .text_color(if selected { p.fg_primary } else { p.fg_muted })
-                                .font(font("w500", 13.0))
-                                .corner_radius(0.0)
-                                .padding(Margin::symmetric(18, 9));
-                            if selected {
-                                button = button
-                                    .bg(Color32::from_white_alpha(10))
-                                    .hover_bg(Color32::from_white_alpha(14))
-                                    .border_x(1.0, p.border)
-                                    .border_y(0.0, Color32::TRANSPARENT);
-                            }
-                            if button.show(ui).clicked() {
-                                state.tab = tab;
-                            }
-                        }
-                    });
-
-                    // Fixed-height content area so switching tabs doesn't resize the card.
-                    Styled::column()
-                        .gap(14.0)
-                        .full_width()
-                        .min_height(190.0)
-                        .show(ui, |ui| match state.tab {
-                            Tab::Profile => profile_tab(ui, state, &t, &p),
-                            Tab::Audio => audio_tab(ui, state, &t, &p),
-                            Tab::Advanced => advanced_tab(ui, state, &t, &p),
+                            Styled::label("Account")
+                                .font(font("w700", 22.0))
+                                .text_color(p.fg_primary)
+                                .show(ui);
                         });
 
-                    // --- Button row, pinned bottom-right ---
-                    // Right-to-left layout: add Save first so it ends up rightmost.
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if Styled::button("Save")
-                            .bg(p.accent)
-                            .hover_bg(p.accent_hover)
-                            .active_bg(p.accent_active)
-                            .text_color(p.fg_on_accent)
-                            .font(font("w600", 14.0))
-                            .corner_radius(t.rounding_md)
-                            .padding(Margin::symmetric(18, 10))
-                            .inner_glow(10.0, Color32::from_white_alpha(28))
-                            .show(ui)
-                            .clicked()
-                        {
-                            println!("saved: {:?}", state.quality.label());
-                        }
+                        // --- Tab bar: flush text tabs, no container fill. The selected tab is
+                        // marked by faint side rules plus a hint of fill - accent stays unique to Save.
+                        Styled::row().gap(0.0).full_width().show(ui, |ui| {
+                            for (tab, label) in [
+                                (Tab::Profile, "Profile"),
+                                (Tab::Audio, "Audio"),
+                                (Tab::Advanced, "Advanced"),
+                            ] {
+                                let selected = state.tab == tab;
+                                let mut button = Styled::button(label)
+                                    .bg(Color32::TRANSPARENT)
+                                    .hover_bg(Color32::from_white_alpha(8))
+                                    .hover_border_x(1.0, p.border)
+                                    // Unset sides fall back to egui's default stroke, so zero
+                                    // top/bottom explicitly to keep the rules to the sides only.
+                                    .hover_border_y(0.0, Color32::TRANSPARENT)
+                                    .text_color(if selected { p.fg_primary } else { p.fg_muted })
+                                    .font(font("w500", 13.0))
+                                    .corner_radius(0.0)
+                                    .padding(Margin::symmetric(18, 9));
+                                if selected {
+                                    button = button
+                                        .bg(Color32::from_white_alpha(10))
+                                        .hover_bg(Color32::from_white_alpha(14))
+                                        .border_x(1.0, p.border)
+                                        .border_y(0.0, Color32::TRANSPARENT);
+                                }
+                                if button.show(ui).clicked() {
+                                    state.tab = tab;
+                                }
+                            }
+                        });
 
-                        ui.add_space(t.spacing_sm);
+                        // Fixed-height content area so switching tabs doesn't resize the card.
+                        Styled::column()
+                            .gap(14.0)
+                            .full_width()
+                            .min_height(190.0)
+                            .show(ui, |ui| match state.tab {
+                                Tab::Profile => profile_tab(ui, state, &t, &p),
+                                Tab::Audio => audio_tab(ui, state, &t, &p),
+                                Tab::Advanced => advanced_tab(ui, state, &t, &p),
+                            });
 
-                        Styled::button("Cancel")
-                            .bg(Color32::from_white_alpha(8))
-                            .hover_bg(Color32::from_white_alpha(16))
-                            .text_color(p.fg_secondary)
-                            .font(font("w500", 14.0))
-                            .corner_radius(t.rounding_md)
-                            .border(1.0, p.border)
-                            .padding(Margin::symmetric(18, 10))
-                            .show(ui);
+                        // --- Button row, pinned bottom-right ---
+                        // Save first so it ends up rightmost. `Align::Center` would take the full remaining height.
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                            if Styled::button("Save")
+                                .bg(p.accent)
+                                .hover_bg(p.accent_hover)
+                                .active_bg(p.accent_active)
+                                .text_color(p.fg_on_accent)
+                                .font(font("w600", 14.0))
+                                .corner_radius(t.rounding_md)
+                                .padding(Margin::symmetric(18, 10))
+                                .inner_glow(10.0, Color32::from_white_alpha(28))
+                                .show(ui)
+                                .clicked()
+                            {
+                                println!("saved: {:?}", state.quality.label());
+                            }
+
+                            ui.add_space(t.spacing_sm);
+
+                            Styled::button("Cancel")
+                                .bg(Color32::from_white_alpha(8))
+                                .hover_bg(Color32::from_white_alpha(16))
+                                .text_color(p.fg_secondary)
+                                .font(font("w500", 14.0))
+                                .corner_radius(t.rounding_md)
+                                .border(1.0, p.border)
+                                .padding(Margin::symmetric(18, 10))
+                                .show(ui);
+                        });
                     });
                 });
-            });
+            ui.add_space(MARGIN);
+            let h = card.response.rect.height();
+            if (h - card_h).abs() > 0.5 {
+                ui.data_mut(|d| d.insert_temp(height_id, h));
+                ui.ctx().request_discard("card height changed");
+            }
+        });
     });
 
     // --- Draggable floating tips panel (StyledArea) ---
@@ -249,12 +259,31 @@ fn advanced_tab(ui: &mut egui::Ui, state: &mut AppState, t: &StyledTheme, p: &We
                         .bg(p.bg_secondary)
                         .corner_radius(t.rounding_md)
                         .border(1.0, p.border)
-                        .show(ui, |ui| {
-                            for q in [Quality::Low, Quality::Medium, Quality::High, Quality::Ultra]
-                            {
-                                ui.selectable_value(&mut state.quality, q, q.label());
-                            }
-                        });
+                        .popup(
+                            Styled::frame()
+                                .bg(p.bg_elevated)
+                                .border(1.0, p.border)
+                                .corner_radius(t.rounding_md)
+                                // Vertical only, so square highlights clear the rounded corners.
+                                .padding(Margin::symmetric(0, 4)),
+                        )
+                        .item_text_color(p.fg_secondary)
+                        .item_hover_bg(p.bg_secondary)
+                        .selected_bg(p.accent)
+                        .selected_text_color(p.fg_on_accent)
+                        .item_padding(12.0, 6.0)
+                        .item_gap(0.0)
+                        .item_corner_radius(0.0)
+                        .show_values_with(
+                            ui,
+                            &mut state.quality,
+                            [Quality::Low, Quality::Medium, Quality::High, Quality::Ultra]
+                                .map(|q| (q, q.label())),
+                            |q, item| match q {
+                                Quality::Ultra => item.text_color(p.accent_hover),
+                                _ => item,
+                            },
+                        );
                 });
             });
         });

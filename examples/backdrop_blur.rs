@@ -13,6 +13,7 @@ struct App {
     checker: egui::TextureHandle,
     email: String,
     search: String,
+    view: usize,
     frame: u64,
     screenshot: Option<String>,
     bench: Option<Bench>,
@@ -65,6 +66,7 @@ impl App {
                 .load_texture("checker", checker, egui::TextureOptions::NEAREST),
             email: String::new(),
             search: String::new(),
+            view: 0,
             frame: 0,
             screenshot: std::env::var("EGUI_STYLED_SCREENSHOT").ok(),
             bench: Bench::from_env(),
@@ -170,6 +172,27 @@ impl App {
                 .padding(12.0)
                 .min_width(260.0)
                 .show(ui);
+            Styled::combo_box("view", "")
+                .backdrop_blur(12.0)
+                .bg(Color32::from_white_alpha(18))
+                .border(1.0, Color32::from_white_alpha(48))
+                .text_color(Color32::WHITE)
+                .corner_radius(12.0)
+                .padding(12.0)
+                .popup(
+                    Styled::frame()
+                        .backdrop_blur(16.0)
+                        .bg(Color32::from_black_alpha(90))
+                        .border(1.0, Color32::from_white_alpha(48))
+                        .corner_radius(12.0)
+                        .padding(6.0),
+                )
+                .item_text_color(Color32::WHITE)
+                .item_hover_bg(Color32::from_white_alpha(30))
+                .selected_bg(Color32::from_white_alpha(50))
+                .item_padding(8.0, 6.0)
+                .item_corner_radius(8.0)
+                .show_index(ui, &mut self.view, 3, |i| ["Grid", "List", "Board"][i]);
             Styled::label("Glass label")
                 .backdrop_blur(12.0)
                 .bg(Color32::from_white_alpha(18))

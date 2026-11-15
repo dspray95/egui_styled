@@ -315,7 +315,32 @@ Styled::label("Status")
 ```
 
 Available today: `StyledButton`, `StyledLabel`, `StyledTextEdit`,
-`StyledCheckbox`, `StyledSlider`, `StyledComboBox` (partial).
+`StyledCheckbox`, `StyledSlider`, `StyledComboBox`.
+
+`StyledComboBox`'s shared builders style the trigger. The dropdown panel is a
+`StyledFrame` (so blur, gradients and shadows work there too), and the items
+have their own builders:
+
+```rust
+Styled::combo_box("quality", "")
+    .bg(surface)
+    .border(1.0, border)
+    .popup(Styled::frame().bg(elevated).corner_radius(8.0).padding(4.0).backdrop_blur(12.0))
+    .item_hover_bg(hover)
+    .selected_bg(accent)
+    .show_index(ui, &mut selected, OPTIONS.len(), |i| OPTIONS[i]);
+```
+
+For per-item styling, `show_values_with` hands each item to a closure as a
+`StyledButton`:
+
+```rust
+Styled::combo_box("status", "")
+    .show_values_with(ui, &mut status, STATUSES, |s, item| match s {
+        Status::Down => item.text_color(red),
+        _ => item,
+    });
+```
 
 ### Design tokens
 
@@ -678,7 +703,7 @@ correctly.
 | `StyledTextEdit` | ✅ Hint, multiline, password, focus styling, padding, border |
 | `StyledCheckbox` | ✅ Full pseudo-state |
 | `StyledSlider` | ✅ Rail, fill, handle (incl. hover), value box, width, hide value, suffix, logarithmic |
-| `StyledComboBox` | 🚧 Partial - trigger styled, popup items inherit |
+| `StyledComboBox` | ✅ Trigger, open state, icon, popup panel (`StyledFrame`, incl. blur), items, `show_index` / `show_values` |
 | `StyledFrame` | ✅ Full box model, background image, vertical justify, aspect ratio |
 | `StyledRow` / `StyledColumn` | ✅ Gap, alignment, box styling, distribution, wrapping |
 | `StyledStack` | ✅ Overlay layers, offsets, alignment, fixed-size layers |
@@ -705,8 +730,6 @@ Things that are intentionally out of scope or not yet solved:
 - **Interactive widgets inside translated stacks are not reliable.**
   `StyledStack` paints visually in the right place, but hit-testing still uses
   the untranslated rect.
-- **`StyledComboBox` is not deeply styleable yet.** The trigger is styled;
-  popup items inherit egui's defaults.
 - **Backdrop blur can't see paint callbacks.** Render that content to a texture
   instead. wgpu backend only (native, WebGPU, WebGL2); not glow.
 - **Not a CSS or flexbox engine.** Percentage sizing, wrapping, and

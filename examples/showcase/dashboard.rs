@@ -381,17 +381,25 @@ fn settings(ui: &mut Ui, p: &Palette, state: &mut State) {
                     text("Region", Weight::Medium, 14.0, p.text).show(ui);
                 },
                 |ui| {
-                    Styled::combo_box("region", REGIONS[*region])
+                    Styled::combo_box("region", "")
                         .width(190.0)
                         .bg(p.surface)
                         .border(p.border_width, p.border)
                         .text_color(p.text)
                         .corner_radius(p.radius * 0.6)
-                        .show(ui, |ui| {
-                            for (i, r) in REGIONS.iter().enumerate() {
-                                ui.selectable_value(region, i, *r);
-                            }
-                        });
+                        .popup(
+                            Styled::frame()
+                                .bg(p.surface)
+                                .border(p.border_width, p.border)
+                                .corner_radius(p.radius * 0.6)
+                                .padding(4.0),
+                        )
+                        .item_text_color(p.text)
+                        .selected_bg(p.accent)
+                        .selected_text_color(p.on_accent)
+                        .item_padding(8.0, 4.0)
+                        .item_corner_radius(p.radius * 0.4)
+                        .show_index(ui, region, REGIONS.len(), |i| REGIONS[i]);
                 },
             );
         });

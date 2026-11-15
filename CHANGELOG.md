@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`StyledComboBox` popup styling.** `.popup(StyledFrame)` styles the dropdown panel, so `bg_gradient`, shadows and `backdrop_blur` work on it. Unset `bg`, `border`, `corner_radius`, `padding` and shadows fall back to the theme's popup look. Items get `.item_text_color`, `.item_hover_text_color`, `.item_hover_bg`, `.selected_bg`, `.selected_text_color`, `.item_padding(x, y)`, `.item_gap` and `.item_corner_radius`.
+- **More `StyledComboBox` trigger builders**: `.font(FontId)`, `.icon_color`, `.icon(painter)`, `.open_bg`, `.open_border`.
+- **`StyledComboBox` egui passthroughs**: `.popup_height`, `.wrap()`, `.truncate()`, `.close_behavior`, and `StyledComboBox::is_open(ctx, id)`.
+- **`StyledComboBox::show_index`** (like egui's) and **`show_values(ui, &mut current, options)`** for the `selectable_value` pattern.
+- **Per-item styling: `StyledComboBox::show_values_with(ui, &mut current, options, style)`.** Each item is a full-width `StyledButton` passed through `style(&value, button)`. Anything it leaves unset inherits the combo's item style. Styled widgets placed in a `show` body inherit it the same way.
+
+### Changed
+
+- **`StyledComboBox::show` is generic over the body's return value**, returning `InnerResponse<Option<R>>` like egui's `show_ui`. Existing `()` bodies are unaffected.
+- **`StyledComboBox` now builds its own trigger and popup** from egui's `WidgetAtom` and `Popup`, rather than wrapping `egui::ComboBox`, so the popup frame can be a `StyledFrame`. The trigger's look and its popup state id are unchanged.
+- **`StyledComboBox` `padding` is now inside the trigger**, mapped to `button_padding` as on `StyledButton` (asymmetric padding collapses to the max per axis). It used to add unfilled space around the trigger. Combo boxes with `padding` change size.
+
+### Fixed
+
+- **`StyledComboBox::id` now pins the popup's open state too.** It only pinned pseudo-state, so the popup could close when siblings were added or removed.
+
 ## [0.9.1] - 2026-11-14
 
 ### Added

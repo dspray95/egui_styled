@@ -17,7 +17,7 @@ use egui::{InnerResponse, Response, Ui};
 /// [`StyledArea`](crate::StyledArea) and [`StyledComboBox`](crate::StyledComboBox)
 /// don't implement this: `StyledArea` renders against `&Context` (it's a
 /// floating layer outside the current `Ui` tree) and `StyledComboBox` returns
-/// `InnerResponse<Option<()>>` from its menu-contents closure, mirroring
+/// `InnerResponse<Option<R>>` from its menu-contents closure, mirroring
 /// egui's own `ComboBox::show_ui`.
 pub trait StyledWidget {
     fn show(self, ui: &mut Ui) -> Response;
@@ -128,7 +128,7 @@ mod tests {
 
         // Intentionally not in either trait (documented on their own `show`):
         // - `StyledArea` takes `&Context`, not `&mut Ui`.
-        // - `StyledComboBox` returns `InnerResponse<Option<()>>` because the
+        // - `StyledComboBox` returns `InnerResponse<Option<R>>` because the
         //   body closure only runs when the dropdown is open.
     }
 }
