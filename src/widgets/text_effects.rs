@@ -40,7 +40,7 @@ pub struct Glow {
 }
 
 /// Unused now that glow is a blur.
-#[deprecated(since = "0.9.2", note = "does nothing now that glow is a blur")]
+#[deprecated(since = "0.10.0", note = "does nothing now that glow is a blur")]
 #[derive(Clone, Copy, Debug)]
 pub struct GlowQuality {
     pub samples: u32,
@@ -63,7 +63,7 @@ pub struct TextEffects {
     pub shadows: Vec<TextShadow>,
     pub outline: Option<(f32, Color32)>,
     pub glow: Option<Glow>,
-    #[deprecated(since = "0.9.2", note = "does nothing now that glow is a blur")]
+    #[deprecated(since = "0.10.0", note = "does nothing now that glow is a blur")]
     pub glow_quality: GlowQuality,
     pub scale: Option<(f32, Align2)>,
 }

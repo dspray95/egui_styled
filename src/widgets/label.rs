@@ -170,7 +170,7 @@ impl StyledLabel {
     }
 
     /// Does nothing now that glow is a blur.
-    #[deprecated(since = "0.9.2", note = "does nothing now that glow is a blur")]
+    #[deprecated(since = "0.10.0", note = "does nothing now that glow is a blur")]
     #[allow(deprecated)]
     pub fn glow_quality(mut self, samples: u32) -> Self {
         self.effects.glow_quality = GlowQuality { samples };

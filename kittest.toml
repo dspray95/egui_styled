@@ -1,0 +1,2 @@
+# Snapshots render slightly differently across GPUs and drivers (e.g. lavapipe on CI).
+max_failed_pixels = 10
