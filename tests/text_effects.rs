@@ -42,12 +42,6 @@ fn text_effects_not_empty_after_scale() {
 }
 
 #[test]
-fn glow_quality_default_values() {
-    let q = GlowQuality::default();
-    assert_eq!(q.samples, 64);
-}
-
-#[test]
 fn theme_shadow_tokens_are_present() {
     let theme = StyledTheme::default();
     assert!(theme.shadow_sm != Vec2::ZERO);
@@ -85,7 +79,6 @@ fn label_builder_outline() {
 fn label_builder_glow() {
     let _label = Styled::label("test")
         .glow(Color32::from_rgb(0, 220, 255), 8.0, 0.8)
-        .glow_quality(32)
         .text_color(Color32::WHITE);
 }
 

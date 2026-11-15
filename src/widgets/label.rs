@@ -11,6 +11,7 @@ use crate::{
     },
 };
 
+#[allow(deprecated)]
 use super::text_effects::{Glow, GlowQuality, TextEffects, TextShadow, paint_text_effects};
 
 /// A styled label.
@@ -26,8 +27,8 @@ use super::text_effects::{Glow, GlowQuality, TextEffects, TextShadow, paint_text
 ///
 /// [`text_shadow`](StyledLabel::text_shadow), [`outline`](StyledLabel::outline),
 /// [`glow`](StyledLabel::glow), and [`scale`](StyledLabel::scale) paint
-/// *glyph-shaped* decorations — they stamp the laid-out galley at offsets and
-/// colors rather than painting offset rectangles like the box-shadow `.shadow()`.
+/// *glyph-shaped* decorations, following the laid-out text rather than its
+/// rectangle like the box-shadow `.shadow()`.
 /// These methods are label-only and compose freely:
 ///
 /// ```ignore
@@ -150,9 +151,8 @@ impl StyledLabel {
         self
     }
 
-    /// Paint a soft radial glow around the text using concentric rings of
-    /// low-alpha galley stamps. `intensity` is 0.0..=1.0 and is supplied
-    /// per-frame — animate it on the consumer side, pass the current value here.
+    /// Paint a soft glow around the text: a cached Gaussian blur of the glyphs.
+    /// `intensity` is 0.0..=1.0, supplied per frame; animate it on the consumer side.
     ///
     /// `radius` controls the outer extent in logical pixels. Use a theme glow
     /// token (`theme.glow_md`) or a raw `f32`:
@@ -160,9 +160,6 @@ impl StyledLabel {
     /// Styled::label("SCORE")
     ///     .glow(Color32::from_rgb(0, 220, 255), theme.glow_md, 0.8)
     /// ```
-    ///
-    /// See [`glow_quality`](StyledLabel::glow_quality) to tune the stamp count
-    /// if glow is used on many labels per frame.
     pub fn glow(mut self, color: Color32, radius: f32, intensity: f32) -> Self {
         self.effects.glow = Some(Glow {
             color,
@@ -172,16 +169,9 @@ impl StyledLabel {
         self
     }
 
-    /// Override the glow stamp density used to render [`glow`](StyledLabel::glow).
-    ///
-    /// `samples` is a base density (stamp count at an 8px radius); the real
-    /// count scales with radius² automatically, and brightness is independent
-    /// of this value. The default (64) blends smoothly at typical font sizes.
-    /// Drop to 32 for dense UIs with many glowing labels, or raise it for
-    /// extra-smooth hero text:
-    /// ```ignore
-    /// .glow_quality(32)   // cheaper, slightly grainier
-    /// ```
+    /// Does nothing now that glow is a blur.
+    #[deprecated(since = "0.9.2", note = "does nothing now that glow is a blur")]
+    #[allow(deprecated)]
     pub fn glow_quality(mut self, samples: u32) -> Self {
         self.effects.glow_quality = GlowQuality { samples };
         self

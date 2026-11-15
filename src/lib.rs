@@ -65,6 +65,7 @@ pub use widgets::image::StyledImage;
 pub use widgets::label::StyledLabel;
 pub use widgets::slider::StyledSlider;
 pub use widgets::text_edit::StyledTextEdit;
+#[allow(deprecated)]
 pub use widgets::text_effects::{Glow, GlowQuality, TextEffects, TextShadow};
 
 use egui::{WidgetText, emath::Numeric};

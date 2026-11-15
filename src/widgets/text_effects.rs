@@ -26,16 +26,10 @@ pub struct TextShadow {
     pub color: Color32,
 }
 
-/// Faux glow that follows the glyphs: a sunflower disk of overlapping galley
-/// stamps, brightest on the letterforms and fading out to `radius`.
+/// Soft glow that follows the glyphs: a Gaussian blur of the text, tinted `color`.
 ///
-/// egui has no blur pass, so glyph-shaped glow is approximated by stamping the
-/// text many times at faint, aperiodically-distributed offsets. With enough
-/// overlap the copies blend into a continuous halo rather than visible ghosts.
-///
-/// `intensity` is a plain 0.0..=1.0 scalar supplied per-frame by the consumer.
-/// When you animate it (e.g. a sine wave), keep all timing/state on the consumer
-/// side — this struct holds only the current-frame appearance value.
+/// `intensity` is a plain 0.0..=1.0 per-frame value; keep animation state on the consumer side.
+/// Animating `intensity` or `color` is free; animating `radius` re-blurs each frame.
 #[derive(Clone, Copy, Debug)]
 pub struct Glow {
     pub color: Color32,
@@ -45,21 +39,14 @@ pub struct Glow {
     pub intensity: f32,
 }
 
-/// Quality knob for [`Glow`] rendering.
-///
-/// Glow is a sunflower (Vogel) disk of glyph stamps with no grid or spokes, so
-/// more stamps just makes the halo smoother. `samples` is a *base density*
-/// (the stamp count at an 8px radius); the real count scales with radius² so a
-/// large glow stays as smooth as a small one, and brightness is held constant
-/// regardless of this value. The default of 64 blends cleanly at typical sizes.
-/// This is the priciest primitive when used on many labels at once — drop to 32
-/// for dense UIs, or raise it for extra-smooth hero text.
+/// Unused now that glow is a blur.
+#[deprecated(since = "0.9.2", note = "does nothing now that glow is a blur")]
 #[derive(Clone, Copy, Debug)]
 pub struct GlowQuality {
-    /// Base stamp density (count at an 8px radius). Default: 64.
     pub samples: u32,
 }
 
+#[allow(deprecated)]
 impl Default for GlowQuality {
     fn default() -> Self {
         Self { samples: 64 }
@@ -69,12 +56,14 @@ impl Default for GlowQuality {
 /// All text-effect state carried by a [`StyledLabel`](super::label::StyledLabel).
 ///
 /// You do not construct this directly — use the builder methods on `StyledLabel`:
-/// `.text_shadow()`, `.outline()`, `.glow()`, `.glow_quality()`, `.scale()`.
+/// `.text_shadow()`, `.outline()`, `.glow()`, `.scale()`.
+#[allow(deprecated)]
 #[derive(Clone, Default, Debug)]
 pub struct TextEffects {
     pub shadows: Vec<TextShadow>,
     pub outline: Option<(f32, Color32)>,
     pub glow: Option<Glow>,
+    #[deprecated(since = "0.9.2", note = "does nothing now that glow is a blur")]
     pub glow_quality: GlowQuality,
     pub scale: Option<(f32, Align2)>,
 }
@@ -91,8 +80,8 @@ impl TextEffects {
 /// Paint all text effects for a label.
 ///
 /// Call this after `label.layout_in_ui(ui)` has allocated space and returned
-/// `(pos, galley, response)`. All stamps are inserted into the painter in
-/// z-order: glow (bottom) → shadows → outline → main glyph (top). When
+/// `(pos, galley, response)`. Paints in z-order: glow (bottom), shadows, outline,
+/// main glyph (top). When
 /// `.scale()` is set, the entire range is transformed via `TSTransform` about
 /// the requested pivot, leaving the allocated rect untouched.
 pub fn paint_text_effects(
@@ -108,7 +97,7 @@ pub fn paint_text_effects(
 
     // --- glow (bottom layer) ---
     if let Some(glow) = effects.glow {
-        paint_glow(ui, pos, galley.clone(), glow, effects.glow_quality.samples);
+        super::glow_mask::paint(ui, pos, &galley, glow);
     }
 
     // --- directional shadows ---
@@ -154,62 +143,6 @@ fn stamp(
     ui.painter().add(Shape::Text(
         TextShape::new(pos, galley, fallback_color).with_override_text_color(color),
     ));
-}
-
-/// Paint glow as a sunflower (Vogel) disk of glyph stamps: the galley is
-/// repainted at aperiodic offsets spiralling out to `radius`, each faint and
-/// weighted by a window that reaches zero at the disk edge. The golden-angle
-/// distribution has no grid or spokes, so overlapping low-alpha copies blend
-/// into a smooth halo that follows the letterforms instead of showing moiré.
-///
-/// `samples` is a base density (stamps at an 8px radius); the actual count is
-/// scaled with radius² so larger glows stay equally smooth, and per-stamp alpha
-/// is normalized so brightness is independent of both radius and `samples`.
-fn paint_glow(ui: &mut egui::Ui, pos: Pos2, galley: Arc<Galley>, glow: Glow, samples: u32) {
-    if glow.intensity <= 0.0 || glow.radius <= 0.0 {
-        return;
-    }
-    const GOLDEN_ANGLE: f32 = 2.399_963_2; // π · (3 − √5)
-    const STRENGTH: f32 = 0.5;
-    const REF_RADIUS: f32 = 8.0; // radius at which `samples` is taken verbatim
-    const REF_SAMPLES: f32 = 64.0; // base density the alpha is calibrated against
-    const MAX_SAMPLES: u32 = 384; // perf ceiling for very large glows
-
-    let base = samples.max(1) as f32;
-    // Hold stamp density (and therefore overlap, and therefore brightness)
-    // constant as radius grows: count ∝ area ∝ radius².
-    let density_scale = (glow.radius / REF_RADIUS).powi(2).clamp(0.25, 6.0);
-    let n = ((base * density_scale).round() as u32).clamp(8, MAX_SAMPLES);
-
-    let intensity = glow.intensity.clamp(0.0, 1.0);
-    // Constant overlap scales with `base`, so divide it back out to keep the
-    // visible brightness tied only to `intensity`, not to the quality knob.
-    let alpha_norm = STRENGTH * intensity * (REF_SAMPLES / base);
-
-    for i in 0..n {
-        // Uniform-area radius (sqrt) keeps stamp density constant across the disk.
-        let frac = (i as f32 + 0.5) / n as f32;
-        let r_norm = frac.sqrt();
-        let r = glow.radius * r_norm;
-        let theta = i as f32 * GOLDEN_ANGLE;
-        let off = Vec2::new(theta.cos() * r, theta.sin() * r);
-
-        // Smooth window: peak 1 at center, exactly 0 at the edge. Because edge
-        // stamps are ~0 regardless of intensity, animating intensity never makes
-        // them pop in/out (which a hard alpha cutoff would).
-        let edge = 1.0 - r_norm * r_norm;
-        let a = edge * edge * alpha_norm;
-        if a <= 0.002 {
-            continue;
-        }
-        let color = Color32::from_rgba_premultiplied(
-            (glow.color.r() as f32 * a) as u8,
-            (glow.color.g() as f32 * a) as u8,
-            (glow.color.b() as f32 * a) as u8,
-            (glow.color.a() as f32 * a) as u8,
-        );
-        stamp(ui, pos + off, galley.clone(), Color32::TRANSPARENT, color);
-    }
 }
 
 /// 8-compass outline offsets at `width` pixels from origin.

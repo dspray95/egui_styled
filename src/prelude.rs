@@ -12,6 +12,7 @@ pub use crate::BorderGradient;
 pub use crate::ColorExt;
 pub use crate::DesignSlots;
 pub use crate::Glow;
+#[allow(deprecated)]
 pub use crate::GlowQuality;
 pub use crate::Gradient;
 pub use crate::GradientAxis;

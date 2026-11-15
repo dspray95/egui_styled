@@ -17,10 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`.glow()` blurs the text instead of repainting it at offsets.** The blur runs on the CPU, is cached as a texture and drawn as a single quad. Before, the text was redrawn up to 384 times per frame. The glow is softer now, closer to CSS `text-shadow`. 100 glowing labels went from 1 to 5 ms per frame down to 0.2 ms. Changing a glowing label's text costs about 25 µs to re-blur.
 - **`StyledButton` and the `StyledComboBox` trigger fall back to `weak_bg_fill` when `bg` is unset**, which is what egui's own buttons paint. They used `bg_fill`, so they came out grey in egui menus and popups (where `weak_bg_fill` is transparent) and a shade lighter than egui's buttons in the default dark theme.
 - **`StyledComboBox::show` is generic over the body's return value**, returning `InnerResponse<Option<R>>` like egui's `show_ui`. Existing `()` bodies are unaffected.
 - **`StyledComboBox` now builds its own trigger and popup** from egui's `WidgetAtom` and `Popup`, rather than wrapping `egui::ComboBox`, so the popup frame can be a `StyledFrame`. The trigger's look and its popup state id are unchanged.
 - **`StyledComboBox` `padding` is now inside the trigger**, mapped to `button_padding` as on `StyledButton` (asymmetric padding collapses to the max per axis). It used to add unfilled space around the trigger. Combo boxes with `padding` change size.
+
+### Deprecated
+
+- **`StyledLabel::glow_quality` and `GlowQuality`** do nothing now that glow is a blur.
 
 ### Fixed
 

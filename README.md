@@ -543,9 +543,8 @@ tags.show(ui);
 
 ### Text effects
 
-`StyledLabel` exposes glyph-level effects by stamping the laid-out text at
-offsets and colors, so the effect follows the letterforms rather than a
-bounding box.
+`StyledLabel` exposes glyph-level effects that follow the letterforms rather
+than a bounding box.
 
 **Animation stays consumer-side**: compute intensity, scale, or offset in your
 own state and pass the current value each frame.
@@ -581,9 +580,8 @@ Styled::label("000123456")
 Effects compose: a single label can carry glow, outline, multiple shadows, and
 scale simultaneously.
 
-Glow is the most expensive text primitive - egui has no blur pass, so it's
-approximated by stamping the text many times on a Vogel disk. The
-default quality suits typical UI usage; tune with `.glow_quality(n)` if needed.
+Glow is a Gaussian blur of the text, similar to CSS `text-shadow`. The blur is
+cached per text and radius, so animating `intensity` or the color doesn't re-blur.
 
 ### Gradients & glow
 
@@ -754,9 +752,9 @@ Things that are intentionally out of scope or not yet solved:
 For ordinary tool UIs this is usually fine. Profile if you render very large
 numbers of styled widgets per frame.
 
-**Text glow is the most expensive primitive** - it stamps the glyph run many
-times. Lower `.glow_quality(n)` if you render lots of glowing labels
-simultaneously.
+**Glow is cached.** Each glowing label draws one textured quad per frame. Changing
+its text or animating its radius re-blurs it on the CPU, around 20 to 30 µs for a
+short label.
 
 **Backdrop blur costs roughly 0.1 ms of CPU per blurred container per frame** over a
 busy animated backdrop, plus a few small GPU passes. When nothing under a container
