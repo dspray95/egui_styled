@@ -18,9 +18,18 @@ release_notes:
 	@grep -q '[^[:space:]]' $(NOTES) || (echo "No CHANGELOG section for $(VERSION)" && exit 1)
 	@echo "Release notes for v$(VERSION) written to $(NOTES)"
 
+# Fails unless HEAD is pushed and its CI run passed, so releases only come from green commits.
+ci_green:
+	@git fetch -q origin
+	@git merge-base --is-ancestor HEAD @{u} || (echo "HEAD isn't pushed yet" && exit 1)
+	@result=$$(gh run list --commit $$(git rev-parse HEAD) --workflow ci.yml --json status,conclusion -q '.[0] | "\(.status) \(.conclusion)"'); \
+	if [ "$$result" != "completed success" ]; then echo "CI for HEAD is not green (got: '$$result')"; exit 1; fi
+	@echo "CI is green for $$(git rev-parse --short HEAD)"
+
 # Publish to crates.io, tag the commit and create the GitHub release.
-# Before running: bump the version in Cargo.toml and rename [Unreleased] in CHANGELOG.md.
-publish: pre_publish release_notes
+# Before running: bump the version in Cargo.toml, rename [Unreleased] in CHANGELOG.md,
+# then push and wait for CI to pass.
+publish: ci_green pre_publish release_notes
 	cargo publish
 	git tag v$(VERSION)
 	git push origin v$(VERSION)
