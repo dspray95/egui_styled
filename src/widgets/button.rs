@@ -128,7 +128,7 @@ impl StyledButton {
             .unwrap_or_else(|| ui.make_persistent_id(ui.next_auto_id()));
 
         let pseudo = PseudoState::load(ui, id);
-        let per = self.style.resolve_per_state(ui.visuals());
+        let per = self.style.resolve_per_state_button(ui.visuals());
 
         let response = render_scoped(ui, visible, |ui| {
             let shadow_idx = ui.painter().add(Shape::Noop);
@@ -350,5 +350,25 @@ mod tests {
         run(&mut current, vec![press(false)]);
         assert_eq!(current, Tab::B);
         assert!(changed);
+    }
+
+    #[test]
+    fn unset_bg_paints_weak_bg_fill_like_egui() {
+        const WEAK: Color32 = Color32::from_rgb(7, 8, 9);
+        const STRONG: Color32 = Color32::from_rgb(90, 90, 90);
+        let ctx = egui::Context::default();
+        let out = crate::test_util::run_ui(&ctx, raw(vec![]), |ui| {
+            let w = &mut ui.visuals_mut().widgets.inactive;
+            w.weak_bg_fill = WEAK;
+            w.bg_fill = STRONG;
+            Styled::button("x").show(ui);
+        });
+        let shapes: Vec<Shape> = out.shapes.into_iter().map(|c| c.shape).collect();
+        let mut fills = Vec::new();
+        rect_fills(&shapes, &mut fills);
+        assert!(
+            fills.contains(&WEAK) && !fills.contains(&STRONG),
+            "{fills:?}"
+        );
     }
 }

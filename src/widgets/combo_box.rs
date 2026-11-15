@@ -323,14 +323,7 @@ impl StyledComboBox {
         let mut response = self
             .show(ui, |ui| {
                 for (value, text) in options.drain(..) {
-                    // egui buttons paint `weak_bg_fill`; `StyledButton` falls back to `bg_fill`.
-                    let w = &ui.visuals().widgets;
-                    let item = StyledButton::new(text)
-                        .full_width()
-                        .bg(w.inactive.weak_bg_fill)
-                        .hover_bg(w.hovered.weak_bg_fill)
-                        .active_bg(w.active.weak_bg_fill);
-                    let item = style(&value, item);
+                    let item = style(&value, StyledButton::new(text).full_width());
                     changed |= item.show_selectable(ui, current, value).changed();
                 }
             })
@@ -341,7 +334,8 @@ impl StyledComboBox {
         response
     }
 
-    /// The body runs in the popup, whose visuals carry the `item_*` / `selected_*` style.
+    /// The body runs in the popup. Styled widgets there inherit the `item_*` / `selected_*`
+    /// style for anything they don't set.
     ///
     /// Not a [`crate::StyledContainer`]: the body only runs while open, as in egui's `show_ui`.
     pub fn show<R>(
@@ -355,7 +349,7 @@ impl StyledComboBox {
             .id_override
             .unwrap_or_else(|| ui.make_persistent_id(self.id_salt));
         let pseudo = PseudoState::load(ui, id);
-        let per = self.style.resolve_per_state(ui.visuals());
+        let per = self.style.resolve_per_state_button(ui.visuals());
 
         let selected_text: WidgetText = match (self.font, self.style.font_size) {
             (Some(font), _) => rich(self.selected_text).font(font).into(),
@@ -960,11 +954,6 @@ mod tests {
             &mut colors,
         );
         assert!(colors.contains(&PANEL));
-        // The trigger's own fill is `bg_fill` too, so one is expected.
-        assert_eq!(
-            colors.iter().filter(|&&c| c == grey).count(),
-            1,
-            "{colors:?}"
-        );
+        assert!(!colors.contains(&grey), "{colors:?}");
     }
 }

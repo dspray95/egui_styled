@@ -1941,6 +1941,17 @@ impl SharedStyle {
         }
     }
 
+    /// [`resolve_per_state`](Self::resolve_per_state) for button-like widgets: unset `bg`
+    /// falls back to `weak_bg_fill`, which egui's buttons paint, not `bg_fill`.
+    pub(crate) fn resolve_per_state_button(&self, visuals: &Visuals) -> PerStateStyle {
+        let mut v = visuals.clone();
+        let w = &mut v.widgets;
+        for s in [&mut w.inactive, &mut w.hovered, &mut w.active, &mut w.open] {
+            s.bg_fill = s.weak_bg_fill;
+        }
+        self.resolve_per_state(&v)
+    }
+
     /// Resolve a `ResolvedStyle` for each interaction state independently.
     /// Use this in widget `show()` implementations so each state's colour is
     /// written into the matching `WidgetVisuals` slot.
