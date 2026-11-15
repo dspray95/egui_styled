@@ -184,8 +184,8 @@ fn build_mask(
     for row in &galley.rows {
         let v = &row.row.visuals;
         // Glyph quads as epaint tessellates them: lt, rt, lb, rb; italics shift the top edge.
-        for q in v.mesh.vertices[v.glyph_vertex_range.clone()].chunks_exact(4) {
-            let (lt, lb, rb) = (q[0], q[2], q[3]);
+        let (glyphs, _) = v.mesh.vertices[v.glyph_vertex_range.clone()].as_chunks::<4>();
+        for [lt, _rt, lb, rb] in glyphs {
             quads.push(Quad {
                 dst: [px(row.pos.x + lb.pos.x), px(row.pos.y + lt.pos.y)],
                 src: [lt.uv.x as usize, lt.uv.y as usize],
