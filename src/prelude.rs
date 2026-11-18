@@ -18,6 +18,7 @@ pub use crate::Gradient;
 pub use crate::GradientAxis;
 pub use crate::InnerGlow;
 pub use crate::LinearGradient;
+pub use crate::MeasureConfig;
 pub use crate::RadialExtent;
 pub use crate::RadialGradient;
 pub use crate::RadialLength;

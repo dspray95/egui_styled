@@ -9,6 +9,7 @@ pub struct StyledColumn {
     align: Option<Align>,
     justify: Option<Align>,
     style: SharedStyle,
+    id: Option<egui::Id>,
 }
 
 impl Default for StyledColumn {
@@ -24,7 +25,14 @@ impl StyledColumn {
             align: None,
             justify: None,
             style: SharedStyle::default(),
+            id: None,
         }
+    }
+
+    /// Stable id for measurement state; set one if siblings come and go.
+    pub fn id(mut self, id: impl std::hash::Hash + std::fmt::Debug) -> Self {
+        self.id = Some(egui::Id::unique(id));
+        self
     }
 
     /// Vertical spacing between children.
@@ -66,6 +74,7 @@ impl StyledColumn {
                 justify: self.justify,
                 gap: self.gap,
                 fill_size: None,
+                id: self.id,
             }
             .show(ui, body);
             InnerResponse::new(ir.inner, ir.response)
@@ -129,12 +138,10 @@ mod tests {
     }
 
     #[test]
-    fn column_full_height_justify_center_centers_on_second_frame() {
+    fn column_full_height_justify_center_centers_on_first_frame() {
         let ctx = egui::Context::default();
-        // Frame 1 measures invisibly; frame 2 renders centered.
-        run_full_height_justify(&ctx, Align::Center, 300.0);
         let (visible, cy, screen_cy) = run_full_height_justify(&ctx, Align::Center, 300.0);
-        assert!(visible, "content should be visible on the second frame");
+        assert!(visible);
         assert!(
             (cy - screen_cy).abs() < 2.0,
             "column content center y={cy} should be near screen center y={screen_cy}"
@@ -142,10 +149,9 @@ mod tests {
     }
 
     #[test]
-    fn column_full_height_justify_max_bottom_aligns_on_second_frame() {
+    fn column_full_height_justify_max_bottom_aligns_on_first_frame() {
         let ctx = egui::Context::default();
         let screen_h = 300.0;
-        run_full_height_justify(&ctx, Align::Max, screen_h);
         let (visible, cy, _) = run_full_height_justify(&ctx, Align::Max, screen_h);
         assert!(visible);
         assert!(

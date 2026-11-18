@@ -3,7 +3,7 @@ use std::panic::Location;
 use egui::{Align2, Context, Id, InnerResponse, Order, Pos2, Vec2};
 
 use crate::{
-    containers::frame::StyledFrame, impl_style_builders, style::shared_style::SharedStyle,
+    containers::frame::StyledFrame, impl_style_builders, measure, style::shared_style::SharedStyle,
 };
 
 /// Top-level positioned container - modal panels, backdrops, toasts.
@@ -23,11 +23,7 @@ use crate::{
 /// want to place the area's *center* at a projected world-space position, not
 /// its top-left.
 ///
-/// - [`fixed_pos_centered`](Self::fixed_pos_centered) (recommended) — uses
-///   last-frame's measured size to compute the offset. Stable for content
-///   whose size doesn't change frame-to-frame.
-/// - If you know the area's size up-front, prefer
-///   `fixed_pos(center - size / 2.0)` — no lag, no caching.
+/// Use [`fixed_pos_centered`](Self::fixed_pos_centered).
 pub struct StyledArea {
     id: Option<egui::Id>,
     caller: &'static Location<'static>,
@@ -94,22 +90,8 @@ impl StyledArea {
         self
     }
 
-    /// Place this area so its *center* lands at the given screen-space
-    /// position. Uses last-frame's measured size, cached in [`egui::Memory`]
-    /// under this area's id.
-    ///
-    /// **Trade-offs:**
-    /// - On the first frame an area with this id appears, there's no cached
-    ///   size yet — the area is placed at `pos` (top-left) and snaps to
-    ///   centered on the next frame. Visible pop unless the content is also
-    ///   fading in.
-    /// - Works cleanly for stable-size content (HP bars, name plates).
-    ///   For content that resizes every frame (animating counters, growing
-    ///   text), centering will lag the size change by one frame.
-    /// - Set an explicit [`id`](Self::id) when calling this — auto-ids
-    ///   can shift under conditional rendering and lose the cached size.
-    ///
-    /// Wins over `fixed_pos` / `anchor` / `fill_screen` if multiple are set.
+    /// Place this area so its *center* lands at `pos`. Size changes are measured
+    /// (see [`crate::measure`]). Wins over `fixed_pos` / `anchor` / `fill_screen`.
     pub fn fixed_pos_centered(mut self, pos: Pos2) -> Self {
         self.fixed_pos_centered = Some(pos);
         self
@@ -188,17 +170,8 @@ impl StyledArea {
         }
 
         // Priority: fixed_pos_centered > fill_screen > fixed_pos > anchor > default_pos.
-        // `fixed_pos_centered` uses last-frame's measured size; on first
-        // appearance the area pops in at `pos` (top-left) and snaps centered
-        // on the next frame.
-        let size_cache_id = id.with("__centered_size");
         if let Some(center) = self.fixed_pos_centered {
-            let last_size = ctx.memory(|mem| {
-                mem.data
-                    .get_temp::<Vec2>(size_cache_id)
-                    .unwrap_or(Vec2::ZERO)
-            });
-            area = area.fixed_pos(center - last_size / 2.0);
+            area = area.pivot(Align2::CENTER_CENTER).fixed_pos(center);
         } else if self.fill_screen {
             area = area.fixed_pos(ctx.content_rect().min);
         } else if let Some(pos) = self.fixed_pos {
@@ -220,8 +193,13 @@ impl StyledArea {
             justify: self.justify,
             gap: self.gap,
             fill_size: self.fill_screen.then_some(screen_size),
+            id: None,
         };
-        let needs_size_cache = self.fixed_pos_centered.is_some();
+        // egui places a pivoted area from last pass's size, so a size change needs a rerun.
+        let pivoted =
+            self.fixed_pos_centered.is_some() || self.pivot.is_some_and(|p| p != Align2::LEFT_TOP);
+        // egui hides an area on its first pass to size it.
+        let first_show = egui::AreaState::load(ctx, id).is_none();
 
         let response = area.show(ctx, |ui| {
             if visible == Some(false) {
@@ -230,10 +208,14 @@ impl StyledArea {
             frame.show(ui, body).inner
         });
 
-        // Capture this frame's measured size so next frame can center.
-        if needs_size_cache {
-            let new_size = response.response.rect.size();
-            ctx.memory_mut(|mem| mem.data.insert_temp(size_cache_id, new_size));
+        if first_show {
+            measure::miss(ctx, id, "area");
+        }
+        if pivoted {
+            let size = response.response.rect.size();
+            measure::record(ctx, id.with("__area_size"), "area", size, |a, b| {
+                (*a - *b).length() > 0.5
+            });
         }
 
         response
@@ -270,6 +252,8 @@ mod tests {
         let run = || {
             let mut ids = vec![];
             let _ = crate::test_util::run_ui(&ctx, egui::RawInput::default(), |ui| {
+                // A first-show frame runs two passes; keep the last.
+                ids.clear();
                 for _ in 0..2 {
                     ids.push(StyledArea::new().show(ui.ctx(), |_| {}).response.layer_id);
                 }
@@ -285,6 +269,31 @@ mod tests {
         let first = run();
         assert!(first[0] != first[1] && first[1] != first[2], "{first:?}");
         assert_eq!(first, run(), "same ids next frame");
+    }
+
+    #[test]
+    fn fixed_pos_centered_is_centred_on_first_frame_and_after_resizing() {
+        let ctx = Context::default();
+        let center = pos2(300.0, 200.0);
+        let run = |text: &str| {
+            let mut out = (Rect::NOTHING, false);
+            let _ = crate::test_util::run_ui(&ctx, egui::RawInput::default(), |ui| {
+                let r = StyledArea::new()
+                    .id("centred")
+                    .fixed_pos_centered(center)
+                    .show(ui.ctx(), |ui| {
+                        out.1 = ui.is_visible();
+                        ui.label(text);
+                    });
+                out.0 = r.response.rect;
+            });
+            out
+        };
+        for text in ["short", "short", "a much longer line of text"] {
+            let (rect, visible) = run(text);
+            assert!(visible, "{text}: hidden");
+            assert!((rect.center() - center).length() < 1.0, "{text}: {rect:?}");
+        }
     }
 
     #[test]
@@ -369,8 +378,6 @@ mod tests {
             ..Default::default()
         };
 
-        // Frame 1 measures the content invisibly (no cached height yet); frame 2
-        // renders it visibly, already centered. This avoids a visible pop.
         let run_frame = |ctx: &Context, raw: egui::RawInput| -> (bool, f32, f32) {
             let mut content_visible = true;
             let mut widget_center_y = 0.0f32;
@@ -391,17 +398,9 @@ mod tests {
             (content_visible, widget_center_y, screen_center_y)
         };
 
-        let (visible_1, _, _) = run_frame(&ctx, input.clone());
-        assert!(
-            !visible_1,
-            "content should be hidden on the first frame while its height is measured"
-        );
-
-        let (visible_2, widget_center_y, screen_center_y) = run_frame(&ctx, input);
-        assert!(
-            visible_2,
-            "content should be visible once its height has been measured"
-        );
+        // Right on the first frame: the measuring pass is discarded.
+        let (visible, widget_center_y, screen_center_y) = run_frame(&ctx, input);
+        assert!(visible);
         assert!(
             (widget_center_y - screen_center_y).abs() < 2.0,
             "widget center y={widget_center_y} should be near screen center y={screen_center_y}"

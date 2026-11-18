@@ -1,6 +1,10 @@
-use egui::{Align, Layout, Response, Ui};
+use egui::{Align, Layout, Rect, Response, Sense, Ui, UiBuilder, Vec2};
 
-use crate::{containers::frame::StyledFrame, style::shared_style::SharedStyle};
+use crate::{
+    containers::{frame::StyledFrame, row_item},
+    measure,
+    style::shared_style::SharedStyle,
+};
 
 /// A single child of a [`StyledWrappingRow`], rendered once into the row's `Ui`.
 type ItemFn<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
@@ -9,7 +13,7 @@ type ItemFn<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 /// width (CSS `flex-wrap: wrap`).
 ///
 /// Unlike egui's native `with_main_wrap`, this measures each item's natural
-/// width on a one-frame invisible pass, then lays the items out line by line.
+/// width (see [`crate::measure`]), then lays the items out line by line.
 /// That makes it work with **scope-isolated styled widgets** (`Styled::button`,
 /// etc.), which egui's own wrapping skips because each one reserves its rect at
 /// the cursor without consulting the wrap layout.
@@ -29,11 +33,18 @@ pub struct StyledWrappingRow<'a> {
     pub(crate) align: Option<Align>,
     pub(crate) style: SharedStyle,
     pub(crate) items: Vec<ItemFn<'a>>,
+    pub(crate) id: Option<egui::Id>,
 }
 
 impl<'a> StyledWrappingRow<'a> {
     pub fn item(mut self, f: impl FnOnce(&mut Ui) + 'a) -> Self {
         self.items.push(Box::new(f));
+        self
+    }
+
+    /// Stable id for measurement state; set one if siblings come and go.
+    pub fn id(mut self, id: impl std::hash::Hash + std::fmt::Debug) -> Self {
+        self.id = Some(egui::Id::unique(id));
         self
     }
 
@@ -45,6 +56,7 @@ impl<'a> StyledWrappingRow<'a> {
         let gap = self.gap;
         let cross = self.align.unwrap_or(Align::Center);
         let mut items = self.items;
+        let id_override = self.id;
         let n = items.len();
 
         let mut render = move |ui: &mut Ui| {
@@ -54,80 +66,70 @@ impl<'a> StyledWrappingRow<'a> {
             let avail = ui.available_width();
             // Restored inside each item so the row's own gap doesn't leak into it.
             let spacing = ui.spacing().item_spacing;
-            // Per-position stable id for the cross-frame width cache (same
-            // pattern as the distribution / vertical-justify caches).
-            let id = ui
-                .make_persistent_id(ui.next_auto_id())
+            let line_h = ui.spacing().interact_size.y;
+            let id = id_override
+                .unwrap_or_else(|| ui.make_persistent_id(ui.next_auto_id()))
                 .with("__wrap_widths");
-            let cached: Option<Vec<f32>> = ui.ctx().memory(|m| m.data.get_temp::<Vec<f32>>(id));
 
-            match cached {
-                Some(widths) if widths.len() == n => {
-                    // Greedy line assignment from the measured item widths.
-                    let lines = assign_lines(&widths, gap, avail);
-                    let mut it = items.drain(..);
-                    let mut drawn = Vec::with_capacity(n);
-                    let resp = ui
-                        .vertical(|ui| {
-                            ui.spacing_mut().item_spacing.y = gap;
-                            for line in lines {
-                                let initial =
-                                    egui::vec2(ui.available_width(), ui.spacing().interact_size.y);
-                                ui.allocate_ui_with_layout(
-                                    initial,
-                                    Layout::left_to_right(cross),
-                                    |ui| {
-                                        ui.spacing_mut().item_spacing.x = gap;
-                                        for _ in 0..line {
-                                            if let Some(item) = it.next() {
-                                                let r = ui.scope(|ui| {
-                                                    ui.spacing_mut().item_spacing = spacing;
-                                                    item(ui);
-                                                });
-                                                drawn.push(r.response.rect.width());
+            let cached = measure::cached::<Vec<f32>>(ui.ctx(), id);
+            // One scope on both paths, so siblings' positional ids match across passes.
+            let (resp, widths) = ui
+                .scope(|ui| match cached {
+                    Some(widths) if widths.len() == n => {
+                        let lines = assign_lines(&widths, gap, avail);
+                        let mut it = items.drain(..);
+                        let mut drawn = Vec::with_capacity(n);
+                        let resp = ui
+                            .vertical(|ui| {
+                                ui.spacing_mut().item_spacing.y = gap;
+                                for line in lines {
+                                    let initial = egui::vec2(ui.available_width(), line_h);
+                                    ui.allocate_ui_with_layout(
+                                        initial,
+                                        Layout::left_to_right(cross),
+                                        |ui| {
+                                            ui.spacing_mut().item_spacing.x = gap;
+                                            for item in it.by_ref().take(line) {
+                                                let k = drawn.len();
+                                                let r = row_item(ui, id.with(k), spacing, item);
+                                                drawn.push(r.rect.width());
                                             }
-                                        }
-                                    },
-                                );
-                            }
-                        })
-                        .response;
-                    // Items can change size (text, fonts, state): re-flow from what was drawn.
-                    let changed = drawn.len() == widths.len()
-                        && drawn.iter().zip(&widths).any(|(d, w)| (d - w).abs() > 0.5);
-                    if changed {
-                        ui.ctx().memory_mut(|m| m.data.insert_temp(id, drawn));
-                        ui.ctx().request_repaint();
-                    }
-                    resp
-                }
-                _ => {
-                    // Measure pass: render invisibly with zero spacing and record
-                    // each item's natural width, then repaint to lay out for real.
-                    let mut widths = Vec::with_capacity(n);
-                    let resp = ui
-                        .scope(|ui| {
-                            ui.set_invisible();
-                            ui.horizontal(|ui| {
-                                ui.spacing_mut().item_spacing.x = 0.0;
-                                for item in items.drain(..) {
-                                    let r = ui
-                                        .scope(|ui| {
-                                            ui.spacing_mut().item_spacing = spacing;
-                                            item(ui);
-                                        })
-                                        .response
-                                        .rect;
-                                    widths.push(r.width());
+                                        },
+                                    );
                                 }
-                            });
-                        })
-                        .response;
-                    ui.ctx().memory_mut(|m| m.data.insert_temp(id, widths));
-                    ui.ctx().request_repaint();
-                    resp
-                }
-            }
+                            })
+                            .response;
+                        (resp, drawn)
+                    }
+                    // Unmeasured or item count changed: measure off-layout, reserve the wrapped size.
+                    _ => {
+                        // One row high: a centred cross-axis stretches items to the full height.
+                        let row = Rect::from_min_size(
+                            ui.available_rect_before_wrap().min,
+                            Vec2::new(avail, line_h),
+                        );
+                        let mut child = ui.new_child(
+                            UiBuilder::new()
+                                .invisible()
+                                .max_rect(row)
+                                .layout(Layout::left_to_right(cross)),
+                        );
+                        child.spacing_mut().item_spacing.x = 0.0;
+                        let sizes: Vec<Vec2> = items
+                            .drain(..)
+                            .enumerate()
+                            .map(|(k, item)| {
+                                row_item(&mut child, id.with(k), spacing, item).rect.size()
+                            })
+                            .collect();
+                        let size = wrapped_size(&sizes, gap, avail, line_h);
+                        let (_, resp) = ui.allocate_exact_size(size, Sense::hover());
+                        (resp, sizes.iter().map(|s| s.x).collect())
+                    }
+                })
+                .inner;
+            measure::record(ui.ctx(), id, "wrap", widths, |a, b| widths_differ(a, b));
+            resp
         };
 
         if self.style.has_frame_styles() {
@@ -137,6 +139,7 @@ impl<'a> StyledWrappingRow<'a> {
                 justify: None,
                 gap: None,
                 fill_size: None,
+                id: self.id.map(|id| id.with("__frame")),
             }
             .show(ui, |ui| render(ui))
             .inner
@@ -169,6 +172,26 @@ fn assign_lines(widths: &[f32], gap: f32, avail: f32) -> Vec<usize> {
         lines.push(count);
     }
     lines
+}
+
+/// Size of `sizes` packed by [`assign_lines`]; lines are at least `line_h` tall.
+fn wrapped_size(sizes: &[Vec2], gap: f32, avail: f32, line_h: f32) -> Vec2 {
+    let widths: Vec<f32> = sizes.iter().map(|s| s.x).collect();
+    let mut total = Vec2::ZERO;
+    let mut start = 0;
+    for (i, count) in assign_lines(&widths, gap, avail).into_iter().enumerate() {
+        let line = &sizes[start..start + count];
+        start += count;
+        let w = line.iter().map(|s| s.x).sum::<f32>() + gap * (count - 1) as f32;
+        let h = line.iter().map(|s| s.y).fold(line_h, f32::max);
+        total.x = total.x.max(w);
+        total.y += h + if i > 0 { gap } else { 0.0 };
+    }
+    total
+}
+
+fn widths_differ(a: &[f32], b: &[f32]) -> bool {
+    a.len() != b.len() || a.iter().zip(b).any(|(x, y)| (x - y).abs() > 0.5)
 }
 
 #[cfg(test)]

@@ -468,11 +468,6 @@ Styled::stack()
     .show(ui);
 ```
 
-> **Note on interactivity in stacks:** `StyledStack` translates its shapes
-> after layout, so interactive widgets inside translated layers are hit-tested
-> at the pre-translation position. Fine for labels and visual effects; avoid
-> burying a button deep inside a centered stack.
-
 > **`.extend()`** on `StyledLabel` uses `TextWrapMode::Extend`: natural width,
 > no wrapping, no truncation. Especially useful inside stacks and tight rows.
 
@@ -513,7 +508,7 @@ Styled::frame()
 ```
 
 **Distribution** - three CSS style `justify-content` modes on `StyledRow`. Each
-measures item widths with an invisible first pass, then distributes slack:
+measures item widths (see [Measurement](#measurement)), then distributes slack:
 
 ```rust
 // ends pinned, equal gaps between
@@ -528,8 +523,8 @@ Styled::row().full_width().bg(nav_bg).padding(10.0).space_between()
 ```
 
 **Wrapping rows** - children flow onto new lines as the container narrows.
-Uses a cross-frame measurement pass so styled widgets (which egui's native
-`with_main_wrap` can't wrap) participate correctly:
+Measures item widths (see [Measurement](#measurement)) so styled widgets, which
+egui's native `with_main_wrap` can't wrap, participate correctly:
 
 ```rust
 let mut tags = Styled::row().full_width().gap(6.0).wrap();
@@ -540,6 +535,37 @@ for tag in ["egui", "rust", "ui", "responsive", "widgets"] {
 }
 tags.show(ui);
 ```
+
+### Measurement
+
+Wrapping and distributed rows, vertical justify, stacks, shrink-to-fit frames and
+centred areas lay out from their content's size. They measure what they drew, and
+when that changes (or on first show) they ask egui to rerun the frame, so the
+measuring pass is never shown.
+
+**Pass safety:** on those frames your UI code runs twice. egui input is safe (events
+go to the first pass only), but code that toggles or accumulates your own state per
+call (`if key_pressed { open = !open }` on engine input, `t += dt`) applies twice.
+Move it outside the UI closure, or make it idempotent.
+
+```rust
+// Off: changes settle one frame late instead (unmeasured content stays hidden, never misplaced).
+Styled::set_multipass(ctx, false);
+
+// Dev only: rerun every frame, so code that isn't pass-safe breaks reliably.
+Styled::debug_force_multipass(ctx, true);
+
+// Tuning and counters.
+Styled::set_measure_config(ctx, MeasureConfig { max_streak: 2, ..Default::default() });
+let stats = Styled::measure_stats(ctx);
+```
+
+Reruns are bounded: a container that keeps changing (an animation) falls back to a
+one-frame lag after `max_streak` frames, at most `budget.0` of any `budget.1` frames
+rerun, and a measurement that never settles is frozen after `max_changes` frames.
+
+Measured containers key their state by position. If siblings before one come and go,
+give it a stable `.id(...)`.
 
 ### Text effects
 
@@ -718,16 +744,12 @@ correctly.
 
 Things that are intentionally out of scope or not yet solved:
 
-- **Immediate-mode constraints still apply.** Features that need multi-pass
-  measurement - distribution, wrapping, vertical justify - use an invisible
-  measurement frame and settle on the next repaint.
+- **Measured layout reruns frames.** Your UI code must tolerate running twice in a
+  frame; see [Measurement](#measurement).
 - **Pseudo-state tracking has a 1-frame lag.** State is written to
   `egui::Memory` at the end of each frame and read at the start of the next.
   In practice this matches egui's frame-based interaction model and is not
   noticeable.
-- **Interactive widgets inside translated stacks are not reliable.**
-  `StyledStack` paints visually in the right place, but hit-testing still uses
-  the untranslated rect.
 - **Backdrop blur can't see paint callbacks.** Render that content to a texture
   instead. wgpu backend only (native, WebGPU, WebGL2); not glow.
 - **Not a CSS or flexbox engine.** Percentage sizing, wrapping, and
@@ -762,9 +784,8 @@ changes, last frame's blur is reused and the GPU work is skipped. Backdrops cont
 images (other than text) are always redrawn, since an image updated in place can't be
 detected. Measure with `EGUI_STYLED_BENCH=N` on `examples/backdrop_blur.rs`.
 
-Distribution and wrapping rows add a measurement frame on first render, then
-settle. After that their steady-state overhead is similar to other styled
-containers.
+Measured containers rerun the frame on first show and when their size changes, which
+costs a second UI pass for that frame. Steady state is a single pass.
 
 ---
 

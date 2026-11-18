@@ -13,6 +13,7 @@ pub struct StyledRow {
     align: Option<Align>,
     justify: Option<Align>,
     style: SharedStyle,
+    id: Option<egui::Id>,
 }
 
 impl Default for StyledRow {
@@ -28,7 +29,14 @@ impl StyledRow {
             align: None,
             justify: None,
             style: SharedStyle::default(),
+            id: None,
         }
+    }
+
+    /// Stable id for measurement state; set one if siblings come and go.
+    pub fn id(mut self, id: impl std::hash::Hash + std::fmt::Debug) -> Self {
+        self.id = Some(egui::Id::unique(id));
+        self
     }
 
     /// Horizontal spacing between children.
@@ -78,6 +86,7 @@ impl StyledRow {
             align: self.align,
             style: self.style,
             items: Vec::new(),
+            id: self.id,
         }
     }
 
@@ -88,6 +97,7 @@ impl StyledRow {
             align: self.align,
             style: self.style,
             items: Vec::new(),
+            id: self.id,
         }
     }
 
@@ -165,6 +175,7 @@ impl StyledRow {
                 justify: None,
                 gap: None,
                 fill_size: None,
+                id: self.id,
             }
             .show(ui, |ui| render(ui).inner);
             InnerResponse::new(ir.inner, ir.response)

@@ -1,3 +1,4 @@
+use crate::measure;
 use crate::state::PseudoState;
 
 use egui::{
@@ -1226,25 +1227,8 @@ fn cover_uv(intrinsic: Vec2, dest: Rect) -> Rect {
     }
 }
 
-/// Fade alpha for a background-image reveal. Stamps the first-`ready` time in
-/// `ctx` memory under `id`, so the image tint and (optionally) the body content
-/// fade in lockstep off the same clock. Returns 1.0 when `duration <= 0`, and
-/// 0.0 while `ready` is false — without stamping, so the clock only starts once
-/// the texture has actually landed.
-/// Vertically distribute body content within a container that has a known height.
-///
-/// Adds a top spacer of `(fill_height - cached_content_h) * justify_factor`,
-/// renders the body (invisibly on the first frame when no height is cached yet),
-/// then writes the measured content height back to memory and requests a repaint
-/// on that measurement frame so the content appears correctly positioned
-/// immediately on the next frame without a visible pop.
-///
-/// - `fill_height`: the container's total available height (e.g. `screen_size.y`
-///   or `ui.available_height()` before sizing calls).
-/// - `justify_factor`: 0.0 = top, 0.5 = center, 1.0 = bottom (from
-///   [`egui::Align::to_factor`]).
-/// - `content_h_id`: a stable [`egui::Id`] used to persist the measured height
-///   between frames. Derive with `ui.make_persistent_id(...).with("some_tag")`.
+/// Vertically place body content within a known `fill_height`; `justify_factor` 0 = top, 1 = bottom.
+/// Content height is measured (see [`crate::measure`]); unmeasured content renders invisibly.
 pub(crate) fn justify_body_vertically<R>(
     ui: &mut egui::Ui,
     fill_height: f32,
@@ -1252,7 +1236,7 @@ pub(crate) fn justify_body_vertically<R>(
     content_h_id: egui::Id,
     body: impl FnOnce(&mut egui::Ui) -> R,
 ) -> R {
-    let cached_h = ui.ctx().memory(|m| m.data.get_temp::<f32>(content_h_id));
+    let cached_h = measure::cached::<f32>(ui.ctx(), content_h_id);
     let top_pad = ((fill_height - cached_h.unwrap_or(0.0)) * justify_factor).max(0.0);
     ui.add_space(top_pad);
     let scope = ui.scope(|ui| {
@@ -1261,13 +1245,13 @@ pub(crate) fn justify_body_vertically<R>(
         }
         body(ui)
     });
-    let measured_h = scope.response.rect.height();
-    ui.ctx()
-        .memory_mut(|m| m.data.insert_temp(content_h_id, measured_h));
-    if cached_h.is_none() {
-        ui.ctx().request_repaint();
-    }
+    let h = scope.response.rect.height();
+    measure::record(ui.ctx(), content_h_id, "justify", h, differs);
     scope.inner
+}
+
+fn differs(a: &f32, b: &f32) -> bool {
+    (a - b).abs() > 0.5
 }
 
 /// How to distribute children horizontally across available width.
@@ -1308,11 +1292,8 @@ pub(crate) fn distribution_spacing(
     (l, g.max(min_gap))
 }
 
-/// Lay out a row of items with CSS-style distribution using a cross-frame W cache.
-///
-/// On the first frame (no cached W), renders items invisibly with zero spacing to
-/// measure content width, caches it, and requests a repaint. On subsequent frames,
-/// uses the cached W to compute leading space and inter-item gap per `mode`.
+/// Lay out a row with CSS-style distribution. Content width is measured
+/// (see [`crate::measure`]); unmeasured rows render invisibly at their predicted size.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn distribute_row_horizontally(
     ui: &mut egui::Ui,
@@ -1324,53 +1305,50 @@ pub(crate) fn distribute_row_horizontally(
     content_w_id: egui::Id,
     render_items: impl FnOnce(&mut egui::Ui),
 ) {
-    let cached_w = ui.ctx().memory(|m| m.data.get_temp::<f32>(content_w_id));
+    let cached_w = measure::cached::<f32>(ui.ctx(), content_w_id);
     let layout = egui::Layout::left_to_right(cross_align);
-    // Seed with a one-row height so a `left_to_right(Center)` layout does not
-    // balloon to fill the parent's full height (see the note in `StyledRow`).
+    // One row high, so a `left_to_right(Center)` layout doesn't fill the parent's height.
     let initial_size = egui::vec2(avail, ui.spacing().interact_size.y);
+    let spacing_for = |w: f32| distribution_spacing(mode, (avail - w).max(0.0), n, min_gap);
+    let gaps = n.saturating_sub(1) as f32;
 
-    if let Some(w) = cached_w {
-        let slack = (avail - w).max(0.0);
-        let (leading, gap) = distribution_spacing(mode, slack, n, min_gap);
-
-        let drawn = ui
-            .allocate_ui_with_layout(initial_size, layout, |ui| {
-                ui.spacing_mut().item_spacing.x = 0.0;
-                if leading > 0.0 {
-                    ui.add_space(leading);
-                }
-                ui.spacing_mut().item_spacing.x = gap;
-                render_items(ui);
-                ui.min_rect().width()
-            })
-            .inner;
-        // Content can change size (text, fonts, state): re-measure from what was drawn.
-        let content_w = drawn - leading - gap * n.saturating_sub(1) as f32;
-        if (content_w - w).abs() > 0.5 {
-            ui.ctx()
-                .memory_mut(|m| m.data.insert_temp(content_w_id, content_w));
-            ui.ctx().request_repaint();
-        }
-    } else {
-        // Measure frame: invisible, zero spacing, record content width.
-        let scope = ui.scope(|ui| {
-            ui.set_invisible();
-            ui.allocate_ui_with_layout(initial_size, layout, |ui| {
-                ui.spacing_mut().item_spacing.x = 0.0;
-                render_items(ui);
-                ui.min_rect().width()
-            })
-            .inner
-        });
-        let measured_w = scope.inner;
-        ui.ctx()
-            .memory_mut(|m| m.data.insert_temp(content_w_id, measured_w));
-        ui.ctx().request_repaint();
-    }
+    // One scope on both paths, so siblings' positional ids match across passes.
+    let content_w = ui
+        .scope(|ui| {
+            let Some(w) = cached_w else {
+                ui.set_invisible();
+                let w = ui
+                    .allocate_ui_with_layout(initial_size, layout, |ui| {
+                        ui.spacing_mut().item_spacing.x = 0.0;
+                        render_items(ui);
+                        ui.min_rect().width()
+                    })
+                    .inner;
+                // Reserve the laid-out width so a measuring parent sees the final size.
+                let (leading, gap) = spacing_for(w);
+                ui.set_min_width(leading + w + gap * gaps);
+                return w;
+            };
+            let (leading, gap) = spacing_for(w);
+            let drawn = ui
+                .allocate_ui_with_layout(initial_size, layout, |ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    if leading > 0.0 {
+                        ui.add_space(leading);
+                    }
+                    ui.spacing_mut().item_spacing.x = gap;
+                    render_items(ui);
+                    ui.min_rect().width()
+                })
+                .inner;
+            drawn - leading - gap * gaps
+        })
+        .inner;
+    measure::record(ui.ctx(), content_w_id, "distribute", content_w, differs);
 }
 
-/// Fade alpha for a background-image reveal. Stamps the first-`ready` time in
+/// Fade alpha for a background-image reveal, clocked from when the texture is first ready
+/// (stored under `id`), so tint and content fade in lockstep. 1.0 when `duration <= 0`.
 pub(crate) fn bgimg_fade_alpha(
     ctx: &egui::Context,
     id: egui::Id,

@@ -27,6 +27,7 @@ pub mod apply;
 pub mod backdrop;
 pub mod color;
 pub mod containers;
+pub mod measure;
 pub mod prelude;
 pub mod show;
 pub mod state;
@@ -48,6 +49,7 @@ pub use containers::row::StyledRow;
 pub use containers::spacer::StyledSpacer;
 pub use containers::stack::StyledStack;
 pub use containers::wrap::StyledWrappingRow;
+pub use measure::{MeasureConfig, MeasureStats};
 pub use show::{StyledContainer, StyledWidget};
 pub use style::shared_style::Distribution;
 pub use style::shared_style::{
@@ -79,6 +81,34 @@ use std::ops::RangeInclusive;
 pub struct Styled;
 
 impl Styled {
+    /// Rerun the pass when a measured container changes size, so it never shows stale.
+    /// UI code then runs twice on those frames, so it must not toggle state per call.
+    pub fn set_multipass(context: &egui::Context, on: bool) {
+        let mut config = measure::config(context);
+        config.multipass = on;
+        measure::set_config(context, config);
+    }
+
+    /// Current measurement tuning.
+    pub fn measure_config(context: &egui::Context) -> MeasureConfig {
+        measure::config(context)
+    }
+
+    /// Replace the measurement tuning. See [`MeasureConfig`].
+    pub fn set_measure_config(context: &egui::Context, config: MeasureConfig) {
+        measure::set_config(context, config);
+    }
+
+    /// Rerun, fallback and freeze counters since startup.
+    pub fn measure_stats(context: &egui::Context) -> MeasureStats {
+        measure::stats(context)
+    }
+
+    /// Dev only: rerun every frame, so code that isn't safe to run twice breaks reliably.
+    pub fn debug_force_multipass(context: &egui::Context, on: bool) {
+        measure::force_multipass(context, on);
+    }
+
     /// Start a styled frame (background, padding, border, corner radius).
     pub fn frame() -> StyledFrame {
         StyledFrame::new()

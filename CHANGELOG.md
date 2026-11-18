@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Same-frame measurement.** Wrapping and distributed rows, vertical justify, `StyledStack`, shrink-to-fit frames and centred `StyledArea`s now rerun the frame (egui `request_discard`) on first show and when their size changes, so a blank or stale layout is never shown. See the README's Measurement section, including the pass-safety rule.
+- **`Styled::set_multipass`, `set_measure_config`, `measure_config`, `measure_stats`** and **`debug_force_multipass`**, with `MeasureConfig` and `MeasureStats`.
+- **`.id(...)`** on `StyledFrame`, `StyledRow`, `StyledColumn`, `StyledStack`, `StyledDistributedRow` and `StyledWrappingRow`, to keep measurement state stable when siblings come and go.
+
+### Changed
+
+- **`StyledFrame` has a public `id` field.** Code building it with a struct literal needs `id: None`.
+- **Unmeasured content is hidden, never shown at a guessed position.** With multi-pass off, shrink-to-fit frames are now invisible on their first frame instead of full width.
+- **Vertical justify settles after a content height change** instead of waiting for the next input.
+- **Rerun frames run your UI code twice.** Code that toggles or accumulates its own state per call must tolerate that.
+
+### Fixed
+
+- **Interactive widgets inside `StyledStack` are hit-tested where they're painted**, including in centred stacks, and a stack with `.sense(Sense::click())` no longer swallows its children's clicks.
+- **Centred `StyledArea`s** are centred on their first frame and when their size changes, instead of one frame late.
+- **Aligned `StyledStack` layers are placed at their natural size.** Rows, frames and wrapping rows in `layer_aligned` / `layer_fixed` now sit where the alignment says, instead of at the top-left or stretched to fill the layer.
+
 ## [0.10.0] - 2026-11-15
 
 ### Added

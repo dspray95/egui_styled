@@ -1,7 +1,7 @@
-use egui::{Align, Color32, InnerResponse, Layout, Shape, Ui, UiBuilder};
+use egui::{Align, Color32, Id, InnerResponse, Layout, Shape, Ui, UiBuilder};
 
 use crate::{
-    impl_style_builders,
+    impl_style_builders, measure,
     state::PseudoState,
     style::shared_style::{
         BackdropSlot, SharedStyle, background_image_shape, bgimg_fade_alpha, border_gradient_mesh,
@@ -27,6 +27,8 @@ pub struct StyledFrame {
     pub justify: Option<Align>,
     pub gap: Option<f32>,
     pub fill_size: Option<egui::Vec2>,
+    /// Keys measurement and fade state. Defaults to the frame's position in the parent.
+    pub id: Option<Id>,
 }
 
 impl Default for StyledFrame {
@@ -43,7 +45,14 @@ impl StyledFrame {
             justify: None,
             gap: None,
             fill_size: None,
+            id: None,
         }
+    }
+
+    /// Stable id for measurement and fade state; set one if siblings come and go.
+    pub fn id(mut self, id: impl std::hash::Hash + std::fmt::Debug) -> Self {
+        self.id = Some(Id::unique(id));
+        self
     }
 
     /// Cross-axis (horizontal) alignment of the frame's children.
@@ -66,6 +75,49 @@ impl StyledFrame {
     }
 
     pub fn show<R>(self, ui: &mut Ui, body: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
+        let base_id = self
+            .id
+            .unwrap_or_else(|| ui.make_persistent_id(ui.next_auto_id()));
+        let shrink_id = self.shrinks_to_fit(ui).then(|| base_id.with("__shrink_w"));
+        let shrink_w = shrink_id.and_then(|id| measure::cached::<f32>(ui.ctx(), id));
+        if shrink_id.is_none() {
+            return self.show_impl(ui, base_id, None, None, body);
+        }
+        // Scoped either way so child ids match across passes; unmeasured is invisible, not full width.
+        let mut builder = UiBuilder::new();
+        if shrink_w.is_none() {
+            builder = builder.invisible();
+        }
+        ui.scope_builder(builder, |ui| {
+            self.show_impl(ui, base_id, shrink_id, shrink_w, body)
+        })
+        .inner
+    }
+
+    /// A centred vertical layout spans its full width, and so would a frame with no width
+    /// of its own: such frames measure their content and cap to it.
+    fn shrinks_to_fit(&self, ui: &Ui) -> bool {
+        let parent = *ui.layout();
+        parent.is_vertical()
+            && parent.horizontal_align() == Align::Center
+            && !parent.horizontal_justify()
+            && !self.style.full_width
+            && self.style.max_width.is_none()
+            && self.fill_size.is_none()
+            && self.align.is_none()
+            && self.justify.is_none()
+            && self.style.width_pct.is_none()
+            && self.style.aspect_ratio.is_none()
+    }
+
+    fn show_impl<R>(
+        self,
+        ui: &mut Ui,
+        base_id: Id,
+        shrink_id: Option<Id>,
+        shrink_w: Option<f32>,
+        body: impl FnOnce(&mut Ui) -> R,
+    ) -> InnerResponse<R> {
         if self.style.visible == Some(false) {
             ui.set_invisible();
         }
@@ -90,10 +142,7 @@ impl StyledFrame {
 
         let has_bg_image = self.style.background_image.is_some();
         let has_bg_gradient = self.style.bg_gradient.is_some();
-        let fade_id = has_bg_image.then(|| {
-            ui.make_persistent_id(ui.next_auto_id())
-                .with("__bgimg_fade_start")
-        });
+        let fade_id = has_bg_image.then(|| base_id.with("__bgimg_fade_start"));
 
         let mut frame = egui::Frame::default();
         // When a background image or bg_gradient is set we paint fill + layers + border
@@ -144,29 +193,7 @@ impl StyledFrame {
         let gap = self.gap;
         let fill_size = self.fill_size;
 
-        // Stable id for caching the measured content height used by vertical
-        // justify. Only allocated when justify is set (same lazy pattern as
-        // fade_id — avoids burning an auto-id slot when not needed).
-        let vjustify_id = justify.map(|_| {
-            ui.make_persistent_id(ui.next_auto_id())
-                .with("__vjustify_content_h")
-        });
-
-        // Shrink-to-fit: a centred vertical layout spans its full width, and so would a frame
-        // with no width of its own. Measure the content's natural width and cap to it.
-        let parent = *ui.layout();
-        let shrink_id = (parent.is_vertical()
-            && parent.horizontal_align() == Align::Center
-            && !parent.horizontal_justify()
-            && !full_width
-            && max_width.is_none()
-            && fill_size.is_none()
-            && align.is_none()
-            && justify.is_none()
-            && self.style.width_pct.is_none()
-            && self.style.aspect_ratio.is_none())
-        .then(|| ui.make_persistent_id(ui.next_auto_id()).with("__shrink_w"));
-        let shrink_w = shrink_id.and_then(|id| ui.ctx().memory(|m| m.data.get_temp::<f32>(id)));
+        let vjustify_id = justify.map(|_| base_id.with("__vjustify_content_h"));
 
         // Content reveal: when set, the body fades in together with the
         // background image (same id + duration → in lockstep). `None` unless
@@ -312,13 +339,9 @@ impl StyledFrame {
                             body,
                         );
                         let natural = r.response.rect.width();
-                        if shrink_w.is_none_or(|w| (w - natural).abs() > 0.5) {
-                            ui.ctx().memory_mut(|m| m.data.insert_temp(id, natural));
-                            // Re-run the pass so the change is never shown; repaint if discards are off.
-                            ui.ctx()
-                                .request_discard("StyledFrame shrink-to-fit width changed");
-                            ui.ctx().request_repaint();
-                        }
+                        measure::record(ui.ctx(), id, "shrink", natural, |a, b| {
+                            (a - b).abs() > 0.5
+                        });
                         r.inner
                     } else {
                         body(ui)
@@ -876,23 +899,24 @@ mod tests {
     }
 
     #[test]
-    fn full_height_justify_center_hides_on_first_frame() {
+    fn full_height_justify_without_multipass_hides_then_centres() {
         let ctx = egui::Context::default();
+        crate::Styled::set_multipass(&ctx, false);
         let (visible, _, _) = run_full_height_justify(&ctx, egui::Align::Center, 300.0);
+        assert!(!visible, "unmeasured content is hidden, never misplaced");
+        let (visible, cy, screen_cy) = run_full_height_justify(&ctx, egui::Align::Center, 300.0);
+        assert!(visible);
         assert!(
-            !visible,
-            "content should be invisible on the first frame while height is measured"
+            (cy - screen_cy).abs() < 2.0,
+            "cy={cy} screen_cy={screen_cy}"
         );
     }
 
     #[test]
-    fn full_height_justify_center_centers_on_second_frame() {
+    fn full_height_justify_center_centers_on_first_frame() {
         let ctx = egui::Context::default();
-        // Frame 1: measurement frame (invisible).
-        run_full_height_justify(&ctx, egui::Align::Center, 300.0);
-        // Frame 2: content renders centered.
         let (visible, cy, screen_cy) = run_full_height_justify(&ctx, egui::Align::Center, 300.0);
-        assert!(visible, "content should be visible on the second frame");
+        assert!(visible, "the measuring pass is discarded, not shown");
         assert!(
             (cy - screen_cy).abs() < 2.0,
             "content center y={cy} should be near screen center y={screen_cy}"
@@ -900,10 +924,9 @@ mod tests {
     }
 
     #[test]
-    fn full_height_justify_max_bottom_aligns_on_second_frame() {
+    fn full_height_justify_max_bottom_aligns_on_first_frame() {
         let ctx = egui::Context::default();
         let screen_h = 300.0;
-        run_full_height_justify(&ctx, egui::Align::Max, screen_h);
         let (visible, cy, _) = run_full_height_justify(&ctx, egui::Align::Max, screen_h);
         assert!(visible);
         // Bottom-aligned: content center should be near the bottom quarter.

@@ -1,10 +1,7 @@
-use egui::{
-    Align, Align2, Direction, Layout, Rect, Response, Sense, Shape, UiBuilder, Vec2,
-    emath::TSTransform,
-};
+use egui::{Align, Align2, Id, Layout, Rect, Response, Sense, UiBuilder, Vec2};
 
 use crate::{
-    containers::frame::StyledFrame, impl_style_builders, style::shared_style::SharedStyle,
+    containers::frame::StyledFrame, impl_style_builders, measure, style::shared_style::SharedStyle,
 };
 
 type LayerFn<'a> = Box<dyn FnOnce(&mut egui::Ui) + 'a>;
@@ -52,6 +49,7 @@ pub struct StyledStack<'a> {
     layers: Vec<Layer<'a>>,
     sense: Option<Sense>,
     style: SharedStyle,
+    id: Option<Id>,
 }
 
 impl<'a> Default for StyledStack<'a> {
@@ -66,7 +64,14 @@ impl<'a> StyledStack<'a> {
             layers: Vec::new(),
             sense: None,
             style: SharedStyle::default(),
+            id: None,
         }
+    }
+
+    /// Stable id for the stack's measured size; set one if siblings come and go.
+    pub fn id(mut self, id: impl std::hash::Hash + std::fmt::Debug) -> Self {
+        self.id = Some(Id::unique(id));
+        self
     }
 
     /// Add a layer at the shared origin (zero offset, top-left anchored).
@@ -165,24 +170,38 @@ impl<'a> StyledStack<'a> {
         let sense = self.sense.unwrap_or(Sense::hover());
         let layers = self.layers;
 
+        let id_override = self.id;
+
         let render = move |ui: &mut egui::Ui| {
-            // Children are painted *before* the stack is allocated, but in a
-            // centered/auto-sizing parent the final position isn't known until
-            // allocation (and `next_widget_position` can even be infinite). So
-            // paint at a provisional finite origin, allocate the measured size
-            // to get the parent-determined position, then translate just this
-            // stack's shapes onto it. Bracketing with `Shape::Noop` markers
-            // limits the transform to our own shapes (no extra layer needed, so
-            // z-order stays correct and multiple stacks don't collide).
-            let layer_id = ui.layer_id();
-            let start = ui.painter().add(Shape::Noop);
-
+            let id = id_override
+                .unwrap_or_else(|| ui.make_persistent_id(ui.next_auto_id()))
+                .with("__stack_bounds");
+            let n = layers.len();
+            // A changed layer count is a miss: sizes are matched by index.
+            let cached = measure::cached::<Measured>(ui.ctx(), id).filter(|m| m.sizes.len() == n);
             let content = ui.ctx().content_rect();
-            let origin = content.min;
             let available = content.size();
-            let mut union: Option<Rect> = None;
 
-            for layer in layers {
+            // Measured: allocate first, so layers render in place and win hit tests.
+            // Unmeasured: render invisibly at a provisional origin.
+            let (origin, allocated) = match &cached {
+                Some(m) => {
+                    let (rect, response) = ui.allocate_exact_size(m.bounds.size(), sense);
+                    (rect.min - m.bounds.min.to_vec2(), Some(response))
+                }
+                None => (content.min, None),
+            };
+
+            // Aligned content is placed from its measured size. The max rect keeps the frame's
+            // size, so text wraps as before and growth isn't clamped to last frame's size.
+            let place = |i: usize, frame: Rect, align: Align2| {
+                let size = cached.as_ref().map_or(frame.size(), |m| m.sizes[i]);
+                Rect::from_min_size(align.align_size_within_rect(size, frame).min, frame.size())
+            };
+
+            let mut union: Option<Rect> = None;
+            let mut sizes = Vec::with_capacity(n);
+            for (i, layer) in layers.into_iter().enumerate() {
                 let Layer {
                     offset,
                     align,
@@ -190,62 +209,51 @@ impl<'a> StyledStack<'a> {
                     render,
                 } = layer;
 
-                let (max_rect, layout) = match (fixed_size, align) {
-                    // Fixed footprint: content aligned within the declared box.
-                    // The box is anchored at the shared origin; content may overflow.
-                    (Some(size), Some(a)) => {
-                        (Rect::from_min_size(origin, size), Some(layout_for(a)))
-                    }
+                let max_rect = match (fixed_size, align) {
+                    // Fixed footprint: content aligned within the declared box, may overflow.
+                    (Some(size), Some(a)) => place(i, Rect::from_min_size(origin, size), a),
                     // Align within the frame established by preceding layers.
                     (None, Some(a)) => {
                         let frame = union.unwrap_or(Rect::from_min_size(origin, Vec2::ZERO));
-                        (frame.translate(offset), Some(layout_for(a)))
+                        place(i, frame.translate(offset), a)
                     }
-                    // Anchor at the shared origin, natural size. The layout must
-                    // be set explicitly: without it the child inherits the parent
-                    // ui's layout, and a centered cross-axis (e.g. a row aligned
-                    // Center) expands a single child's min_rect to the full
-                    // available extent, ballooning the stack's allocated size.
-                    (None, None) => (
-                        Rect::from_min_size(origin + offset, available),
-                        Some(Layout::top_down(Align::Min)),
-                    ),
+                    // Natural size at the origin.
+                    (None, None) => Rect::from_min_size(origin + offset, available),
                     (Some(_), None) => unreachable!("fixed_size is always paired with align"),
                 };
 
-                let mut builder = UiBuilder::new().max_rect(max_rect);
-                if let Some(layout) = layout {
-                    builder = builder.layout(layout);
+                // Explicit id: allocating first on a hit would otherwise shift the child's id.
+                // Explicit layout: an inherited centred cross-axis would stretch the child.
+                let mut builder = UiBuilder::new()
+                    .scope_id(id.with(i))
+                    .max_rect(max_rect)
+                    .layout(Layout::top_down(Align::Min));
+                if allocated.is_none() {
+                    builder = builder.invisible();
                 }
                 let mut child = ui.new_child(builder);
                 render(&mut child);
+                sizes.push(child.min_rect().size());
 
-                // For fixed-footprint layers contribute only the declared size to the
-                // union, not the measured min_rect — that's the point of the API.
+                // Fixed layers contribute their declared size, not what they drew.
                 let contribution = match fixed_size {
                     Some(size) => Rect::from_min_size(origin, size),
                     None => child.min_rect().translate(-offset),
                 };
-                union = Some(match union {
-                    None => contribution,
-                    Some(u) => u.union(contribution),
-                });
+                union = Some(union.map_or(contribution, |u| u.union(contribution)));
             }
 
             let union = union.unwrap_or(Rect::from_min_size(origin, Vec2::ZERO));
-            let (final_rect, response) = ui.allocate_exact_size(union.size(), sense);
-            let end = ui.painter().add(Shape::Noop);
-
-            let delta = final_rect.min - union.min;
-            if delta != Vec2::ZERO {
-                ui.ctx().graphics_mut(|g| {
-                    g.entry(layer_id).transform_range(
-                        start,
-                        end,
-                        TSTransform::from_translation(delta),
-                    );
-                });
-            }
+            let response =
+                allocated.unwrap_or_else(|| ui.allocate_exact_size(union.size(), sense).1);
+            let bounds = union.translate(-origin.to_vec2());
+            measure::record(
+                ui.ctx(),
+                id,
+                "stack",
+                Measured { bounds, sizes },
+                Measured::differs,
+            );
             response
         };
 
@@ -256,6 +264,7 @@ impl<'a> StyledStack<'a> {
                 justify: None,
                 gap: None,
                 fill_size: None,
+                id: id_override.map(|id| id.with("__frame")),
             }
             .show(ui, render)
             .inner
@@ -265,42 +274,170 @@ impl<'a> StyledStack<'a> {
     }
 }
 
-/// Map an `Align2` to a `Layout` that places a single child at that position
-/// within its `max_rect`. egui's `Layout` cannot center a single item on its
-/// main axis, so center/center uses `centered_and_justified` and edge/corner
-/// positions pick a packing direction plus cross-axis alignment.
-fn layout_for(align: Align2) -> Layout {
-    let Align2([ax, ay]) = align;
-    match (ax, ay) {
-        (Align::Center, Align::Center) => Layout::centered_and_justified(Direction::TopDown),
-        // One axis centered, the other on an edge.
-        (_, Align::Center) => {
-            let dir = if ax == Align::Max {
-                Direction::RightToLeft
-            } else {
-                Direction::LeftToRight
-            };
-            Layout::from_main_dir_and_cross_align(dir, Align::Center)
-        }
-        (Align::Center, _) => {
-            let dir = if ay == Align::Max {
-                Direction::BottomUp
-            } else {
-                Direction::TopDown
-            };
-            Layout::from_main_dir_and_cross_align(dir, Align::Center)
-        }
-        // Corner: vertical packing direction for the y axis, cross align for x.
-        (_, _) => {
-            let dir = if ay == Align::Max {
-                Direction::BottomUp
-            } else {
-                Direction::TopDown
-            };
-            Layout::from_main_dir_and_cross_align(dir, ax)
-        }
+/// What a stack measures: the layer union relative to the layer origin (offsets can make
+/// `min` negative) and each layer's content size.
+#[derive(Clone, Debug)]
+struct Measured {
+    bounds: Rect,
+    sizes: Vec<Vec2>,
+}
+
+impl Measured {
+    fn differs(a: &Self, b: &Self) -> bool {
+        let moved = |p: egui::Pos2, q: egui::Pos2| (p - q).length() > 0.5;
+        moved(a.bounds.min, b.bounds.min)
+            || moved(a.bounds.max, b.bounds.max)
+            || a.sizes.len() != b.sizes.len()
+            || a.sizes
+                .iter()
+                .zip(&b.sizes)
+                .any(|(x, y)| (*x - *y).length() > 0.5)
     }
 }
 
 impl_style_builders!(StyledStack<'_>);
 crate::impl_styled_widget!(['a], StyledStack<'a>);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::{Context, Event, Modifiers, PointerButton, Pos2, RawInput};
+
+    /// Centred stack with a button over a background; returns the button's rect and click.
+    fn run(ctx: &Context, sense: Sense, events: Vec<Event>) -> (Rect, bool) {
+        let raw = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(800.0, 600.0))),
+            events,
+            ..Default::default()
+        };
+        let mut out = (Rect::NOTHING, false);
+        let _ = crate::test_util::run_ui(ctx, raw, |ui| {
+            ui.vertical_centered(|ui| {
+                StyledStack::new()
+                    .sense(sense)
+                    .layer(|ui| {
+                        ui.add_space(60.0);
+                        ui.label("a fairly wide background layer");
+                    })
+                    .layer_aligned(Align2::CENTER_CENTER, |ui| {
+                        let r = ui.button("Click");
+                        out = (r.rect, r.clicked());
+                    })
+                    .show(ui);
+            });
+        });
+        out
+    }
+
+    fn click_at(pos: Pos2) -> Vec<Event> {
+        let button = |pressed| Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        vec![button(true), button(false)]
+    }
+
+    fn assert_clickable_where_painted(sense: Sense) {
+        let ctx = Context::default();
+        let (rect, _) = run(&ctx, sense, vec![]);
+        assert!(
+            (rect.center().x - 400.0).abs() < 1.0,
+            "painted centred: {rect:?}"
+        );
+        let _ = run(&ctx, sense, vec![Event::PointerMoved(rect.center())]);
+        let (_, clicked) = run(&ctx, sense, click_at(rect.center()));
+        assert!(clicked, "button at {rect:?} should take the click");
+    }
+
+    /// A 300x100 background with `content` in a centred layer; returns the content's rect.
+    fn centred_in_layer(ctx: &Context, content: impl Fn(&mut egui::Ui) -> Rect) -> Rect {
+        let mut out = Rect::NOTHING;
+        let _ = crate::test_util::run_ui(ctx, RawInput::default(), |ui| {
+            StyledStack::new()
+                .layer(|ui| {
+                    ui.allocate_space(egui::vec2(300.0, 100.0));
+                })
+                .layer_aligned(Align2::CENTER_CENTER, |ui| out = content(ui))
+                .show(ui);
+        });
+        out
+    }
+
+    fn assert_centred(rect: Rect, what: &str) {
+        let centre = egui::pos2(150.0, 50.0);
+        assert!((rect.center() - centre).length() < 1.0, "{what}: {rect:?}");
+        assert!(
+            rect.width() < 290.0,
+            "{what} kept its natural width: {rect:?}"
+        );
+    }
+
+    #[test]
+    fn containers_are_centred_in_a_centred_layer() {
+        let row = |ui: &mut egui::Ui| {
+            crate::Styled::row()
+                .gap(4.0)
+                .show(ui, |ui| {
+                    ui.label("a");
+                    ui.label("b");
+                })
+                .response
+                .rect
+        };
+        let frame = |ui: &mut egui::Ui| {
+            crate::Styled::frame()
+                .padding(4.0)
+                .show(ui, |ui| {
+                    ui.label("framed");
+                })
+                .response
+                .rect
+        };
+        let wrap = |ui: &mut egui::Ui| {
+            crate::Styled::row()
+                .gap(4.0)
+                .wrap()
+                .item(|ui| {
+                    ui.label("one");
+                })
+                .item(|ui| {
+                    ui.label("two");
+                })
+                .show(ui)
+                .rect
+        };
+        for (what, content) in [
+            ("row", &row as &dyn Fn(&mut egui::Ui) -> Rect),
+            ("frame", &frame),
+            ("wrap", &wrap),
+        ] {
+            let ctx = Context::default();
+            assert_centred(centred_in_layer(&ctx, content), what);
+        }
+    }
+
+    #[test]
+    fn growing_content_stays_centred() {
+        let ctx = Context::default();
+        let label = |text: &'static str| move |ui: &mut egui::Ui| ui.label(text).rect;
+        assert_centred(centred_in_layer(&ctx, label("short")), "short");
+        let grown = centred_in_layer(&ctx, label("a considerably longer label"));
+        assert_centred(grown, "grown");
+        assert!(
+            grown.width() > 120.0,
+            "not clamped to the old width: {grown:?}"
+        );
+    }
+
+    #[test]
+    fn button_in_centred_stack_is_clickable_where_painted() {
+        assert_clickable_where_painted(Sense::hover());
+    }
+
+    #[test]
+    fn clickable_stack_does_not_swallow_child_clicks() {
+        assert_clickable_where_painted(Sense::click());
+    }
+}

@@ -1,7 +1,7 @@
 use egui::{Align, Response, Ui};
 
 use crate::{
-    containers::frame::StyledFrame,
+    containers::{frame::StyledFrame, row_item},
     style::shared_style::{Distribution, SharedStyle, distribute_row_horizontally},
 };
 
@@ -14,11 +14,18 @@ pub struct StyledDistributedRow<'a> {
     pub(crate) align: Option<Align>,
     pub(crate) style: SharedStyle,
     pub(crate) items: Vec<ItemFn<'a>>,
+    pub(crate) id: Option<egui::Id>,
 }
 
 impl<'a> StyledDistributedRow<'a> {
     pub fn item(mut self, f: impl FnOnce(&mut Ui) + 'a) -> Self {
         self.items.push(Box::new(f));
+        self
+    }
+
+    /// Stable id for measurement state; set one if siblings come and go.
+    pub fn id(mut self, id: impl std::hash::Hash + std::fmt::Debug) -> Self {
+        self.id = Some(egui::Id::unique(id));
         self
     }
 
@@ -32,6 +39,7 @@ impl<'a> StyledDistributedRow<'a> {
         let min_gap = self.min_gap;
         let cross_align = self.align.unwrap_or(Align::Center);
         let mut items = self.items;
+        let id_override = self.id;
 
         // render is called inside the (optional) StyledFrame, so avail and id
         // are captured inside the closure to reflect post-padding dimensions.
@@ -40,20 +48,13 @@ impl<'a> StyledDistributedRow<'a> {
             // The gap is applied as `item_spacing`; items get the parent's back so it
             // doesn't leak into widgets that space their own parts (e.g. a slider's value box).
             let spacing = ui.spacing().item_spacing;
-            // Per-position stable id for the cross-frame W cache. A constant
-            // source would collide between sibling distributed rows, so one row
-            // would read another's cached content width. `next_auto_id` advances
-            // per widget and is deterministic across frames (same pattern as the
-            // vertical-justify cache in `StyledFrame`).
-            let id = ui
-                .make_persistent_id(ui.next_auto_id())
+            // Positional fallback: a constant id would make sibling rows share a cache.
+            let id = id_override
+                .unwrap_or_else(|| ui.make_persistent_id(ui.next_auto_id()))
                 .with("__distribute_w");
             distribute_row_horizontally(ui, avail, mode, min_gap, n, cross_align, id, |ui| {
-                for item in items.drain(..) {
-                    ui.scope(|ui| {
-                        ui.spacing_mut().item_spacing = spacing;
-                        item(ui);
-                    });
+                for (k, item) in items.drain(..).enumerate() {
+                    row_item(ui, id.with(k), spacing, item);
                 }
             });
             ui.response()
@@ -66,6 +67,7 @@ impl<'a> StyledDistributedRow<'a> {
                 justify: None,
                 gap: None,
                 fill_size: None,
+                id: self.id.map(|id| id.with("__frame")),
             }
             .show(ui, |ui| render(ui))
             .inner
