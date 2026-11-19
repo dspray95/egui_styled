@@ -539,33 +539,26 @@ tags.show(ui);
 ### Measurement
 
 Wrapping and distributed rows, vertical justify, stacks, shrink-to-fit frames and
-centred areas lay out from their content's size. They measure what they drew, and
-when that changes (or on first show) they ask egui to rerun the frame, so the
-measuring pass is never shown.
+centred areas lay out from their content's size. They measure what they drew and,
+on first show or when it changes, rerun the frame so the measuring pass is never shown.
 
-**Pass safety:** on those frames your UI code runs twice. egui input is safe (events
-go to the first pass only), but code that toggles or accumulates your own state per
-call (`if key_pressed { open = !open }` on engine input, `t += dt`) applies twice.
-Move it outside the UI closure, or make it idempotent.
+**Pass safety:** your UI code runs twice on those frames. egui input is safe, but code
+that mutates your own state per call (`t += dt`, toggles) applies twice: move it outside
+the closure or make it idempotent.
 
 ```rust
-// Off: changes settle one frame late instead (unmeasured content stays hidden, never misplaced).
+// Off: changes settle one frame late; unmeasured content stays hidden, never misplaced.
 Styled::set_multipass(ctx, false);
-
-// Dev only: rerun every frame, so code that isn't pass-safe breaks reliably.
+// Dev only: rerun every frame to flush out pass-unsafe code.
 Styled::debug_force_multipass(ctx, true);
-
 // Tuning and counters.
 Styled::set_measure_config(ctx, MeasureConfig { max_streak: 2, ..Default::default() });
 let stats = Styled::measure_stats(ctx);
 ```
 
-Reruns are bounded: a container that keeps changing (an animation) falls back to a
-one-frame lag after `max_streak` frames, at most `budget.0` of any `budget.1` frames
-rerun, and a measurement that never settles is frozen after `max_changes` frames.
-
-Measured containers key their state by position. If siblings before one come and go,
-give it a stable `.id(...)`.
+A container that changes every frame lags by one frame after `max_streak`; one that never
+settles freezes after `max_changes`. Measured state is keyed by position, so give a
+container a stable `.id(...)` if siblings before it come and go.
 
 ### Text effects
 

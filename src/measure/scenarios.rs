@@ -186,22 +186,18 @@ fn width_animation_reruns_up_to_max_streak() {
 }
 
 #[test]
-fn staggered_first_shows_stay_within_budget() {
+fn staggered_first_shows_each_rerun_in_their_own_frame() {
     let context = Context::default();
-    let (max, window) = Styled::measure_config(&context).budget;
     let differs = |a: &f32, b: &f32| (a - b).abs() > 0.5;
-    let reruns = (0..window as usize)
-        .map(|i| {
-            frame(&context, |ui| {
-                // One new container per frame, each on its first measurement.
-                for j in 0..=i {
-                    super::record(ui.ctx(), Id::unique(("row", j)), "test", 10.0, differs);
-                }
-            })
-        })
-        .filter(|&passes| passes == 2)
-        .count();
-    assert_eq!(reruns, max as usize);
+
+    for i in 0..8usize {
+        let passes = frame(&context, |ui| {
+            for j in 0..=i {
+                super::record(ui.ctx(), Id::unique(("row", j)), "test", 10.0, differs);
+            }
+        });
+        assert_eq!(passes, 2, "new row on frame {i} reruns the frame");
+    }
 }
 
 #[test]

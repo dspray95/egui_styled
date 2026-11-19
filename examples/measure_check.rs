@@ -78,8 +78,6 @@ impl App {
             .on_hover_text("Off: egui only repaints on input or when something asks");
         ui.add(egui::Slider::new(&mut config.max_streak, 0..=10).text("max_streak"));
         ui.add(egui::Slider::new(&mut config.max_changes, 10..=600).text("max_changes"));
-        ui.add(egui::Slider::new(&mut config.budget.0, 0..=16).text("budget frames"));
-        ui.add(egui::Slider::new(&mut config.budget.1, 1..=64).text("budget window"));
         if ui.button("Reset config").clicked() {
             config = MeasureConfig::default();
         }
@@ -112,7 +110,7 @@ impl App {
             ui,
             "1. Size animation",
             "Right stays pinned, the middle tag stays centred, the wrap row reflows cleanly, \
-             the boxes stay centred. Past max_streak, changes show one frame late: look for lag.",
+             the boxes stay centred.",
             |ui| {
                 if ui.button("Animate (2 s)").clicked() {
                     self.anim_start = Some(now);
@@ -210,8 +208,7 @@ impl App {
         card(
             ui,
             "3. Staggered appearance",
-            "One new measured row per frame, more than the rerun budget allows. Rows refused a \
-             rerun appear a frame late, but none should appear in the wrong place.",
+            "One new measured row per frame every row is places correctly as it appears",
             |ui| {
                 ui.horizontal(|ui| {
                     if ui.button("Show rows").clicked() {

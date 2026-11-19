@@ -1,7 +1,6 @@
 //! Measurement for containers that lay out from their content's size.
 //! A change reruns the pass (`request_discard`), or repaints when a rerun isn't allowed.
 
-mod budget;
 mod config;
 mod debug;
 mod measured;
@@ -12,7 +11,6 @@ mod stats;
 pub use config::MeasureConfig;
 pub use stats::MeasureStats;
 
-use budget::Budget;
 use egui::{Context, Id};
 use measured::Measured;
 
@@ -20,7 +18,6 @@ use measured::Measured;
 struct State {
     config: MeasureConfig,
     stats: MeasureStats,
-    budget: Budget,
     force_multipass: bool,
 }
 
@@ -85,7 +82,6 @@ enum Request {
 }
 
 fn settle(context: &Context, id: Id, kind: &'static str, streak: u32) {
-    let frame_nr = context.cumulative_frame_nr();
     let request = with_state(context, |s| {
         let c = s.config;
         if streak > c.max_changes {
@@ -95,7 +91,7 @@ fn settle(context: &Context, id: Id, kind: &'static str, streak: u32) {
                 log::warn!("egui_styled: {kind} {id:?} keeps changing size, frozen");
             }
             Request::Nothing
-        } else if c.multipass && streak <= c.max_streak && s.budget.try_spend(frame_nr, c.budget) {
+        } else if c.multipass && streak <= c.max_streak {
             Request::Rerun
         } else {
             Request::Repaint

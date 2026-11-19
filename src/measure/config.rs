@@ -8,8 +8,6 @@ pub struct MeasureConfig {
     pub max_streak: u32,
     /// Consecutive changing frames before a container stops requesting passes or repaints.
     pub max_changes: u32,
-    /// At most `budget.0` rerun frames in any `budget.1`-frame window, across the context.
-    pub budget: (u32, u32),
 }
 
 impl Default for MeasureConfig {
@@ -18,7 +16,6 @@ impl Default for MeasureConfig {
             multipass: true,
             max_streak: 1,
             max_changes: 180,
-            budget: (4, 16),
         }
     }
 }
