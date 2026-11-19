@@ -1,6 +1,6 @@
 [package]
 name = "egui_styled"
-version = "0.10.0"
+version = "0.11.0"
 edition = "2024"
 rust-version = "1.95"
 authors = ["David Spray <dev@david-spray.me>"]
@@ -36,7 +36,10 @@ eframe = "0.37.0"
 egui_extras = { version = "0.37.0", features = ["image"] }
 egui_kittest = { version = "0.37.0", features = ["snapshot", "wgpu"] }
 # JPEG photos and PNG screenshots in the showcase.
-image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+image = { version = "0.25", default-features = false, features = [
+  "jpeg",
+  "png",
+] }
 
 [[example]]
 name = "backdrop_blur"
