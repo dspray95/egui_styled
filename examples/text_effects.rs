@@ -143,10 +143,13 @@ fn scale_examples(ui: &mut egui::Ui, theme: &StyledTheme, t: f32) {
     let resting = egui::vec2(280.0, 40.0);
 
     Styled::column().gap(theme.spacing_sm).show(ui, |ui| {
-        // Static scale — demonstrates layout stays stable
+        // Static scale — demonstrates layout stays stable; bg scales with the text.
         Styled::label("Static scale  (1.3×)")
             .font(theme.font_display(theme.font_size_lg))
             .text_color(Color32::WHITE)
+            .bg(Color32::from_rgb(150, 40, 40))
+            .padding(8.0)
+            .corner_radius(6.0)
             .scale(1.3, Align2::LEFT_CENTER)
             .extend()
             .show(ui);
@@ -157,6 +160,9 @@ fn scale_examples(ui: &mut egui::Ui, theme: &StyledTheme, t: f32) {
                 Styled::label("Animated scale  (center pivot)")
                     .font(theme.font_display(theme.font_size_lg))
                     .text_color(Color32::from_rgb(0, 220, 255))
+                    .bg(Color32::from_rgb(20, 60, 70))
+                    .padding(8.0)
+                    .corner_radius(6.0)
                     .scale(scale_anim, Align2::CENTER_CENTER)
                     .extend()
                     .show(ui);

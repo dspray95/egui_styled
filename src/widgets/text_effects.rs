@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use egui::{
     Align2, Color32, Pos2, Shape, Vec2,
-    emath::TSTransform,
     epaint::{Galley, TextShape},
 };
 
@@ -81,20 +80,15 @@ impl TextEffects {
 ///
 /// Call this after `label.layout_in_ui(ui)` has allocated space and returned
 /// `(pos, galley, response)`. Paints in z-order: glow (bottom), shadows, outline,
-/// main glyph (top). When
-/// `.scale()` is set, the entire range is transformed via `TSTransform` about
-/// the requested pivot, leaving the allocated rect untouched.
+/// main glyph (top). `.scale()` is not applied here: the caller scales the whole
+/// label (box and glyphs) together, so these shapes are left untransformed.
 pub fn paint_text_effects(
     ui: &mut egui::Ui,
     pos: Pos2,
     galley: Arc<Galley>,
     fallback_color: Color32,
     effects: &TextEffects,
-    response_rect: egui::Rect,
 ) {
-    let layer_id = ui.layer_id();
-    let scale_start = ui.painter().add(Shape::Noop);
-
     // --- glow (bottom layer) ---
     if let Some(glow) = effects.glow {
         super::glow_mask::paint(ui, pos, &galley, glow);
@@ -115,20 +109,6 @@ pub fn paint_text_effects(
     // --- main glyph (top) ---
     ui.painter()
         .add(Shape::Text(TextShape::new(pos, galley, fallback_color)));
-
-    let scale_end = ui.painter().add(Shape::Noop);
-
-    // --- scale transform (wraps all shapes above) ---
-    if let Some((factor, pivot_align)) = effects.scale {
-        let pivot = pivot_align.pos_in_rect(&response_rect);
-        // Translate pivot to origin → scale → translate back.
-        let t = TSTransform::from_translation(pivot.to_vec2())
-            * TSTransform::from_scaling(factor)
-            * TSTransform::from_translation(-pivot.to_vec2());
-        ui.ctx().graphics_mut(|g| {
-            g.entry(layer_id).transform_range(scale_start, scale_end, t);
-        });
-    }
 }
 
 // --- helpers ---

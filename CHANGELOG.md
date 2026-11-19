@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Interactive widgets inside `StyledStack` are hit-tested where they're painted**, including in centred stacks, and a stack with `.sense(Sense::click())` no longer swallows its children's clicks.
 - **Centred `StyledArea`s** are centred on their first frame and when their size changes, instead of one frame late.
 - **Aligned `StyledStack` layers are placed at their natural size.** Rows, frames and wrapping rows in `layer_aligned` / `layer_fixed` now sit where the alignment says, instead of at the top-left or stretched to fill the layer.
+- **`StyledLabel::scale` scales the whole label**, including its `bg`, border and shadows, about the pivot. It used to scale only the glyphs, so a scaled label with a background overflowed it.
 
 ## [0.10.0] - 2026-11-15
 

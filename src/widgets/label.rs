@@ -1,6 +1,6 @@
 use egui::{
     Align2, Color32, FontId, Label, Response, RichText, Shape, Stroke, TextWrapMode, Ui, Vec2,
-    WidgetText,
+    WidgetText, emath::TSTransform,
 };
 
 use crate::{
@@ -177,8 +177,8 @@ impl StyledLabel {
         self
     }
 
-    /// Scale the painted glyphs about `pivot` without shifting the allocated
-    /// layout footprint. Siblings are unaffected.
+    /// Scale the painted label (background, border and glyphs) about `pivot`
+    /// without shifting the allocated layout footprint. Siblings are unaffected.
     ///
     /// `factor` is a plain per-frame value — keep the animation curve on the
     /// consumer side and pass the current scale here. Pair with
@@ -273,6 +273,8 @@ impl StyledLabel {
         let style_shadows = self.style.shadows.clone();
 
         let response = render_scoped(ui, visible, |ui| {
+            // Scale wraps every shape the label paints, so open the range first.
+            let scale_start = effects.scale.map(|_| ui.painter().add(Shape::Noop));
             let shadow_idx = ui.painter().add(Shape::Noop);
             let backdrop = BackdropSlot::reserve(ui, &self.style);
             let gradient_idx = ui.painter().add(Shape::Noop);
@@ -297,7 +299,7 @@ impl StyledLabel {
                         }
                         let (pos, galley, response) = label.layout_in_ui(ui);
                         let fallback = ui.visuals().widgets.inactive.text_color();
-                        paint_text_effects(ui, pos, galley, fallback, &effects, response.rect);
+                        paint_text_effects(ui, pos, galley, fallback, &effects);
                         response
                     } else {
                         // Fast path: let egui handle everything (widget_info,
@@ -339,6 +341,19 @@ impl StyledLabel {
             }
 
             paint_shadows(ui, shadow_idx, fill, corner_radius, &style_shadows);
+
+            // Scale the whole label (box + glyph effects) about the pivot,
+            // resolved in the box footprint, without touching the layout.
+            if let (Some(start), Some((factor, pivot_align))) = (scale_start, effects.scale) {
+                let pivot = pivot_align.pos_in_rect(&fill);
+                let transform = TSTransform::from_translation(pivot.to_vec2())
+                    * TSTransform::from_scaling(factor)
+                    * TSTransform::from_translation(-pivot.to_vec2());
+                let end = ui.painter().add(Shape::Noop);
+                let layer_id = ui.layer_id();
+                ui.ctx()
+                    .graphics_mut(|g| g.entry(layer_id).transform_range(start, end, transform));
+            }
             response
         });
 
@@ -478,5 +493,39 @@ mod tests {
         for b in bounds {
             assert_eq!(b, fill, "decoration not on the padded fill rect");
         }
+    }
+
+    #[test]
+    fn scale_grows_the_background_box() {
+        // Regression: scale must transform the label's bg, not only the glyphs.
+        let ctx = egui::Context::default();
+        let bg_rect = |factor: f32| -> Rect {
+            let output = crate::test_util::run_ui(&ctx, egui::RawInput::default(), |ui| {
+                Styled::label("hi")
+                    .padding(6.0)
+                    .bg(Color32::RED)
+                    .scale(factor, egui::Align2::CENTER_CENTER)
+                    .show(ui);
+            });
+            let shapes: Vec<Shape> = output.shapes.into_iter().map(|cs| cs.shape).collect();
+            let mut bounds = Vec::new();
+            painted_bounds(&shapes, &mut bounds);
+            bounds
+                .into_iter()
+                .max_by(|a, b| a.area().total_cmp(&b.area()))
+                .expect("bg rect painted")
+        };
+        let unscaled = bg_rect(1.0);
+        let scaled = bg_rect(2.0);
+        assert!(
+            (scaled.width() - unscaled.width() * 2.0).abs() < 1.0,
+            "bg width should double: {} vs {}",
+            scaled.width(),
+            unscaled.width()
+        );
+        assert!(
+            (scaled.center() - unscaled.center()).length() < 1.0,
+            "scale about the centre should hold the centre"
+        );
     }
 }
