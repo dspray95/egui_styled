@@ -213,7 +213,7 @@ ui.scope(|ui| {
 <br/>
 
 > **Fair comparison:** you can factor the raw-egui version into helper
-> functions, which closes most of the line gap. The bigger win is *what kind*
+> functions, which closes most of the line gap. The bigger win is _what kind_
 > of helper you can write. In raw egui, a style helper typically takes
 > `&mut Ui` and renders immediately. In `egui_styled`, a style helper can
 > return `impl Fn(W) -> W`: a pure value you can store, compose, and tweak at
@@ -225,15 +225,15 @@ ui.scope(|ui| {
 
 ```toml
 [dependencies]
-egui_styled = "0.9"
+egui_styled = "0.11"
 egui = "0.37"
 ```
 
 ### Version compatibility
 
 | egui_styled | egui | Rust (MSRV) |
-|-------------|------|-------------|
-| 0.9.0       | 0.37 | 1.95        |
+| ----------- | ---- | ----------- |
+| 0.9.0+      | 0.37 | 1.95        |
 | 0.8.1       | 0.37 | 1.95        |
 | 0.8.0       | 0.35 | 1.92        |
 | 0.7.1       | 0.35 | 1.92        |
@@ -247,8 +247,8 @@ Web (wasm) is supported - a live demo runs at [david-spray.me](https://david-spr
 
 ### Feature flags
 
-| Feature         | Adds |
-|-----------------|------|
+| Feature         | Adds                                                                                              |
+| --------------- | ------------------------------------------------------------------------------------------------- |
 | `backdrop-blur` | `.backdrop_blur(radius)` on containers. wgpu backend only (native and web); pulls in `egui-wgpu`. |
 
 ---
@@ -713,23 +713,23 @@ correctly.
 
 ## Widget support
 
-| Widget | Status |
-|--------|--------|
-| `StyledButton` | ✅ Full pseudo-state, shadow, padding, border, selected state |
-| `StyledLabel` | ✅ Font, color, effects, min-height, visibility |
-| `StyledTextEdit` | ✅ Hint, multiline, password, focus styling, padding, border |
-| `StyledCheckbox` | ✅ Full pseudo-state |
-| `StyledSlider` | ✅ Rail, fill, handle (incl. hover), value box, width, hide value, suffix, logarithmic |
-| `StyledComboBox` | ✅ Trigger, open state, icon, popup panel (`StyledFrame`, incl. blur), items, `show_index` / `show_values` |
-| `StyledFrame` | ✅ Full box model, background image, vertical justify, aspect ratio |
-| `StyledRow` / `StyledColumn` | ✅ Gap, alignment, box styling, distribution, wrapping |
-| `StyledStack` | ✅ Overlay layers, offsets, alignment, fixed-size layers |
-| `StyledArea` | ✅ Top-level positioned container, fill_screen, anchor, draggable |
-| `StyledCollapsing` | ✅ Styled header, indent toggle, custom icon |
-| `StyledImage` | ✅ Inline images, tint, hover tint, corner radius, border, shadow |
-| `StyledSpacer` | ✅ Flex spacer |
-| `background_image` | ✅ On box containers: stretch or cover fit, fade-in, tint |
-| `bg_gradient` | ✅ On every styled type: 2-stop, 4-corner, N-stop linear, and radial (circle/ellipse, keyword or explicit px/% radii, positionable center) |
+| Widget                       | Status                                                                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `StyledButton`               | ✅ Full pseudo-state, shadow, padding, border, selected state                                                                              |
+| `StyledLabel`                | ✅ Font, color, effects, min-height, visibility                                                                                            |
+| `StyledTextEdit`             | ✅ Hint, multiline, password, focus styling, padding, border                                                                               |
+| `StyledCheckbox`             | ✅ Full pseudo-state                                                                                                                       |
+| `StyledSlider`               | ✅ Rail, fill, handle (incl. hover), value box, width, hide value, suffix, logarithmic                                                     |
+| `StyledComboBox`             | ✅ Trigger, open state, icon, popup panel (`StyledFrame`, incl. blur), items, `show_index` / `show_values`                                 |
+| `StyledFrame`                | ✅ Full box model, background image, vertical justify, aspect ratio                                                                        |
+| `StyledRow` / `StyledColumn` | ✅ Gap, alignment, box styling, distribution, wrapping                                                                                     |
+| `StyledStack`                | ✅ Overlay layers, offsets, alignment, fixed-size layers                                                                                   |
+| `StyledArea`                 | ✅ Top-level positioned container, fill_screen, anchor, draggable                                                                          |
+| `StyledCollapsing`           | ✅ Styled header, indent toggle, custom icon                                                                                               |
+| `StyledImage`                | ✅ Inline images, tint, hover tint, corner radius, border, shadow                                                                          |
+| `StyledSpacer`               | ✅ Flex spacer                                                                                                                             |
+| `background_image`           | ✅ On box containers: stretch or cover fit, fade-in, tint                                                                                  |
+| `bg_gradient`                | ✅ On every styled type: 2-stop, 4-corner, N-stop linear, and radial (circle/ellipse, keyword or explicit px/% radii, positionable center) |
 
 ---
 
